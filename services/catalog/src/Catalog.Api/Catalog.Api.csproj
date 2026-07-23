@@ -5,6 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Catalog.Application/Catalog.Application.csproj" />
+    <ProjectReference Include="../Catalog.Infrastructure/Catalog.Infrastructure.csproj" />
     <ProjectReference Include="../../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
     <ProjectReference Include="../../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
   </ItemGroup>
