@@ -1,9 +1,3 @@
-using System.Reflection;
-using Catalog.Application.Behaviors;
-using FluentValidation;
-using MediatR;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Catalog.Application;
 
 /// <summary>Registers the Catalog application layer with the DI container.</summary>

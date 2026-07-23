@@ -1,6 +1,3 @@
-using Catalog.Application.Abstractions;
-using MediatR;
-
 namespace Catalog.Application.Features.GetEvent;
 
 /// <summary>Handles <see cref="GetEventQuery"/>, mapping the aggregate to a read model.</summary>

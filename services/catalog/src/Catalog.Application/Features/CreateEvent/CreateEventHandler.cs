@@ -1,7 +1,3 @@
-using Catalog.Application.Abstractions;
-using Catalog.Domain;
-using MediatR;
-
 namespace Catalog.Application.Features.CreateEvent;
 
 /// <summary>Handles <see cref="CreateEventCommand"/> by creating and persisting a draft event.</summary>

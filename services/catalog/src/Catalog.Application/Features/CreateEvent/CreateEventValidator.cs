@@ -1,5 +1,3 @@
-using FluentValidation;
-
 namespace Catalog.Application.Features.CreateEvent;
 
 /// <summary>Validation rules for <see cref="CreateEventCommand"/>.</summary>

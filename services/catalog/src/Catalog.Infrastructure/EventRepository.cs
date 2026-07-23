@@ -1,7 +1,3 @@
-using Catalog.Application.Abstractions;
-using Catalog.Domain;
-using Microsoft.EntityFrameworkCore;
-
 namespace Catalog.Infrastructure;
 
 /// <summary>EF Core implementation of <see cref="IEventRepository"/>.</summary>

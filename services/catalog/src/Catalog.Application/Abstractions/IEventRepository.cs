@@ -1,5 +1,3 @@
-using Catalog.Domain;
-
 namespace Catalog.Application.Abstractions;
 
 /// <summary>

@@ -1,8 +1,3 @@
-using Catalog.Application.Abstractions;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-
 namespace Catalog.Infrastructure;
 
 /// <summary>Registers the Catalog infrastructure layer with the DI container.</summary>

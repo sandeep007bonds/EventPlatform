@@ -1,5 +1,3 @@
-using MediatR;
-
 namespace Catalog.Application.Features.CreateEvent;
 
 /// <summary>

@@ -1,7 +1,3 @@
-using Catalog.Domain;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 namespace Catalog.Infrastructure.Configurations;
 
 /// <summary>EF Core mapping for the <see cref="Event"/> aggregate.</summary>

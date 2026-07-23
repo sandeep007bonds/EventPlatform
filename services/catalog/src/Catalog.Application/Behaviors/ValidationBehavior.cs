@@ -1,6 +1,3 @@
-using FluentValidation;
-using MediatR;
-
 namespace Catalog.Application.Behaviors;
 
 /// <summary>
@@ -36,6 +33,6 @@ public sealed class ValidationBehavior<TRequest, TResponse>(IEnumerable<IValidat
             }
         }
 
-        return await next();
+        return await next(cancellationToken);
     }
 }

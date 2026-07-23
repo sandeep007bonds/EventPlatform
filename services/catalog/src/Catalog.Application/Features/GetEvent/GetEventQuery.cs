@@ -1,5 +1,3 @@
-using MediatR;
-
 namespace Catalog.Application.Features.GetEvent;
 
 /// <summary>Query to fetch a single event by id.</summary>

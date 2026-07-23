@@ -1,0 +1,7 @@
+global using System.Reflection;
+global using Catalog.Application.Abstractions;
+global using Catalog.Application.Behaviors;
+global using Catalog.Domain;
+global using FluentValidation;
+global using MediatR;
+global using Microsoft.Extensions.DependencyInjection;

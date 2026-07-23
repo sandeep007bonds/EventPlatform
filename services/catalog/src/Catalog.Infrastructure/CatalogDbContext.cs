@@ -1,6 +1,3 @@
-using Catalog.Domain;
-using Microsoft.EntityFrameworkCore;
-
 namespace Catalog.Infrastructure;
 
 /// <summary>EF Core database context for the Catalog service (schema <c>catalog</c>).</summary>
