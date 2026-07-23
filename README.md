@@ -58,6 +58,7 @@ a robust anti-bot layer.
 - [Architecture Decision Records (ADRs)](docs/adr/) — the locked decisions and why
 - **Detailed design** ([docs/design/](docs/design/)):
   [HLD](docs/design/hld.md) · [DFD](docs/design/dfd.md) · [LLD — Phase 1 seated](docs/design/lld-phase1-seated.md)
+- [Engineering Guidelines (golden rules)](docs/engineering-guidelines.md) · [root CLAUDE.md](CLAUDE.md)
 
 ## Guiding principles
 
@@ -93,3 +94,12 @@ The foundational decisions are made and recorded as
 
 A few product-level questions remain open (target regions, resale stance) —
 see [09 — Delivery Roadmap](docs/09-delivery-roadmap.md#open-decisions).
+
+## Engineering guidelines
+
+Before writing code, read the [Engineering Guidelines](docs/engineering-guidelines.md)
+and [root CLAUDE.md](CLAUDE.md). The golden rules (one class per file, StyleCop,
+XML docs on public API, Central Package Management, layer boundaries, idempotency,
+a tracking issue per unit of work) are enforced by `Directory.Build.props`,
+`.editorconfig`, `Directory.Packages.props`, and the PR template — not left to
+memory.
