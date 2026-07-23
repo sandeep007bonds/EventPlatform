@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The ONLY code shared across services (ADR-0007/0008): integration-event and
+    message schemas. No business logic, no infrastructure. Versioned with SemVer;
+    changes must be backward-compatible (additive only).
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>EventPlatform.Contracts</RootNamespace>
+  </PropertyGroup>
+
+</Project>
