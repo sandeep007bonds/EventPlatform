@@ -1,0 +1,32 @@
+# Architecture Decision Records (ADRs)
+
+This directory records the significant architecture decisions for EventPlatform.
+Each record captures the **context**, the **decision**, its **consequences**, and
+the **alternatives** we rejected and why — so the reasoning survives beyond the
+conversation it came from.
+
+ADRs are immutable once **Accepted**. To change a decision, add a new ADR that
+supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
+
+## Index
+
+| ADR | Title | Status |
+|-----|-------|--------|
+| [0001](0001-cloud-provider-azure.md) | Cloud provider: Azure, single-cloud SaaS | Accepted |
+| [0002](0002-runtime-aks.md) | Runtime: AKS (Kubernetes) from day one | Accepted |
+| [0003](0003-dotnet-10.md) | Language/runtime: .NET 10 (LTS) | Accepted |
+| [0004](0004-cicd-github-actions-argocd.md) | CI/CD: GitHub Actions + Argo CD (GitOps) | Accepted |
+| [0005](0005-iac-terraform.md) | Infrastructure as Code: Terraform | Accepted |
+| [0006](0006-dapr.md) | Infrastructure abstraction: Dapr | Accepted |
+| [0007](0007-monorepo.md) | Repository layout: Monorepo | Accepted |
+| [0008](0008-microservices-ddd.md) | Decomposition: DDD bounded contexts, database-per-service | Accepted |
+| [0009](0009-service-internal-pattern.md) | Per-service pattern: Clean Architecture + Vertical Slices + CQRS | Accepted |
+| [0010](0010-messaging-and-sagas.md) | Messaging: event-driven + orchestrated saga + outbox | Accepted |
+| [0011](0011-tenancy-hybrid.md) | Multi-tenancy: hybrid (pooled + cell isolation) | Accepted |
+| [0012](0012-payments.md) | Payments: saga + idempotency + PCI SAQ-A | Accepted |
+| [0013](0013-phase1-seated.md) | Phase 1 scope: seated events first | Accepted |
+
+## Format
+
+Each ADR uses: **Status**, **Context**, **Decision**, **Consequences**,
+**Alternatives considered**.
