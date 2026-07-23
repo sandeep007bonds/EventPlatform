@@ -1,6 +1,16 @@
+global using System.Security.Claims;
+global using System.Text.Json;
+global using System.Text.Json.Serialization;
+global using Microsoft.AspNetCore.Authentication.JwtBearer;
 global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 global using Microsoft.AspNetCore.Http;
 global using Microsoft.Extensions.Configuration;
 global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;
 global using Microsoft.Extensions.Logging;
+global using Microsoft.IdentityModel.Tokens;
+global using OpenTelemetry.Metrics;
+global using OpenTelemetry.Resources;
+global using OpenTelemetry.Trace;
+global using Scalar.AspNetCore;

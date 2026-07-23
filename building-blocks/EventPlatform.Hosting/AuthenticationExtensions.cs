@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-
 namespace EventPlatform.Hosting;
 
 /// <summary>

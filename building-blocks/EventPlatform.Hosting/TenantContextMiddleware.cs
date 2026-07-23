@@ -1,5 +1,3 @@
-using System.Security.Claims;
-
 namespace EventPlatform.Hosting;
 
 /// <summary>
@@ -14,6 +12,7 @@ internal sealed class TenantContextMiddleware(RequestDelegate next)
     /// <summary>Executes the middleware for the current request.</summary>
     /// <param name="context">The HTTP context.</param>
     /// <param name="tenant">The scoped tenant context to populate.</param>
+    /// <returns>A task that completes when the request has been processed.</returns>
     public async Task InvokeAsync(HttpContext context, TenantContext tenant)
     {
         ArgumentNullException.ThrowIfNull(context);

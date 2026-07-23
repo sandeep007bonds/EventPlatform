@@ -1,5 +1,3 @@
-using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-
 namespace EventPlatform.Hosting;
 
 /// <summary>

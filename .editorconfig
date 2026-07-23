@@ -17,10 +17,10 @@ max_line_length = 120
 
 # --- Language conventions ---
 csharp_style_namespace_declarations = file_scoped:error
-csharp_using_directive_placement = inside_namespace:warning
+csharp_using_directive_placement = outside_namespace:warning   # required for file-scoped namespaces + global usings
 csharp_prefer_braces = true:warning
 dotnet_sort_system_directives_first = true
-dotnet_style_require_accessibility_modifiers = always:warning
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:warning
 csharp_style_var_when_type_is_apparent = true:suggestion
 
 # --- Nullable / quality ---
@@ -36,6 +36,7 @@ dotnet_diagnostic.SA1200.severity = none    # 'using inside namespace' handled a
 dotnet_diagnostic.SA0001.severity = none    # XML comment output (docs still enforced via CS1591)
 dotnet_diagnostic.SA1101.severity = none    # do NOT require 'this.' prefix (modern C# style)
 dotnet_diagnostic.SA1623.severity = none    # do NOT require 'Gets/Sets' doc prefix on properties
+dotnet_diagnostic.SA1642.severity = none    # do NOT require 'Initializes a new instance...' ctor boilerplate
 
 # --- Code-analysis (CA) adjustments ---
 dotnet_diagnostic.CA1716.severity = none    # allow natural domain names like 'Event' (rule targets VB keyword clashes)

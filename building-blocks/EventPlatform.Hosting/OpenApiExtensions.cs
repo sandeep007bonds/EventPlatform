@@ -1,5 +1,3 @@
-using Scalar.AspNetCore;
-
 namespace EventPlatform.Hosting;
 
 /// <summary>
