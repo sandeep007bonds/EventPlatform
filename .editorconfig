@@ -34,6 +34,11 @@ dotnet_diagnostic.SA1633.severity = none    # no mandatory file header
 dotnet_diagnostic.SA1600.severity = error   # public members documented
 dotnet_diagnostic.SA1200.severity = none    # 'using inside namespace' handled above
 dotnet_diagnostic.SA0001.severity = none    # XML comment output (docs still enforced via CS1591)
+dotnet_diagnostic.SA1101.severity = none    # do NOT require 'this.' prefix (modern C# style)
+dotnet_diagnostic.SA1623.severity = none    # do NOT require 'Gets/Sets' doc prefix on properties
+
+# --- Code-analysis (CA) adjustments ---
+dotnet_diagnostic.CA1716.severity = none    # allow natural domain names like 'Event' (rule targets VB keyword clashes)
 
 # --- Naming: interfaces prefixed with I, etc. (analyzer defaults) ---
 dotnet_naming_rule.interfaces_start_with_i.severity = error

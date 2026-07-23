@@ -15,10 +15,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
-      <PrivateAssets>all</PrivateAssets>
-      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
-    </PackageReference>
+    <!-- Microsoft.EntityFrameworkCore.Design is added back when we introduce EF migrations (tracker T8).
+         Its MSBuild/Roslyn tooling tree drags in vulnerable transitives; dev currently uses EnsureCreated. -->
   </ItemGroup>
 
 </Project>
