@@ -32,22 +32,22 @@ Each service is a .NET 10 solution using Clean Architecture + Vertical Slices.
 Reference layout (Order service shown):
 
 ```
-services/order/
-├─ src/
-│  ├─ Order.Api/                # Minimal API host, Dapr, DI, middleware
-│  │  └─ Program.cs
-│  ├─ Order.Application/        # Vertical slices (features)
-│  │  └─ Features/
-│  │     ├─ CreateOrder/        # Command, Handler, Validator, Endpoint
-│  │     ├─ GetOrder/
-│  │     └─ Checkout/           # saga trigger
-│  ├─ Order.Domain/            # Entities, value objects, domain events, invariants
-│  ├─ Order.Infrastructure/    # EF Core, outbox, Dapr adapters, PSP client port impl
-│  └─ Order.Workflow/          # Dapr Workflow: checkout saga + activities
+services/order/                # layers sit directly under the service (no src/)
+├─ Order.Api/                  # Minimal API host, Dapr, DI, middleware
+│  ├─ Program.cs
+│  └─ Endpoints/
+├─ Order.Application/          # Vertical slices (features)
+│  └─ Features/
+│     ├─ CreateOrder/          # Command, Handler, Validator
+│     ├─ GetOrder/
+│     └─ Checkout/             # saga trigger
+├─ Order.Domain/              # Entities, value objects, domain events, invariants
+├─ Order.Infrastructure/      # EF Core, outbox, Dapr adapters, PSP client port impl
+├─ Order.Workflow/            # Dapr Workflow: checkout saga + activities
 ├─ tests/
 │  ├─ Order.UnitTests/
 │  └─ Order.IntegrationTests/  # Testcontainers: Postgres + Redis + Dapr
-├─ db/migrations/              # SQL migrations
+├─ CLAUDE.md · README.md
 ├─ Dockerfile
 └─ chart/                      # Helm chart (values per env)
 ```
