@@ -56,6 +56,8 @@ a robust anti-bot layer.
 - [08 — API Design](docs/08-api-design.md)
 - [09 — Delivery Roadmap](docs/09-delivery-roadmap.md)
 - [Architecture Decision Records (ADRs)](docs/adr/) — the locked decisions and why
+- **Detailed design** ([docs/design/](docs/design/)):
+  [HLD](docs/design/hld.md) · [DFD](docs/design/dfd.md) · [LLD — Phase 1 seated](docs/design/lld-phase1-seated.md)
 
 ## Guiding principles
 
