@@ -1,16 +1,20 @@
 # 03 — Technology Stack
 
-> This is a **recommendation with alternatives**, not a locked decision. The
-> single biggest open decision is cloud + primary language — see the end of
-> this doc and [09 — Roadmap: Open Decisions](09-delivery-roadmap.md#open-decisions).
+> **The foundational stack is now decided** and recorded in the
+> [ADRs](adr/). This doc describes the wider stack; where an ADR exists it is the
+> authority. Key locked choices: **Azure single-cloud** (ADR-0001),
+> **AKS from day one** (ADR-0002), **.NET 10 LTS** (ADR-0003),
+> **GitHub Actions + Argo CD** (ADR-0004), **Terraform** (ADR-0005),
+> **Dapr** (ADR-0006). The "alternatives" columns below are kept as rationale/
+> history, not as still-open options.
 
-## Recommended stack (Azure-leaning, given the AZ-204 context)
+## Stack (Azure, single-cloud SaaS)
 
 | Layer | Recommendation | Alternatives |
 |-------|----------------|--------------|
 | **Frontend** | React + Next.js (PWA), TypeScript | Angular, Vue/Nuxt |
 | **Mobile (later)** | React Native or native Swift/Kotlin | Flutter |
-| **Backend services** | **.NET 8 (C#)** for core services; Go for the ultra-hot inventory/queue path | Java/Spring Boot, Node.js/NestJS |
+| **Backend services** | **.NET 10 (C#)** for core services; Go for the ultra-hot inventory/queue path only if profiling requires it | Java/Spring Boot, Node.js/NestJS |
 | **API Gateway** | Azure API Management / YARP; Envoy for internal | Kong, NGINX, AWS API GW |
 | **Waiting room** | Dedicated service in Go/.NET on Redis | Queue-it / Akamai (buy vs build) |
 | **Event bus** | **Apache Kafka** (or Azure Event Hubs, Kafka-compatible) | Pulsar, AWS Kinesis |
@@ -24,9 +28,10 @@
 | **Payments** | Stripe (primary), Adyen; Razorpay for India | Braintree, local PSPs |
 | **Messaging (email/SMS)** | SendGrid + Twilio | Azure Communication Services, SES/SNS |
 | **Wallet passes** | Apple PassKit + Google Wallet API | — |
-| **Auth** | OpenID Connect / OAuth2 (Azure AD B2C or Auth0/Keycloak) | Cognito, self-hosted |
+| **Auth** | OpenID Connect / OAuth2 (Azure AD B2C / Entra or Auth0/Keycloak) | Cognito, self-hosted |
 | **IaC** | Terraform (or Bicep for Azure) | Pulumi, ARM |
-| **CI/CD** | GitHub Actions | Azure DevOps, GitLab CI |
+| **CI/CD** | GitHub Actions (CI) + Argo CD / GitOps (CD) | Azure DevOps, GitLab CI, Flux |
+| **Infra abstraction** | Dapr (pub/sub, state, secrets, workflow) | raw Azure SDKs |
 | **Observability** | OpenTelemetry → Prometheus/Grafana + Loki + Tempo; App Insights | Datadog, New Relic, ELK |
 | **Feature flags** | LaunchDarkly / OpenFeature | Unleash |
 
@@ -44,7 +49,7 @@
   inventory; consider CockroachDB if we need horizontal write scaling later.
 - **CQRS split stores.** Selling stays fast on the write model; browsing and
   reporting scale independently on read models fed by Kafka.
-- **A separate hot-path language (Go) is optional.** .NET 8 is fast enough for
+- **A separate hot-path language (Go) is optional.** .NET 10 is fast enough for
   most of this; Go is worth it only if profiling shows the inventory/queue path
   needs it. Don't prematurely fragment the stack.
 

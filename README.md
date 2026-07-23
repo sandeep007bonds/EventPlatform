@@ -55,6 +55,7 @@ a robust anti-bot layer.
 - [07 — Observability](docs/07-observability.md)
 - [08 — API Design](docs/08-api-design.md)
 - [09 — Delivery Roadmap](docs/09-delivery-roadmap.md)
+- [Architecture Decision Records (ADRs)](docs/adr/) — the locked decisions and why
 
 ## Guiding principles
 
@@ -70,9 +71,23 @@ a robust anti-bot layer.
   SMS) will fail sometimes; the system degrades gracefully, never loses money,
   and never loses a sold seat.
 
-## Open decisions (to confirm before build)
+## Architecture decisions (locked)
 
-See [09 — Delivery Roadmap](docs/09-delivery-roadmap.md#open-decisions). The
-biggest one is **cloud & language stack** — this repo currently recommends a
-cloud-native, Azure-friendly option (given the AZ-204 context) with clear
-alternatives.
+The foundational decisions are made and recorded as
+[ADRs](docs/adr/). In short:
+
+- **Azure**, single-cloud SaaS ([ADR-0001](docs/adr/0001-cloud-provider-azure.md))
+- **AKS from day one** for hot-path cell isolation ([ADR-0002](docs/adr/0002-runtime-aks.md))
+- **.NET 10 (LTS)** ([ADR-0003](docs/adr/0003-dotnet-10.md))
+- **GitHub Actions + Argo CD (GitOps)** ([ADR-0004](docs/adr/0004-cicd-github-actions-argocd.md))
+- **Terraform** ([ADR-0005](docs/adr/0005-iac-terraform.md)) and **Dapr** ([ADR-0006](docs/adr/0006-dapr.md))
+- **Monorepo** with path-filtered pipelines ([ADR-0007](docs/adr/0007-monorepo.md))
+- **DDD bounded contexts, database-per-service** ([ADR-0008](docs/adr/0008-microservices-ddd.md))
+- **Clean Architecture + Vertical Slices + CQRS** ([ADR-0009](docs/adr/0009-service-internal-pattern.md))
+- **Event-driven + orchestrated saga + outbox** ([ADR-0010](docs/adr/0010-messaging-and-sagas.md))
+- **Hybrid multi-tenancy** ([ADR-0011](docs/adr/0011-tenancy-hybrid.md))
+- **Payments: saga + idempotency + PCI SAQ-A** ([ADR-0012](docs/adr/0012-payments.md))
+- **Phase 1 = seated events** ([ADR-0013](docs/adr/0013-phase1-seated.md))
+
+A few product-level questions remain open (target regions, resale stance) —
+see [09 — Delivery Roadmap](docs/09-delivery-roadmap.md#open-decisions).
