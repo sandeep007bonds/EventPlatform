@@ -35,10 +35,10 @@ Stop with `docker compose down` (add `-v` to also wipe the Postgres volume).
 
 ## 2. Run a service (standalone — no Dapr yet)
 
-The current Catalog skeleton doesn't call Dapr, so you can just run it:
+The Catalog service doesn't call Dapr yet, so you can just run it:
 
 ```bash
-dotnet run --project services/catalog/src/Catalog.Api
+dotnet run --project services/catalog/Catalog.Api
 ```
 
 Then open:
@@ -62,7 +62,7 @@ dapr run \
   --app-id catalog \
   --resources-path platform/dapr/components \
   --config platform/dapr/config.yaml \
-  -- dotnet run --project services/catalog/src/Catalog.Api
+  -- dotnet run --project services/catalog/Catalog.Api
 ```
 
 The local Dapr components in `platform/dapr/components/` point at the Docker Redis

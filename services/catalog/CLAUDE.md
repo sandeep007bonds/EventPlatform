@@ -17,15 +17,15 @@ storefront (cached). Bounded context: **Catalog** (ADR-0008).
 
 ## Structure
 
-Currently a skeleton: `src/Catalog.Api` uses `AddServiceDefaults()` /
-`UseServiceDefaults()` from `EventPlatform.Hosting`. During Phase 1 (issue #6)
-this grows the standard layers: `Catalog.Application` (Features/ slices),
-`Catalog.Domain`, `Catalog.Infrastructure`, and `tests/`.
+Layers sit directly under this folder (no `src/`): `Catalog.Api` (host +
+endpoints, uses `EventPlatform.Hosting`), `Catalog.Application` (Features/ slices),
+`Catalog.Domain` (aggregate + invariants), `Catalog.Infrastructure` (EF Core +
+Postgres). `tests/` to follow.
 
 ## Local run
 
 ```bash
-dotnet run --project src/Catalog.Api
+dotnet run --project services/catalog/Catalog.Api
 # browse the API docs at /scalar/v1 (non-production)
 ```
 

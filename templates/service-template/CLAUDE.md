@@ -23,12 +23,15 @@ and the [engineering guidelines](../../docs/engineering-guidelines.md).
 - `X.Workflow` — Dapr workflow + activities (only if this service orchestrates a saga)
 - `tests/` — unit + integration (Testcontainers)
 
+Layers sit directly under the service folder (no `src/`), e.g.
+`services/<name>/X.Api`, `X.Application`, `X.Domain`, `X.Infrastructure`.
+
 ## Local run
 
 ```bash
-dotnet run --project src/X.Api
+dotnet run --project services/<name>/X.Api
 # or with Dapr sidecar:
-dapr run --app-id x --resources-path ../../platform/dapr/components -- dotnet run --project src/X.Api
+dapr run --app-id x --resources-path platform/dapr/components -- dotnet run --project services/<name>/X.Api
 ```
 
 ## Service-specific rules
