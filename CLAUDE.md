@@ -20,7 +20,7 @@ hybrid multi-tenancy · payments saga + idempotency + PCI SAQ-A · Phase 1 = sea
 
 ## Golden rules (must follow)
 
-1. **One class per file.** File-scoped namespaces, nullable enabled.
+1. **One type per file.** File-scoped namespaces; nullable enabled.
 2. **XML doc comments on all public/protected members.** Private members:
    self-documenting names; comment only the non-obvious *why*.
 3. **StyleCop + analyzers pass with zero warnings** — warnings are errors.
@@ -32,6 +32,37 @@ hybrid multi-tenancy · payments saga + idempotency + PCI SAQ-A · Phase 1 = sea
 7. **No secrets in code.** Key Vault only.
 8. **Every service** ships: tests (unit + integration), health/readiness
    endpoints, OpenTelemetry, a README, and a `CLAUDE.md`.
+
+## Coding conventions (C#) — match these exactly
+
+Enforced by `.editorconfig` + `Directory.Build.props` (warnings are errors).
+
+- **Global usings ONLY.** Every project has a `GlobalUsings.cs` holding its
+  `global using` directives. **Do not put `using` directives in individual
+  `.cs` files** — add the namespace to that project's `GlobalUsings.cs`
+  instead. Every other file starts straight at `namespace X;`.
+- **File-scoped namespaces** (`namespace X;`); usings live **outside** the
+  namespace (required for file-scoped ns + global usings).
+- **One type per file** (SA1402); small nested records/enums may share.
+- **XML docs on all public/protected members** (CS1591 / SA1600 as errors).
+- **Central Package Management** — versions only in `Directory.Packages.props`;
+  never `Version="..."` on a `.csproj` `PackageReference`.
+- **.NET 10 framework packages are NOT referenced explicitly** (e.g.
+  `System.Security.Cryptography.Xml`) — they're framework-provided and
+  auto-pruned; an explicit reference fails with **NU1510**. Fix a vulnerable
+  *framework* transitive by removing the ref and letting pruning use the
+  patched framework version.
+- **Vulnerable NON-framework transitives** are fixed with a direct
+  `PackageReference` at the patched version in the project that pulls them
+  (transitive pinning is off — it conflicts with EF Core Design's tree).
+- **EF Core Design** is referenced only where migrations are generated, not in
+  every Infrastructure project (its MSBuild/Roslyn tree pulls vulnerable
+  transitives).
+- **Forward `CancellationToken`** through async calls (CA2016).
+- **Deliberately-disabled analyzer rules** (see `.editorconfig`): SA1101
+  (`this.` prefix), SA1623 (`Gets/Sets` doc prefix), SA1642 (ctor boilerplate),
+  CA1716 (keyword-like type names such as `Event`). Don't re-enable without
+  discussion.
 
 ## Workflow rules
 
