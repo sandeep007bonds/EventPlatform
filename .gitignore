@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+bin/
+obj/
+*.user
+
+# Build output
+dist/
+build/
+out/
+
+# Env & secrets
+.env
+.env.*
+*.pem
+secrets/
+
+# IDE
+.idea/
+.vs/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
