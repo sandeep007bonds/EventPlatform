@@ -34,6 +34,12 @@
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Application (in-process mediator)">
+    <!-- Pinned to the last Apache/OSS release; do NOT bump to 13.x (commercial). See ADR-0014. -->
+    <PackageVersion Include="MediatR" Version="12.5.0" />
+    <PackageVersion Include="MediatR.Contracts" Version="2.0.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Observability (OpenTelemetry)">
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />

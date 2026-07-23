@@ -25,6 +25,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0011](0011-tenancy-hybrid.md) | Multi-tenancy: hybrid (pooled + cell isolation) | Accepted |
 | [0012](0012-payments.md) | Payments: saga + idempotency + PCI SAQ-A | Accepted |
 | [0013](0013-phase1-seated.md) | Phase 1 scope: seated events first | Accepted |
+| [0014](0014-mediator-mediatr-v12.md) | In-process mediator: MediatR pinned to v12.5.0 | Accepted |
 
 ## Format
 
