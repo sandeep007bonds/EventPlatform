@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/_root/">
+    <File Path="Directory.Build.props" />
+    <File Path="Directory.Packages.props" />
+    <File Path=".editorconfig" />
+  </Folder>
+  <Folder Name="/building-blocks/">
+    <Project Path="building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+    <Project Path="building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+  </Folder>
+  <Folder Name="/services/">
+    <Project Path="services/catalog/src/Catalog.Api/Catalog.Api.csproj" />
+  </Folder>
+</Solution>
