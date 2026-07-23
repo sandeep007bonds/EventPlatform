@@ -1,0 +1,16 @@
+# LOCAL DEV Dapr pub/sub component (Redis-backed).
+# Used via:  dapr run --resources-path platform/dapr ...
+# In Azure this is replaced by an Azure Service Bus component (same name "pubsub"),
+# so service code never changes — only this file does.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: localhost:6380
+    - name: redisPassword
+      value: ""

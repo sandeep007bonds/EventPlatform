@@ -14,6 +14,7 @@ out/
 .env.*
 *.pem
 secrets/
+platform/dapr/secrets.local.json
 
 # IDE
 .idea/

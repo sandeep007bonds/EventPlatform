@@ -1,0 +1,13 @@
+# LOCAL DEV Dapr configuration. Sends Dapr's own traces to the local Jaeger
+# (OTLP on localhost:4317), matching where the services export their traces.
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: eventplatform-config
+spec:
+  tracing:
+    samplingRate: "1"
+    otel:
+      endpointAddress: localhost:4317
+      isSecure: false
+      protocol: grpc

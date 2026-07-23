@@ -5,8 +5,10 @@ A high-performance, reliable ticketing platform for large-scale live events
 **flash-sale traffic** — hundreds of thousands of concurrent users competing
 for a limited, perishable inventory of seats.
 
-> **Status:** Planning / design phase. This repository currently contains the
-> architecture and feature-flow documentation. No application code yet.
+> **Status:** Design complete; scaffolding in progress. The repo holds the full
+> architecture, ADRs, and detailed design, plus the monorepo skeleton (shared
+> hosting library, contracts, a reference service) and a local Docker dev stack.
+> See [Local Development](docs/local-development.md) to run it — no Azure needed.
 
 ## The core problem
 
@@ -59,6 +61,7 @@ a robust anti-bot layer.
 - **Detailed design** ([docs/design/](docs/design/)):
   [HLD](docs/design/hld.md) · [DFD](docs/design/dfd.md) · [LLD — Phase 1 seated](docs/design/lld-phase1-seated.md)
 - [Engineering Guidelines (golden rules)](docs/engineering-guidelines.md) · [root CLAUDE.md](CLAUDE.md)
+- [Local Development (Docker, no Azure needed)](docs/local-development.md)
 
 ## Guiding principles
 
@@ -91,6 +94,7 @@ The foundational decisions are made and recorded as
 - **Hybrid multi-tenancy** ([ADR-0011](docs/adr/0011-tenancy-hybrid.md))
 - **Payments: saga + idempotency + PCI SAQ-A** ([ADR-0012](docs/adr/0012-payments.md))
 - **Phase 1 = seated events** ([ADR-0013](docs/adr/0013-phase1-seated.md))
+- **MediatR pinned to v12.5.0** (last free/OSS release) ([ADR-0014](docs/adr/0014-mediator-mediatr-v12.md))
 
 A few product-level questions remain open (target regions, resale stance) —
 see [09 — Delivery Roadmap](docs/09-delivery-roadmap.md#open-decisions).
