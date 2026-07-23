@@ -1,0 +1,57 @@
+# EventPlatform — editorconfig
+# Enforces the code-style golden rules. Paired with Directory.Build.props
+# (TreatWarningsAsErrors=true), these severities break the build.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+[*.{cs,csx}]
+indent_size = 4
+max_line_length = 120
+
+# --- Language conventions ---
+csharp_style_namespace_declarations = file_scoped:error
+csharp_using_directive_placement = inside_namespace:warning
+csharp_prefer_braces = true:warning
+dotnet_sort_system_directives_first = true
+dotnet_style_require_accessibility_modifiers = always:warning
+csharp_style_var_when_type_is_apparent = true:suggestion
+
+# --- Nullable / quality ---
+dotnet_diagnostic.CS8600.severity = error   # converting null literal to non-nullable
+dotnet_diagnostic.CS8602.severity = error   # possible null dereference
+dotnet_diagnostic.CS1591.severity = error   # missing XML doc on public member
+
+# --- StyleCop (SA) key rules ---
+dotnet_diagnostic.SA1402.severity = error   # one type per file
+dotnet_diagnostic.SA1633.severity = none    # no mandatory file header
+dotnet_diagnostic.SA1600.severity = error   # public members documented
+dotnet_diagnostic.SA1200.severity = none    # 'using inside namespace' handled above
+dotnet_diagnostic.SA0001.severity = none    # XML comment output (docs still enforced via CS1591)
+
+# --- Naming: interfaces prefixed with I, etc. (analyzer defaults) ---
+dotnet_naming_rule.interfaces_start_with_i.severity = error
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i
+dotnet_naming_symbols.interface_symbols.applicable_kinds = interface
+dotnet_naming_style.prefix_i.required_prefix = I
+dotnet_naming_style.prefix_i.capitalization = pascal_case
+
+# --- Relax doc/style noise where it adds no value ---
+
+# Test projects: don't require XML docs
+[**/tests/**/*.cs]
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.SA1600.severity = none
+
+# Generated / migrations code: exclude from style
+[**/{Migrations,Generated}/**/*.cs]
+generated_code = true
+dotnet_diagnostic.CS1591.severity = none
+dotnet_diagnostic.SA1600.severity = none

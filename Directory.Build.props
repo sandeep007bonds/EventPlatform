@@ -1,0 +1,43 @@
+<Project>
+
+  <!--
+    Shared MSBuild settings applied to EVERY project in the monorepo.
+    This is where the compile-time golden rules live. Individual projects can
+    override where genuinely needed (e.g., test projects relax doc requirements
+    via .editorconfig).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+    <!-- Quality gates: style + analyzers break the build -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+
+    <!-- Require XML docs on public API (CS1591 fires on missing docs) -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- Central Package Management -->
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+
+  <!-- Analyzers applied to every project. Versions come from Directory.Packages.props (CPM). -->
+  <ItemGroup>
+    <PackageReference Include="StyleCop.Analyzers">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="SonarAnalyzer.CSharp">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>
