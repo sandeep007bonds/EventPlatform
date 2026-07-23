@@ -1,0 +1,24 @@
+name: Add issues to project board
+
+# Automatically adds every new/reopened issue to the EventPlatform delivery board.
+# NOTE: issue-triggered workflows run from the repository's DEFAULT branch (main),
+# so this file must be on `main` to take effect.
+
+on:
+  issues:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  add-to-project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Add issue to project
+        uses: actions/add-to-project@v1.0.2
+        with:
+          project-url: https://github.com/users/sandeep007bonds/projects/1
+          # A PAT with "project" (read/write) scope, stored as a repo secret.
+          # The default GITHUB_TOKEN cannot write to a user-owned Project.
+          github-token: ${{ secrets.ADD_TO_PROJECT_PAT }}
