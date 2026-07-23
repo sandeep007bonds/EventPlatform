@@ -12,7 +12,12 @@
 
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
-    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+    <!--
+      Transitive pinning is intentionally OFF: it forces NuGet to pin every transitive
+      package, which conflicts with large tooling trees (e.g. EF Core Design -> MSBuild/Roslyn)
+      and breaks restore. To force a fixed version of a vulnerable transitive, add a DIRECT
+      PackageReference to it in the project that pulls it (see EventPlatform.Hosting).
+    -->
   </PropertyGroup>
 
   <ItemGroup Label="Analyzers">
@@ -50,11 +55,19 @@
   </ItemGroup>
 
   <ItemGroup Label="Observability (OpenTelemetry)">
-    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.10.0" />
-    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Api" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Security fixes for vulnerable transitives (consumed via DIRECT refs in EventPlatform.Hosting)">
+    <!-- CVE-2026-49451 (stack-overflow DoS) — fixed in 2.7.5. Pulled by Microsoft.AspNetCore.OpenApi. -->
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.7.5" />
+    <!-- CVE-2026-33116 / CVE-2026-47304 — fixed in 9.0.18. Pulled by JwtBearer -> Microsoft.IdentityModel. -->
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="9.0.18" />
   </ItemGroup>
 
   <ItemGroup Label="Testing">

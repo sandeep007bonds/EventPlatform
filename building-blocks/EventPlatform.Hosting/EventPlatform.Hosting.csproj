@@ -26,4 +26,10 @@
     <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" />
   </ItemGroup>
 
+  <!-- Direct refs that force fixed versions of otherwise-vulnerable transitive packages. -->
+  <ItemGroup Label="Security overrides">
+    <PackageReference Include="Microsoft.OpenApi" />
+    <PackageReference Include="System.Security.Cryptography.Xml" />
+  </ItemGroup>
+
 </Project>
