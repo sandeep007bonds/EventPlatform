@@ -26,6 +26,12 @@ local development. Update this with each meaningful change.
 - ✅ Catalog service skeleton (uses shared defaults)
 - ✅ Local Docker dev stack (compose + Dapr components + guide)
 - 🚧 **Catalog service implementation (issue #6)** ← current focus
+  - ✅ Domain (`Event` aggregate, `EventStatus`)
+  - ✅ Application slices: `CreateEvent`, `GetEvent` (+ FluentValidation pipeline)
+  - ✅ Infrastructure: EF Core + Postgres (`CatalogDbContext`, repository)
+  - ✅ API wired: `POST /v1/events`, `GET /v1/events/{id}` via MediatR
+  - ⬜ EF Core migrations (dev uses `EnsureCreated` for now — see T8)
+  - ⬜ Seat map + `PublishEvent` slice → emit `EventPublished` + generate inventory
 - ⬜ Inventory & Hold — no-oversell core (issue #7)
 - ⬜ Order + checkout saga (#8)
 - ⬜ Payment — Stripe test (#9)
@@ -73,7 +79,8 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | T4 | Dev HTTPS cert | `dotnet dev-certs https --trust` |
 | T5 | Architecture-tests project (NetArchTest) | enforce ADR-0008/0009 boundaries in CI |
 | T6 | Coverage gate + integration tests (Testcontainers) | Phase 1 exit criteria |
-| T7 | Replace Catalog placeholder endpoint | real slices land in issue #6 |
+| T7 | Replace Catalog placeholder endpoint | ✅ done — real CreateEvent/GetEvent slices |
+| T8 | Catalog EF Core migrations | dev uses `EnsureCreated`; add `dotnet ef migrations add InitialCreate` before any shared env |
 
 ---
 
