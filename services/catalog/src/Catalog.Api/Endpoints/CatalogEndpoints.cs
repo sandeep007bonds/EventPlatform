@@ -1,8 +1,3 @@
-using Catalog.Application.Features.CreateEvent;
-using Catalog.Application.Features.GetEvent;
-using EventPlatform.Hosting;
-using MediatR;
-
 namespace Catalog.Api.Endpoints;
 
 /// <summary>Maps the Catalog HTTP endpoints onto the application's use cases.</summary>

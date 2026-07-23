@@ -1,9 +1,3 @@
-using Catalog.Api.Endpoints;
-using Catalog.Application;
-using Catalog.Infrastructure;
-using EventPlatform.Hosting;
-using Microsoft.EntityFrameworkCore;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Shared defaults: auth, OpenAPI/Scalar, JSON, OpenTelemetry, health checks.
