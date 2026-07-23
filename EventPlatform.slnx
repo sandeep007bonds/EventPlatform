@@ -8,7 +8,10 @@
     <Project Path="building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
     <Project Path="building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
   </Folder>
-  <Folder Name="/services/">
+  <Folder Name="/services/catalog/">
+    <Project Path="services/catalog/src/Catalog.Domain/Catalog.Domain.csproj" />
+    <Project Path="services/catalog/src/Catalog.Application/Catalog.Application.csproj" />
+    <Project Path="services/catalog/src/Catalog.Infrastructure/Catalog.Infrastructure.csproj" />
     <Project Path="services/catalog/src/Catalog.Api/Catalog.Api.csproj" />
   </Folder>
 </Solution>
