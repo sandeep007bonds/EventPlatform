@@ -23,24 +23,21 @@ local development. Update this with each meaningful change.
 - ✅ Solution (`.slnx`)
 - ✅ `EventPlatform.Hosting` — shared service defaults (auth, OpenAPI, JSON, OTel, health)
 - ✅ `EventPlatform.Contracts` — base integration event + sample
-- ✅ Catalog service skeleton (uses shared defaults)
 - ✅ Local Docker dev stack (compose + Dapr components + guide)
+- ✅ **Build hardening — green under warnings-as-errors** (deps patched, .NET 10 pruning, global usings, analyzer config)
+- ✅ **Service structure flattened** (no `src/`) — layers directly under `services/<name>/`; standard for all services
 - 🚧 **Catalog service implementation (issue #6)** ← current focus
   - ✅ Domain (`Event` aggregate, `EventStatus`)
   - ✅ Application slices: `CreateEvent`, `GetEvent` (+ FluentValidation pipeline)
   - ✅ Infrastructure: EF Core + Postgres (`CatalogDbContext`, repository)
   - ✅ API wired: `POST /v1/events`, `GET /v1/events/{id}` via MediatR
-  - ⬜ EF Core migrations (dev uses `EnsureCreated` for now — see T8)
-  - ⬜ Seat map + `PublishEvent` slice → emit `EventPublished` + generate inventory
-- 🚧 **Build hardening (getting to green under warnings-as-errors)**
-  - ✅ Vulnerable deps patched: OpenTelemetry → 1.17.0, Microsoft.OpenApi → 2.7.5
-  - ✅ `.NET 10` package pruning: dropped explicit `System.Security.Cryptography.Xml` (framework-provided); dropped EF Core Design (deferred to migrations)
-  - ✅ Disabled `CentralPackageTransitivePinningEnabled` (conflicted with EF Design tree)
-  - ✅ `.editorconfig`: using placement → `outside_namespace`; accessibility → `for_non_interface_members`; suppressed noisy rules (SA1101, SA1623, SA1642, CA1716)
-  - ✅ **Global usings**: every project has a `GlobalUsings.cs`; files are using-free (now the standard — see CLAUDE.md)
-  - 🚧 confirm a clean local `dotnet build` (iterating on analyzer-as-error stragglers)
-- ⬜ Inventory & Hold — no-oversell core (issue #7)
-- ⬜ Order + checkout saga (#8)
+  - ✅ Local `dotnet build` green; runs against local Postgres (`EnsureCreated`)
+  - 🚧 `PublishEvent` slice (draft → published) ← **next**
+  - ⬜ **Dapr integration (first use):** emit `EventPublished` via Dapr pub/sub + transactional outbox
+  - ⬜ Seat map (seats + hand-off so Inventory can generate inventory)
+  - ⬜ EF Core migrations (replace `EnsureCreated` — see T8)
+- ⬜ Inventory & Hold — no-oversell core (issue #7) — consumes `EventPublished`
+- ⬜ Order + checkout saga (#8) — Dapr Workflow
 - ⬜ Payment — Stripe test (#9)
 - ⬜ Ticketing (#10)
 - ⬜ No-oversell load test (#11)
@@ -73,6 +70,7 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | O3 | Add `ADD_TO_PROJECT_PAT` secret | for project auto-add workflow |
 | O4 | Move auto-add workflow to `main` | issue-triggered workflows run from default branch |
 | O5 | Invite teammates to repo + project | |
+| O6 | Remove old `services/catalog/src/` (git rm) | leftover from the structure flatten |
 
 ---
 
@@ -80,14 +78,15 @@ Intentionally paused while we build locally. Revisit before first deploy.
 
 | # | Item | Notes |
 |---|------|-------|
-| T1 | Confirm CPM package versions | ✅ mostly — restore succeeds; OTel/OpenApi vulns patched; still confirm `Scalar.AspNetCore` on first run |
-| T2 | **Build the scaffold locally** (`dotnet build`) | 🚧 iterating on warnings-as-errors stragglers on the developer machine |
+| T1 | Confirm CPM package versions | ✅ build green — versions resolve, vulns patched |
+| T2 | Build the scaffold locally (`dotnet build`) | ✅ green |
 | T3 | MediatR pinned to **12.5.0** | do NOT let Dependabot bump to 13.x (commercial) — ADR-0014 |
 | T4 | Dev HTTPS cert | `dotnet dev-certs https --trust` |
 | T5 | Architecture-tests project (NetArchTest) | enforce ADR-0008/0009 boundaries in CI |
 | T6 | Coverage gate + integration tests (Testcontainers) | Phase 1 exit criteria |
 | T7 | Replace Catalog placeholder endpoint | ✅ done — real CreateEvent/GetEvent slices |
 | T8 | Catalog EF Core migrations | dev uses `EnsureCreated`; add `dotnet ef migrations add InitialCreate` before any shared env |
+| T9 | Transactional outbox building-block | shared outbox (EF + relay) reused by every event-emitting service (starts with Catalog) |
 
 ---
 
