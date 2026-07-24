@@ -15,6 +15,8 @@ public static class CatalogEndpoints
         group.MapPost("/", CreateEventAsync).WithName("CreateEvent");
         group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent");
         group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
+        group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
+        group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap");
 
         return app;
     }
@@ -55,7 +57,55 @@ public static class CatalogEndpoints
         ISender sender,
         CancellationToken cancellationToken)
     {
-        var published = await sender.Send(new PublishEventCommand(id), cancellationToken);
-        return published ? Results.NoContent() : Results.NotFound();
+        var outcome = await sender.Send(new PublishEventCommand(id), cancellationToken);
+        return outcome switch
+        {
+            PublishEventOutcome.Published => Results.NoContent(),
+            PublishEventOutcome.NotFound => Results.NotFound(),
+            PublishEventOutcome.NoSeatMap => Results.Conflict(new { message = "Define a seat map before publishing the event." }),
+            PublishEventOutcome.NotDraft => Results.Conflict(new { message = "Only a draft event can be published." }),
+            _ => Results.Problem("Unexpected publish outcome."),
+        };
+    }
+
+    private static async Task<IResult> DefineSeatMapAsync(
+        Guid id,
+        DefineSeatMapRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var sections = request.Sections
+            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.Rows, s.SeatsPerRow))
+            .ToList();
+
+        var command = new DefineSeatMapCommand(id, tenant.TenantId.Value, request.Name, sections);
+        var result = await sender.Send(command, cancellationToken);
+
+        return result.Outcome switch
+        {
+            DefineSeatMapOutcome.Created =>
+                Results.Created($"/v1/events/{id}/seatmap", new { seatMapId = result.SeatMapId }),
+            DefineSeatMapOutcome.EventNotFound => Results.NotFound(),
+            DefineSeatMapOutcome.EventNotDraft =>
+                Results.Conflict(new { message = "The event is not a draft; its seat map can no longer be changed." }),
+            DefineSeatMapOutcome.AlreadyDefined =>
+                Results.Conflict(new { message = "A seat map already exists for this event." }),
+            _ => Results.Problem("Unexpected seat-map outcome."),
+        };
+    }
+
+    private static async Task<IResult> GetSeatMapAsync(
+        Guid id,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetSeatMapQuery(id), cancellationToken);
+        return result is null ? Results.NotFound() : Results.Ok(result);
     }
 }

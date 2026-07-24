@@ -8,6 +8,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>The events table.</summary>
     public DbSet<Event> Events => Set<Event>();
 
+    /// <summary>The seat maps table.</summary>
+    public DbSet<SeatMap> SeatMaps => Set<SeatMap>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

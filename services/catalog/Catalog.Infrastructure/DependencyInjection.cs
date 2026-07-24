@@ -21,6 +21,7 @@ public static class DependencyInjection
 
         services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IEventRepository, EventRepository>();
+        services.AddScoped<ISeatMapRepository, SeatMapRepository>();
         services.AddOutbox<CatalogDbContext>();
 
         return services;

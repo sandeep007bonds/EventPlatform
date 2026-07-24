@@ -9,9 +9,11 @@ namespace EventPlatform.Contracts.Catalog;
 /// <param name="TenantId">The tenant (organizer) the catalog event belongs to.</param>
 /// <param name="CatalogEventId">The id of the published catalog event.</param>
 /// <param name="Title">The event title.</param>
+/// <param name="SeatCount">Number of seats generated for the event (from its seat map).</param>
 public sealed record EventPublished(
     Guid EventId,
     DateTimeOffset OccurredAt,
     Guid TenantId,
     Guid CatalogEventId,
-    string Title) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    string Title,
+    int SeatCount) : IntegrationEvent(EventId, OccurredAt, TenantId);

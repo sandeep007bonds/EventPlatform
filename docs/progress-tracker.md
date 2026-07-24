@@ -33,9 +33,9 @@ local development. Update this with each meaningful change.
   - ✅ API wired: `POST /v1/events`, `GET /v1/events/{id}` via MediatR
   - ✅ Local `dotnet build` green; runs against local Postgres (`EnsureCreated`)
   - ✅ `PublishEvent` slice (draft → published)
-  - ✅ **Transactional outbox + Dapr (first use):** `PublishEvent` enqueues `EventPublished` into the `outbox` table in the same transaction; shared `EventPlatform.Messaging` relay publishes it to Dapr pub/sub (at-least-once, CloudEvent id = outbox id) ← **verify build locally**
-  - 🚧 Seat map (seats + hand-off so Inventory can generate inventory) ← **next**
-  - ⬜ EF Core migrations (replace `EnsureCreated` — see T8)
+  - ✅ **Transactional outbox + Dapr (first use):** `PublishEvent` enqueues `EventPublished` into the `outbox` table in the same transaction; shared `EventPlatform.Messaging` relay publishes it to Dapr pub/sub (at-least-once, CloudEvent id = outbox id)
+  - ✅ **Seat map:** `SeatMap`/`Seat` domain, `DefineSeatMap` + `GetSeatMap` slices, `POST`/`GET /v1/events/{id}/seatmap`. Publish now requires a seat map and stamps `SeatCount` on `EventPublished`; `GetSeatMap` is the hand-off Inventory reads ← **verify build locally**
+  - 🚧 EF Core migrations (replace `EnsureCreated` — see T8) ← **next**
 - ⬜ Inventory & Hold — no-oversell core (issue #7) — consumes `EventPublished`
 - ⬜ Order + checkout saga (#8) — Dapr Workflow
 - ⬜ Payment — Stripe test (#9)
@@ -87,6 +87,7 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | T7 | Replace Catalog placeholder endpoint | ✅ done — real CreateEvent/GetEvent slices |
 | T8 | Catalog EF Core migrations | dev uses `EnsureCreated`; add `dotnet ef migrations add InitialCreate` before any shared env |
 | T9 | Transactional outbox building-block | ✅ `EventPlatform.Messaging` — write path (`IEventPublisher`/`OutboxMessage`/`ApplyOutbox`) + `OutboxRelay` (Dapr pub/sub, at-least-once). Consumed side (dedupe on CloudEvent id) lands with Inventory (#7). Needs the `outbox` table in migrations (T8) |
+| T10 | Seat-map read path returns all seats inline | fine at Phase-1 dev scale; page/stream `GET /seatmap` (and the Inventory hand-off) before large-venue maps (50k+ seats). `PublishEvent` also loads seats just to count — swap for a `COUNT(*)` |
 
 ---
 
