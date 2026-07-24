@@ -14,6 +14,7 @@ public static class CatalogEndpoints
 
         group.MapPost("/", CreateEventAsync).WithName("CreateEvent");
         group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent");
+        group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
 
         return app;
     }
@@ -47,5 +48,14 @@ public static class CatalogEndpoints
     {
         var result = await sender.Send(new GetEventQuery(id), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
+    }
+
+    private static async Task<IResult> PublishEventAsync(
+        Guid id,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var published = await sender.Send(new PublishEventCommand(id), cancellationToken);
+        return published ? Results.NoContent() : Results.NotFound();
     }
 }
