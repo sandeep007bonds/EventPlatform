@@ -4,8 +4,8 @@ namespace Catalog.Infrastructure;
 public static class DependencyInjection
 {
     /// <summary>
-    /// Adds the Catalog EF Core context (PostgreSQL) and repository. The connection string is
-    /// read from the <c>catalog</c> connection string.
+    /// Adds the Catalog EF Core context (PostgreSQL), repository, and transactional outbox.
+    /// The connection string is read from the <c>catalog</c> connection string.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The application configuration.</param>
@@ -21,6 +21,7 @@ public static class DependencyInjection
 
         services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IEventRepository, EventRepository>();
+        services.AddOutbox<CatalogDbContext>();
 
         return services;
     }

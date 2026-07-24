@@ -2,10 +2,14 @@ namespace Catalog.Infrastructure;
 
 /// <summary>EF Core database context for the Catalog service (schema <c>catalog</c>).</summary>
 /// <param name="options">The context options.</param>
-public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options) : DbContext(options)
+public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
+    : DbContext(options), IOutboxDbContext
 {
     /// <summary>The events table.</summary>
     public DbSet<Event> Events => Set<Event>();
+
+    /// <inheritdoc />
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -14,6 +18,7 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
 
         modelBuilder.HasDefaultSchema("catalog");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogDbContext).Assembly);
+        modelBuilder.ApplyOutbox();
 
         base.OnModelCreating(modelBuilder);
     }

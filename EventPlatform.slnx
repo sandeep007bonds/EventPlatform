@@ -7,6 +7,7 @@
   <Folder Name="/building-blocks/">
     <Project Path="building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
     <Project Path="building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+    <Project Path="building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
   </Folder>
   <Folder Name="/services/catalog/">
     <Project Path="services/catalog/Catalog.Domain/Catalog.Domain.csproj" />
