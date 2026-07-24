@@ -33,27 +33,11 @@ This starts:
 
 Stop with `docker compose down` (add `-v` to also wipe the Postgres volume).
 
-## 2. Run a service (standalone — no Dapr yet)
+## 2. Run a service *with* Dapr
 
-The Catalog service doesn't call Dapr yet, so you can just run it:
-
-```bash
-dotnet run --project services/catalog/Catalog.Api
-```
-
-Then open:
-- **API docs (Scalar):** https://localhost:7080/scalar/v1
-- **Sample endpoint:** https://localhost:7080/v1/events/00000000-0000-0000-0000-000000000000
-- **Health:** https://localhost:7080/health/live and `/health/ready`
-- **Traces:** http://localhost:16686 (pick the `catalog` service)
-
-> First HTTPS run may prompt for the dev certificate — trust it once with
-> `dotnet dev-certs https --trust`.
-
-## 3. Run a service *with* Dapr (once services use it)
-
-When a service starts using pub/sub or workflow (Order, Inventory), run it with a
-Dapr sidecar that loads our local components:
+Catalog now publishes `EventPublished` through the transactional outbox, and the
+outbox relay publishes to Dapr pub/sub — so run it with a Dapr sidecar that loads
+our local components:
 
 ```bash
 dapr init            # one-time; installs the Dapr runtime (uses Docker)
@@ -65,11 +49,33 @@ dapr run \
   -- dotnet run --project services/catalog/Catalog.Api
 ```
 
+Then open:
+- **API docs (Scalar):** https://localhost:7080/scalar/v1
+- **Sample endpoint:** https://localhost:7080/v1/events/00000000-0000-0000-0000-000000000000
+- **Health:** https://localhost:7080/health/live and `/health/ready`
+- **Traces:** http://localhost:16686 (pick the `catalog` service)
+
+> First HTTPS run may prompt for the dev certificate — trust it once with
+> `dotnet dev-certs https --trust`.
+
+> **Without a sidecar:** you can still `dotnet run` the API directly, but the
+> outbox relay will log a publish error every couple of seconds (messages just
+> stay pending in the `outbox` table until a sidecar is present). Use the
+> `dapr run` command above for the full path.
+
 The local Dapr components in `platform/dapr/components/` point at the Docker Redis
 (`localhost:6380`). In Azure, the **same-named** components point at Service Bus /
 Azure Cache — so nothing in the service code changes.
 
-## 4. Secrets (local)
+### How the outbox flows
+
+1. A command handler calls `IEventPublisher.Enqueue(...)`; the event is written to
+   the `outbox` table **in the same transaction** as the state change (no dual-write).
+2. `OutboxRelay` (a background service) polls the table and publishes pending rows
+   to Dapr pub/sub (`pubsub` component), stamping the outbox id as the CloudEvent
+   id so consumers can dedupe. Delivery is **at-least-once**.
+
+## 3. Secrets (local)
 
 The local Dapr secret store reads `platform/dapr/secrets.local.json` (git-ignored).
 Create it from the example:

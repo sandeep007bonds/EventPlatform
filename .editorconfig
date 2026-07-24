@@ -41,6 +41,9 @@ dotnet_diagnostic.SA1642.severity = none    # do NOT require 'Initializes a new 
 # --- Code-analysis (CA) adjustments ---
 dotnet_diagnostic.CA1716.severity = none    # allow natural domain names like 'Event' (rule targets VB keyword clashes)
 
+# --- SonarAnalyzer (S) adjustments ---
+dotnet_diagnostic.S2221.severity = none     # resilient background loops (outbox relay, reaper, saga workers) must catch-all to stay alive
+
 # --- Naming: interfaces prefixed with I, etc. (analyzer defaults) ---
 dotnet_naming_rule.interfaces_start_with_i.severity = error
 dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbols
