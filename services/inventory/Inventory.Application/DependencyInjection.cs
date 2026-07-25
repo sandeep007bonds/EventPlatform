@@ -10,7 +10,9 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddSingleton(new HoldOptions());
         services.AddScoped<InventoryProvisioningService>();
+        services.AddScoped<HoldService>();
 
         return services;
     }

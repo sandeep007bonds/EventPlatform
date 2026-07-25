@@ -19,10 +19,15 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(configuration);
 
         var connectionString = configuration.GetConnectionString("inventory");
+        var redisConnection = configuration.GetConnectionString("redis") ?? "localhost:6380";
 
         services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<ISeatMapClient, DaprSeatMapClient>();
+
+        services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
+        services.AddScoped<IHoldStore, RedisHoldStore>();
+
         services.AddOutbox<InventoryDbContext>();
 
         return services;

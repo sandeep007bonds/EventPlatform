@@ -20,7 +20,90 @@ public static class InventoryEndpoints
             .WithName("GetInventoryCount")
             .WithTags("Inventory");
 
+        var holds = app.MapGroup("/v1/holds").WithTags("Holds");
+        holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold");
+        holds.MapDelete("/{holdId:guid}", ReleaseHoldAsync).WithName("ReleaseHold");
+
         return app;
+    }
+
+    private static async Task<IResult> PlaceHoldAsync(
+        PlaceHoldRequest request,
+        ITenantContext tenant,
+        ClaimsPrincipal principal,
+        HoldService holds,
+        HoldOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.SeatIds is null || request.SeatIds.Count == 0)
+        {
+            return Results.BadRequest(new { message = "At least one seat is required." });
+        }
+
+        if (request.SeatIds.Count > options.MaxSeatsPerHold)
+        {
+            return Results.BadRequest(new { message = $"A hold may contain at most {options.MaxSeatsPerHold} seats." });
+        }
+
+        var result = await holds.PlaceHoldAsync(
+            tenant.TenantId.Value,
+            userId.Value,
+            request.EventId,
+            request.SeatIds,
+            cancellationToken);
+
+        return result.Outcome switch
+        {
+            PlaceHoldOutcome.Held =>
+                Results.Created($"/v1/holds/{result.HoldId}", new { holdId = result.HoldId, expiresAt = result.ExpiresAt }),
+            PlaceHoldOutcome.SeatNotFound =>
+                Results.NotFound(new { message = "One or more seats do not exist for this event." }),
+            PlaceHoldOutcome.Conflict =>
+                Results.Conflict(new { message = "One or more seats are no longer available.", seatId = result.ConflictSeatId }),
+            _ => Results.Problem("Unexpected hold outcome."),
+        };
+    }
+
+    private static async Task<IResult> ReleaseHoldAsync(
+        Guid holdId,
+        ClaimsPrincipal principal,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var outcome = await holds.ReleaseHoldAsync(userId.Value, holdId, cancellationToken);
+        return outcome switch
+        {
+            ReleaseHoldOutcome.Released => Results.NoContent(),
+            ReleaseHoldOutcome.NotFound => Results.NotFound(),
+            ReleaseHoldOutcome.Forbidden => Results.Forbid(),
+            ReleaseHoldOutcome.NotActive => Results.Conflict(new { message = "The hold is not active." }),
+            ReleaseHoldOutcome.Conflict =>
+                Results.Conflict(new { message = "The hold could not be released due to a concurrent change." }),
+            _ => Results.Problem("Unexpected release outcome."),
+        };
+    }
+
+    private static Guid? GetUserId(ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(value, out var id) ? id : null;
     }
 
     private static async Task<IResult> OnEventPublishedAsync(

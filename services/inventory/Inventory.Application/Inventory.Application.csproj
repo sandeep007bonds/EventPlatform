@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Inventory.Domain/Inventory.Domain.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
   </ItemGroup>
 
   <ItemGroup>

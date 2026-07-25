@@ -22,8 +22,48 @@ public interface IInventoryRepository
     /// <returns>The number of inventory items.</returns>
     Task<int> CountForEventAsync(Guid eventId, CancellationToken cancellationToken);
 
+    /// <summary>Loads the tracked inventory items for the given seats of an event.</summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="seatIds">The seat ids.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The matching inventory items (tracked).</returns>
+    Task<IReadOnlyList<InventoryItem>> GetItemsBySeatsAsync(
+        Guid eventId,
+        IReadOnlyCollection<Guid> seatIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Loads the tracked inventory items with the given ids.</summary>
+    /// <param name="itemIds">The inventory-item ids.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The matching inventory items (tracked).</returns>
+    Task<IReadOnlyList<InventoryItem>> GetItemsByIdsAsync(
+        IReadOnlyCollection<Guid> itemIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Loads a tracked hold (with its items) by id.</summary>
+    /// <param name="holdId">The hold id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The hold, or <see langword="null"/>.</returns>
+    Task<Hold?> GetHoldAsync(Guid holdId, CancellationToken cancellationToken);
+
+    /// <summary>Registers a new hold to be persisted.</summary>
+    /// <param name="hold">The hold to add.</param>
+    void AddHold(Hold hold);
+
+    /// <summary>Registers ledger entries to be persisted.</summary>
+    /// <param name="entries">The entries to add.</param>
+    void AddLedgerEntries(IEnumerable<LedgerEntry> entries);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Persists all pending changes, returning <see langword="false"/> instead of throwing when an
+    /// optimistic-concurrency conflict occurs (a lost race — the final no-oversell rejecter).
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if saved; <see langword="false"/> on a concurrency conflict.</returns>
+    Task<bool> TrySaveChangesAsync(CancellationToken cancellationToken);
 }

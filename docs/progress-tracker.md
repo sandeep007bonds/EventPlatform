@@ -38,7 +38,8 @@ local development. Update this with each meaningful change.
   - 🚧 EF Core migrations — scaffolding in place (Design ref, design-time factory, startup applies migrations); **run `dotnet ef migrations add InitialCreate` and commit the `Migrations/` folder** (see T8) ← **next (needs local SDK)**
 - 🚧 **Inventory & Hold — no-oversell core (issue #7)**
   - ✅ **Stage A — provisioning:** service scaffold (Domain `InventoryItem`/`Hold`/`LedgerEntry`, lean Application, EF + Postgres, outbox, migration scaffolding); consumes `EventPublished` via Dapr pub/sub and generates inventory by pulling Catalog's seat map (Dapr service invocation); `GET /v1/events/{id}/inventory` ← **verify build locally**
-  - ⬜ **Stage B — hold hot path:** Redis Lua atomic hold + Postgres optimistic concurrency + hold TTL + reaper; `POST /v1/holds`, release; emit `SeatHeld`/`SeatReleased` via outbox
+  - ✅ **Stage B — hold hot path:** Redis Lua atomic check-and-set (`RedisHoldStore`) as the fast gate + Postgres optimistic concurrency (`Version`) as the final authority + outbox; `POST /v1/holds` and `DELETE /v1/holds/{id}` emit `SeatHeld`/`SeatReleased`. Sparse Redis model (missing key = available; no per-seat seeding) ← **verify build locally**
+  - ⬜ **Stage C — expiry reaper:** background service reclaims holds past `expires_at` (Redis TTL drives the marker; reaper reconciles Postgres + seat keys). Also add a Redis↔Postgres reconciler
   - ⬜ EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — needs local SDK
 - ⬜ Order + checkout saga (#8) — Dapr Workflow
 - ⬜ Payment — Stripe test (#9)

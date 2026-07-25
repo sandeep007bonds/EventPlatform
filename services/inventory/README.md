@@ -15,7 +15,8 @@ The no-oversell system of record for the platform. Owns seat availability, holds
 |--------|-------|---------|
 | POST | `/integration/catalog/event-published` | Dapr pub/sub topic `EventPublished` → provision inventory |
 | GET | `/v1/events/{eventId}/inventory` | Provisioned seat count for an event |
-| POST/DELETE | `/v1/holds…` | Seat holds (Stage B) |
+| POST | `/v1/holds` | Place an atomic seat hold (Redis fast gate + Postgres authority) |
+| DELETE | `/v1/holds/{holdId}` | Release a hold |
 
 ## Layers
 
