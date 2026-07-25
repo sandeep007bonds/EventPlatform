@@ -4,8 +4,7 @@ namespace Ordering.Infrastructure;
 /// Talks to the Payment service (app-id <c>payments</c>) over Dapr service invocation, behind the
 /// <see cref="IPaymentClient"/> port used by the checkout saga.
 /// </summary>
-/// <param name="daprClient">The Dapr client.</param>
-internal sealed class DaprPaymentClient(DaprClient daprClient) : IPaymentClient
+internal sealed class DaprPaymentClient : IPaymentClient
 {
     private const string PaymentsAppId = "payments";
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -19,7 +18,7 @@ internal sealed class DaprPaymentClient(DaprClient daprClient) : IPaymentClient
         string idempotencyKey,
         CancellationToken cancellationToken)
     {
-        using var http = daprClient.CreateInvokeHttpClient(PaymentsAppId);
+        using var http = DaprClient.CreateInvokeHttpClient(PaymentsAppId);
         using var response = await http.PostAsJsonAsync(
             "v1/payments/charge",
             new { tenantId, orderId, amountMinor, currency, idempotencyKey },
@@ -41,8 +40,8 @@ internal sealed class DaprPaymentClient(DaprClient daprClient) : IPaymentClient
     /// <inheritdoc />
     public async Task RefundAsync(Guid orderId, string idempotencyKey, CancellationToken cancellationToken)
     {
-        using var http = daprClient.CreateInvokeHttpClient(PaymentsAppId);
         // Compensation is best-effort; a failed refund is retried by ops, not the saga.
+        using var http = DaprClient.CreateInvokeHttpClient(PaymentsAppId);
         using var response = await http.PostAsJsonAsync(
             "v1/payments/refund",
             new { orderId },
