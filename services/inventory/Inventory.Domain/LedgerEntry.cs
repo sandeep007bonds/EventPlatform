@@ -26,8 +26,8 @@ public sealed class LedgerEntry
         At = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>Auto-incrementing ledger id.</summary>
-    public long Id { get; private set; }
+    /// <summary>Auto-incrementing ledger id (database-generated).</summary>
+    public long Id { get; }
 
     /// <summary>The inventory item that changed.</summary>
     public Guid InventoryItemId { get; private set; }

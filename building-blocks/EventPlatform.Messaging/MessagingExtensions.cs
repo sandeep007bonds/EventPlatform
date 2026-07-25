@@ -25,7 +25,7 @@ public static class MessagingExtensions
         services.AddScoped<IOutboxDbContext>(sp => sp.GetRequiredService<TDbContext>());
         services.AddScoped<IEventPublisher, OutboxEventPublisher>();
 
-        services.AddDaprClient();
+        services.AddSingleton(_ => new DaprClientBuilder().Build());
         services.AddHostedService<OutboxRelay>();
 
         return services;

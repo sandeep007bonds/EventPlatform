@@ -38,6 +38,11 @@
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
+  <!-- StyleCop settings shared by every project (e.g. don't require docs on internal members). -->
+  <ItemGroup>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" />
+  </ItemGroup>
+
   <!-- Analyzers applied to every project. Versions come from Directory.Packages.props (CPM). -->
   <ItemGroup>
     <PackageReference Include="StyleCop.Analyzers">

@@ -3,11 +3,6 @@ namespace Catalog.Domain;
 /// <summary>A single addressable seat within a <see cref="SeatMap"/>.</summary>
 public sealed class Seat
 {
-    // Parameterless ctor for EF Core materialization.
-    private Seat()
-    {
-    }
-
     internal Seat(
         Guid id,
         Guid seatMapId,
@@ -24,6 +19,11 @@ public sealed class Seat
         PriceAmount = priceAmount;
         Row = row;
         Number = number;
+    }
+
+    // Parameterless ctor for EF Core materialization.
+    private Seat()
+    {
     }
 
     /// <summary>Unique seat id (UUID v7 — time-sortable). Stable across services.</summary>

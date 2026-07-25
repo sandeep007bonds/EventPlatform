@@ -37,9 +37,12 @@ dotnet_diagnostic.SA0001.severity = none    # XML comment output (docs still enf
 dotnet_diagnostic.SA1101.severity = none    # do NOT require 'this.' prefix (modern C# style)
 dotnet_diagnostic.SA1623.severity = none    # do NOT require 'Gets/Sets' doc prefix on properties
 dotnet_diagnostic.SA1642.severity = none    # do NOT require 'Initializes a new instance...' ctor boilerplate
+dotnet_diagnostic.SA1309.severity = none    # allow _underscore private fields (modern C# convention)
 
 # --- Code-analysis (CA) adjustments ---
 dotnet_diagnostic.CA1716.severity = none    # allow natural domain names like 'Event' (rule targets VB keyword clashes)
+dotnet_diagnostic.CA1848.severity = none    # LoggerMessage delegates not required off hot paths (revisit for proven hot paths)
+dotnet_diagnostic.CA1873.severity = none    # logging-argument cost rule too noisy for cheap args
 
 # --- SonarAnalyzer (S) adjustments ---
 dotnet_diagnostic.S2221.severity = none     # resilient background loops (outbox relay, reaper, saga workers) must catch-all to stay alive

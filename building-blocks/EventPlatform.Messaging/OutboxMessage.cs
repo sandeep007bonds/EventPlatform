@@ -3,11 +3,6 @@ namespace EventPlatform.Messaging;
 /// <summary>A persisted integration event awaiting publication (a transactional-outbox row).</summary>
 public sealed class OutboxMessage
 {
-    // Parameterless ctor for EF Core materialization.
-    private OutboxMessage()
-    {
-    }
-
     /// <summary>Creates an outbox message.</summary>
     /// <param name="id">Unique id; also the dedupe id for consumers.</param>
     /// <param name="topic">Pub/sub topic to publish to.</param>
@@ -21,6 +16,11 @@ public sealed class OutboxMessage
         Type = type;
         Payload = payload;
         OccurredAt = occurredAt;
+    }
+
+    // Parameterless ctor for EF Core materialization.
+    private OutboxMessage()
+    {
     }
 
     /// <summary>Unique id; also used as the dedupe id by consumers.</summary>

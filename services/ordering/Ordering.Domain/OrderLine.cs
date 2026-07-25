@@ -3,11 +3,6 @@ namespace Ordering.Domain;
 /// <summary>A single seat line within an <see cref="Order"/>.</summary>
 public sealed class OrderLine
 {
-    // Parameterless ctor for EF Core materialization.
-    private OrderLine()
-    {
-    }
-
     internal OrderLine(Guid orderId, Guid inventoryItemId, Guid seatId, long priceMinor)
     {
         Id = Guid.CreateVersion7();
@@ -15,6 +10,11 @@ public sealed class OrderLine
         InventoryItemId = inventoryItemId;
         SeatId = seatId;
         PriceMinor = priceMinor;
+    }
+
+    // Parameterless ctor for EF Core materialization.
+    private OrderLine()
+    {
     }
 
     /// <summary>Unique line id.</summary>
