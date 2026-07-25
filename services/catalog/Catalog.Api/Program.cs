@@ -12,13 +12,13 @@ var app = builder.Build();
 app.UseServiceDefaults();
 app.MapCatalogEndpoints();
 
-// DEV ONLY: create the schema from the model so the service runs against local Postgres
-// out of the box. Replaced by EF Core migrations before any shared/deployed environment.
+// DEV ONLY: apply EF Core migrations on startup so the service runs against local Postgres out of
+// the box. In shared/deployed environments migrations are applied by a separate step, not the host.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
+    await dbContext.Database.MigrateAsync();
 }
 
 await app.RunAsync();

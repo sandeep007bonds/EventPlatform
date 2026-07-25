@@ -33,7 +33,36 @@ This starts:
 
 Stop with `docker compose down` (add `-v` to also wipe the Postgres volume).
 
-## 2. Run a service *with* Dapr
+## 2. Database migrations (EF Core)
+
+The schema is owned by **EF Core migrations** (not `EnsureCreated`). In dev the
+Catalog host applies any pending migrations on startup, so normally you don't run
+anything by hand. You only touch the tooling when the model changes.
+
+One-time tool install:
+
+```bash
+dotnet tool install --global dotnet-ef
+```
+
+Generate the initial migration (run once, then commit the generated
+`Migrations/` folder — it is part of the source):
+
+```bash
+dotnet ef migrations add InitialCreate \
+  --project services/catalog/Catalog.Infrastructure \
+  --startup-project services/catalog/Catalog.Api
+```
+
+After that, each model change is a new migration (`dotnet ef migrations add <Name>`
+with the same `--project`/`--startup-project`). To apply migrations to a running
+DB without launching the API, use `dotnet ef database update` (same arguments);
+override the target with the `CATALOG_DB` connection-string env var.
+
+> A design-time factory (`CatalogDbContextDesignTimeFactory`) lets the tooling
+> build the context without starting the API host (Dapr, the outbox relay, …).
+
+## 3. Run a service *with* Dapr
 
 Catalog now publishes `EventPublished` through the transactional outbox, and the
 outbox relay publishes to Dapr pub/sub — so run it with a Dapr sidecar that loads
@@ -75,7 +104,7 @@ Azure Cache — so nothing in the service code changes.
    to Dapr pub/sub (`pubsub` component), stamping the outbox id as the CloudEvent
    id so consumers can dedupe. Delivery is **at-least-once**.
 
-## 3. Secrets (local)
+## 4. Secrets (local)
 
 The local Dapr secret store reads `platform/dapr/secrets.local.json` (git-ignored).
 Create it from the example:
