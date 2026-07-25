@@ -47,6 +47,19 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         return 'OK'
         """;
 
+    // KEYS = seat keys; ARGV[1]=holdId, ARGV[2]=holdKey, ARGV[3]=holdSeatsKey.
+    private const string MarkSoldScript = """
+        local marker = 'H:' .. ARGV[1]
+        for i = 1, #KEYS do
+          if redis.call('GET', KEYS[i]) == marker then
+            redis.call('SET', KEYS[i], 'S')
+          end
+        end
+        redis.call('DEL', ARGV[2])
+        redis.call('DEL', ARGV[3])
+        return 'OK'
+        """;
+
     /// <inheritdoc />
     public async Task<HoldStoreResult> TryHoldAsync(
         Guid eventId,
@@ -57,7 +70,7 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var keys = seatIds.Select(seatId => (RedisKey)SeatKey(eventId, seatId)).ToArray();
+        var keys = HoldKeys(eventId, seatIds);
 
         var values = new List<RedisValue>
         {
@@ -90,16 +103,31 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var keys = seatIds.Select(seatId => (RedisKey)SeatKey(eventId, seatId)).ToArray();
-        var values = new RedisValue[]
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+    }
+
+    /// <inheritdoc />
+    public async Task MarkSoldAsync(
+        Guid eventId,
+        Guid holdId,
+        IReadOnlyList<Guid> seatIds,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await redis.GetDatabase().ScriptEvaluateAsync(MarkSoldScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+    }
+
+    private static RedisKey[] HoldKeys(Guid eventId, IReadOnlyList<Guid> seatIds) =>
+        seatIds.Select(seatId => (RedisKey)SeatKey(eventId, seatId)).ToArray();
+
+    private static RedisValue[] HoldArgs(Guid eventId, Guid holdId) =>
+        new RedisValue[]
         {
             holdId.ToString("N"),
             HoldKey(eventId, holdId),
             HoldSeatsKey(eventId, holdId),
         };
-
-        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseScript, keys, values);
-    }
 
     private static string SeatKey(Guid eventId, Guid seatId) => $"inv:{eventId:N}:seat:{seatId:N}";
 

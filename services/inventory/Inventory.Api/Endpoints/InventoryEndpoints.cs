@@ -22,9 +22,41 @@ public static class InventoryEndpoints
 
         var holds = app.MapGroup("/v1/holds").WithTags("Holds");
         holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold");
+        holds.MapGet("/{holdId:guid}", GetHoldAsync).WithName("GetHold");
         holds.MapDelete("/{holdId:guid}", ReleaseHoldAsync).WithName("ReleaseHold");
 
+        // Internal (checkout saga, via Dapr service invocation): convert a hold to a sale.
+        holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").ExcludeFromDescription();
+
         return app;
+    }
+
+    private static async Task<IResult> GetHoldAsync(
+        Guid holdId,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var view = await holds.GetHoldViewAsync(holdId, cancellationToken);
+        return view is null ? Results.NotFound() : Results.Ok(view);
+    }
+
+    private static async Task<IResult> ConvertHoldAsync(
+        Guid holdId,
+        ConvertHoldRequest request,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await holds.ConvertToSoldAsync(holdId, request.OrderId, cancellationToken);
+        return outcome switch
+        {
+            ConvertHoldOutcome.Converted => Results.NoContent(),
+            ConvertHoldOutcome.NotFound => Results.NotFound(),
+            ConvertHoldOutcome.NotActive => Results.Conflict(new { message = "The hold is not active." }),
+            ConvertHoldOutcome.Expired => Results.Conflict(new { message = "The hold has expired." }),
+            ConvertHoldOutcome.Conflict =>
+                Results.Conflict(new { message = "The hold could not be converted due to a concurrent change." }),
+            _ => Results.Problem("Unexpected convert outcome."),
+        };
     }
 
     private static async Task<IResult> PlaceHoldAsync(

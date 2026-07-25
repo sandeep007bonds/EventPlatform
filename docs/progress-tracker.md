@@ -40,6 +40,7 @@ local development. Update this with each meaningful change.
   - ✅ **Stage A — provisioning:** service scaffold (Domain `InventoryItem`/`Hold`/`LedgerEntry`, lean Application, EF + Postgres, outbox, migration scaffolding); consumes `EventPublished` via Dapr pub/sub and generates inventory by pulling Catalog's seat map (Dapr service invocation); `GET /v1/events/{id}/inventory` ← **verify build locally**
   - ✅ **Stage B — hold hot path:** Redis Lua atomic check-and-set (`RedisHoldStore`) as the fast gate + Postgres optimistic concurrency (`Version`) as the final authority + outbox; `POST /v1/holds` and `DELETE /v1/holds/{id}` emit `SeatHeld`/`SeatReleased`. Sparse Redis model (missing key = available; no per-seat seeding) ← **verify build locally**
   - ✅ **Stage C — expiry reaper:** `ExpiredHoldReaper` background service reclaims holds past `expires_at` — returns seats to available in Postgres (authority), clears the Redis seat keys, emits `SeatReleased`. Each hold is its own unit of work ← **verify build locally**
+  - ✅ **Saga hooks (for #8):** `GET /v1/holds/{id}` (validate: owner/expiry + priced lines), internal `POST /v1/holds/{id}/convert` (idempotent convert-to-sold: seats → `S`, emits `SeatSold`)
   - ⬜ Broader Redis↔Postgres drift reconciler (rebuild Redis from Postgres after a Redis restart/flush)
   - ⬜ EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — needs local SDK
 - ⬜ Order + checkout saga (#8) — Dapr Workflow

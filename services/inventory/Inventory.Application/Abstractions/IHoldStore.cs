@@ -27,4 +27,12 @@ public interface IHoldStore
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the seats are released.</returns>
     Task ReleaseAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
+
+    /// <summary>Marks the seats held by a hold as sold (permanent).</summary>
+    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="holdId">The hold being converted.</param>
+    /// <param name="seatIds">The seats to mark sold.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the seats are marked sold.</returns>
+    Task MarkSoldAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
 }

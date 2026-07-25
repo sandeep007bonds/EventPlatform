@@ -119,6 +119,102 @@ public sealed class HoldService(
             : ReleaseHoldOutcome.Conflict;
     }
 
+    /// <summary>Reads a hold (with priced lines) for validation and order pricing.</summary>
+    /// <param name="holdId">The hold id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The hold view, or <see langword="null"/> if it does not exist.</returns>
+    public async Task<HoldView?> GetHoldViewAsync(Guid holdId, CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null)
+        {
+            return null;
+        }
+
+        var itemIds = hold.Items.Select(item => item.InventoryItemId).ToList();
+        var items = await inventory.GetItemsByIdsAsync(itemIds, cancellationToken);
+
+        var lines = items
+            .Select(item => new HoldLineView(item.Id, item.SeatId, item.PriceTier, item.PriceMinor))
+            .ToList();
+
+        return new HoldView(
+            hold.Id,
+            hold.TenantId,
+            hold.EventId,
+            hold.UserId,
+            hold.Status.ToString(),
+            hold.ExpiresAt,
+            lines.Sum(line => line.PriceMinor),
+            lines);
+    }
+
+    /// <summary>
+    /// Converts an active hold to a sale for the given order. Idempotent: converting an already
+    /// converted hold for the same order succeeds without change.
+    /// </summary>
+    /// <param name="holdId">The hold to convert.</param>
+    /// <param name="orderId">The order the hold is being converted for.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The conversion outcome.</returns>
+    public async Task<ConvertHoldOutcome> ConvertToSoldAsync(
+        Guid holdId,
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null)
+        {
+            return ConvertHoldOutcome.NotFound;
+        }
+
+        if (hold.Status == HoldStatus.Converted)
+        {
+            return hold.OrderId == orderId ? ConvertHoldOutcome.Converted : ConvertHoldOutcome.NotActive;
+        }
+
+        if (hold.Status != HoldStatus.Active)
+        {
+            return ConvertHoldOutcome.NotActive;
+        }
+
+        if (hold.ExpiresAt < DateTimeOffset.UtcNow)
+        {
+            return ConvertHoldOutcome.Expired;
+        }
+
+        var itemIds = hold.Items.Select(item => item.InventoryItemId).ToList();
+        var items = await inventory.GetItemsByIdsAsync(itemIds, cancellationToken);
+
+        var ledger = new List<LedgerEntry>();
+        foreach (var item in items.Where(item => item.Status == InventoryStatus.Held))
+        {
+            item.MarkSold();
+            ledger.Add(LedgerEntry.Record(item.Id, InventoryStatus.Held, InventoryStatus.Sold, "sold", orderId));
+        }
+
+        hold.MarkConverted(orderId);
+        inventory.AddLedgerEntries(ledger);
+
+        var seatIds = items.Select(item => item.SeatId).ToList();
+        events.Enqueue(new SeatSold(
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow,
+            hold.TenantId,
+            hold.Id,
+            hold.EventId,
+            orderId,
+            seatIds));
+
+        if (!await inventory.TrySaveChangesAsync(cancellationToken))
+        {
+            return ConvertHoldOutcome.Conflict;
+        }
+
+        await holdStore.MarkSoldAsync(hold.EventId, holdId, seatIds, cancellationToken);
+        return ConvertHoldOutcome.Converted;
+    }
+
     /// <summary>
     /// Reclaims an expired hold (called by the reaper). Releases its seats regardless of owner;
     /// a no-op if the hold is already gone or no longer active.
