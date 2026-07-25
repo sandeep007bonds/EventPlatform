@@ -46,6 +46,16 @@ public interface IInventoryRepository
     /// <returns>The hold, or <see langword="null"/>.</returns>
     Task<Hold?> GetHoldAsync(Guid holdId, CancellationToken cancellationToken);
 
+    /// <summary>Gets the ids of active holds that have passed their expiry (for the reaper).</summary>
+    /// <param name="now">The current time (UTC).</param>
+    /// <param name="batchSize">Maximum ids to return.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Expired active hold ids, oldest first.</returns>
+    Task<IReadOnlyList<Guid>> GetExpiredActiveHoldIdsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken);
+
     /// <summary>Registers a new hold to be persisted.</summary>
     /// <param name="hold">The hold to add.</param>
     void AddHold(Hold hold);

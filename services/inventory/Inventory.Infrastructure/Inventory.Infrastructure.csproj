@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Dapr.Client" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="StackExchange.Redis" />
     <!-- PrivateAssets=all keeps the Design tooling tree out of the API host; framework

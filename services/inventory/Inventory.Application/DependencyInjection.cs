@@ -11,6 +11,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddSingleton(new HoldOptions());
+        services.AddSingleton(new HoldReaperOptions());
         services.AddScoped<InventoryProvisioningService>();
         services.AddScoped<HoldService>();
 

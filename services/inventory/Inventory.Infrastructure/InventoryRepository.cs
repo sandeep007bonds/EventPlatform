@@ -39,6 +39,18 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             .FirstOrDefaultAsync(h => h.Id == holdId, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> GetExpiredActiveHoldIdsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken) =>
+        await dbContext.Holds
+            .Where(h => h.Status == HoldStatus.Active && h.ExpiresAt < now)
+            .OrderBy(h => h.ExpiresAt)
+            .Take(batchSize)
+            .Select(h => h.Id)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public void AddHold(Hold hold) => dbContext.Holds.Add(hold);
 
     /// <inheritdoc />

@@ -27,6 +27,7 @@ public static class DependencyInjection
 
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));
         services.AddScoped<IHoldStore, RedisHoldStore>();
+        services.AddHostedService<ExpiredHoldReaper>();
 
         services.AddOutbox<InventoryDbContext>();
 

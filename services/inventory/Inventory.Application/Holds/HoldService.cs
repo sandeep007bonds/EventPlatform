@@ -114,6 +114,31 @@ public sealed class HoldService(
             return ReleaseHoldOutcome.NotActive;
         }
 
+        return await ReleaseInternalAsync(hold, "release", cancellationToken)
+            ? ReleaseHoldOutcome.Released
+            : ReleaseHoldOutcome.Conflict;
+    }
+
+    /// <summary>
+    /// Reclaims an expired hold (called by the reaper). Releases its seats regardless of owner;
+    /// a no-op if the hold is already gone or no longer active.
+    /// </summary>
+    /// <param name="holdId">The hold to reap.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the hold was reclaimed.</returns>
+    public async Task<bool> ReapHoldAsync(Guid holdId, CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null || hold.Status != HoldStatus.Active)
+        {
+            return false;
+        }
+
+        return await ReleaseInternalAsync(hold, "reap", cancellationToken);
+    }
+
+    private async Task<bool> ReleaseInternalAsync(Hold hold, string cause, CancellationToken cancellationToken)
+    {
         var itemIds = hold.Items.Select(item => item.InventoryItemId).ToList();
         var items = await inventory.GetItemsByIdsAsync(itemIds, cancellationToken);
 
@@ -121,7 +146,7 @@ public sealed class HoldService(
         foreach (var item in items.Where(item => item.Status == InventoryStatus.Held))
         {
             item.Release();
-            ledger.Add(LedgerEntry.Record(item.Id, InventoryStatus.Held, InventoryStatus.Available, "release", holdId));
+            ledger.Add(LedgerEntry.Record(item.Id, InventoryStatus.Held, InventoryStatus.Available, cause, hold.Id));
         }
 
         hold.Release();
@@ -138,11 +163,11 @@ public sealed class HoldService(
 
         if (!await inventory.TrySaveChangesAsync(cancellationToken))
         {
-            return ReleaseHoldOutcome.Conflict;
+            return false;
         }
 
         // Postgres committed (the authority); now clear the Redis gate.
-        await holdStore.ReleaseAsync(hold.EventId, holdId, seatIds, cancellationToken);
-        return ReleaseHoldOutcome.Released;
+        await holdStore.ReleaseAsync(hold.EventId, hold.Id, seatIds, cancellationToken);
+        return true;
     }
 }
