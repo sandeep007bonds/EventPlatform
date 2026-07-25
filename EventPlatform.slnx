@@ -27,4 +27,10 @@
     <Project Path="services/ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" />
     <Project Path="services/ordering/Ordering.Api/Ordering.Api.csproj" />
   </Folder>
+  <Folder Name="/services/payments/">
+    <Project Path="services/payments/Payments.Domain/Payments.Domain.csproj" />
+    <Project Path="services/payments/Payments.Application/Payments.Application.csproj" />
+    <Project Path="services/payments/Payments.Infrastructure/Payments.Infrastructure.csproj" />
+    <Project Path="services/payments/Payments.Api/Payments.Api.csproj" />
+  </Folder>
 </Solution>

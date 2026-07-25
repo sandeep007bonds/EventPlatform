@@ -81,6 +81,7 @@ public sealed class CheckoutService(
 
         // Charge.
         var payment = await paymentClient.ChargeAsync(
+            tenantId,
             order.Id,
             order.TotalMinor,
             order.Currency,

@@ -23,7 +23,7 @@ public static class DependencyInjection
         services.AddDbContext<OrderingDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IHoldClient, DaprHoldClient>();
-        services.AddScoped<IPaymentClient, StubPaymentClient>();
+        services.AddScoped<IPaymentClient, DaprPaymentClient>();
         services.AddOutbox<OrderingDbContext>();
 
         return services;

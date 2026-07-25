@@ -49,7 +49,11 @@ local development. Update this with each meaningful change.
   - ⬜ **Durability:** move the saga to a **Dapr Workflow** (crash-safe orchestration, ADR-0010)
   - ⬜ EF Core migrations `InitialCreate` (orders, order_line, outbox) — needs local SDK
   - ⬜ Concurrent-duplicate checkout: handle the unique-index violation (re-fetch existing) rather than 500
-- ⬜ Payment — Stripe test (#9)
+- 🚧 **Payments (#9)**
+  - ✅ Service scaffold: `Payment` domain, `PaymentService` (idempotent charge/refund on `(order, key)`), EF + Postgres, outbox, migration scaffolding; internal `POST /v1/payments/charge` + `/refund`; emits `PaymentCaptured`/`PaymentFailed`/`PaymentRefunded`
+  - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway` (sync capture). **Ordering now calls Payments** (`DaprPaymentClient` replaced the stub) ← **verify build locally**
+  - ⬜ **T-stripe:** real Stripe gateway (Stripe.net, secret from Key Vault, `webhook_inbox` for async capture)
+  - ⬜ EF Core migrations `InitialCreate` (payment, outbox) — needs local SDK
 - ⬜ Ticketing (#10)
 - ⬜ No-oversell load test (#11)
 

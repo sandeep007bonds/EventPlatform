@@ -7,6 +7,7 @@ namespace Ordering.Application.Abstractions;
 public interface IPaymentClient
 {
     /// <summary>Charges the buyer for an order.</summary>
+    /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The order being paid.</param>
     /// <param name="amountMinor">Amount in minor currency units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
@@ -14,6 +15,7 @@ public interface IPaymentClient
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The payment result.</returns>
     Task<PaymentResult> ChargeAsync(
+        Guid tenantId,
         Guid orderId,
         long amountMinor,
         string currency,

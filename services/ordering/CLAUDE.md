@@ -23,8 +23,8 @@ is named `Ordering` so the type never clashes with its namespace.
 - **Saga:** `CheckoutService` runs the steps sequentially in-process with explicit
   compensation (release hold, refund). **Follow-up:** move to a **Dapr Workflow**
   so the saga survives a crash mid-flight (ADR-0010, LLD §6).
-- **Cross-service calls** go through ports: `IHoldClient` (Inventory, via Dapr
-  service invocation) and `IPaymentClient` (**stubbed** until Payment, #9).
+- **Cross-service calls** go through ports: `IHoldClient` (Inventory) and
+  `IPaymentClient` (Payments), both via Dapr service invocation.
 
 ## Structure
 

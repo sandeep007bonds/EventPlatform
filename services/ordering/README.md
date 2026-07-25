@@ -9,8 +9,8 @@ checkout saga.
 compensation on failure (release hold, refund). Idempotent on
 `(tenant, Idempotency-Key)`.
 
-- **Inventory** calls go through `IHoldClient` (Dapr service invocation).
-- **Payment** is stubbed (`StubPaymentClient`) until the Payment service (#9).
+- **Inventory** and **Payments** calls go through `IHoldClient` / `IPaymentClient`
+  (Dapr service invocation).
 - **Durability upgrade (planned):** run the saga as a **Dapr Workflow** so it
   survives a crash mid-flight (ADR-0010).
 
