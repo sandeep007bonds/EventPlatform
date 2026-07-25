@@ -43,7 +43,12 @@ local development. Update this with each meaningful change.
   - ✅ **Saga hooks (for #8):** `GET /v1/holds/{id}` (validate: owner/expiry + priced lines), internal `POST /v1/holds/{id}/convert` (idempotent convert-to-sold: seats → `S`, emits `SeatSold`)
   - ⬜ Broader Redis↔Postgres drift reconciler (rebuild Redis from Postgres after a Redis restart/flush)
   - ⬜ EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — needs local SDK
-- ⬜ Order + checkout saga (#8) — Dapr Workflow
+- 🚧 **Ordering — checkout saga (#8)**
+  - ✅ Service scaffold: `Order`/`OrderLine` domain, `CheckoutService` saga (validate → create → charge → convert → confirm + compensation), EF + Postgres, outbox, migration scaffolding; `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders/{id}` ← **verify build locally**
+  - ✅ Inventory hooks reused: `IHoldClient` (Dapr) → GET hold / convert / release; payment **stubbed** (`StubPaymentClient`)
+  - ⬜ **Durability:** move the saga to a **Dapr Workflow** (crash-safe orchestration, ADR-0010)
+  - ⬜ EF Core migrations `InitialCreate` (orders, order_line, outbox) — needs local SDK
+  - ⬜ Concurrent-duplicate checkout: handle the unique-index violation (re-fetch existing) rather than 500
 - ⬜ Payment — Stripe test (#9)
 - ⬜ Ticketing (#10)
 - ⬜ No-oversell load test (#11)
@@ -95,6 +100,7 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | T9 | Transactional outbox building-block | ✅ `EventPlatform.Messaging` — write path (`IEventPublisher`/`OutboxMessage`/`ApplyOutbox`) + `OutboxRelay` (Dapr pub/sub, at-least-once). Consumed side (dedupe on CloudEvent id) lands with Inventory (#7). Needs the `outbox` table in migrations (T8) |
 | T10 | Seat-map read path returns all seats inline | fine at Phase-1 dev scale; page/stream `GET /seatmap` (and the Inventory hand-off) before large-venue maps (50k+ seats). `PublishEvent` also loads seats just to count — swap for a `COUNT(*)` |
 | T11 | Money as minor units assumes 2-decimal currency | Inventory `ToMinor` does `amount × 100`; refine per ISO 4217 exponent (JPY = 0, etc.) before multi-currency |
+| T12 | Order currency is defaulted to `USD` | `CheckoutOptions.DefaultCurrency`; derive from the Catalog event instead (Order → Catalog client) |
 
 ---
 

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Infrastructure: EF Core (PostgreSQL), the Inventory hold client (Dapr), the payment client,
+       and the transactional outbox. Migrations live here (tracker T8). -->
+
+  <PropertyGroup>
+    <RootNamespace>Ordering.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ordering.Domain/Ordering.Domain.csproj" />
+    <ProjectReference Include="../Ordering.Application/Ordering.Application.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapr.Client" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- PrivateAssets=all keeps the Design tooling tree out of the API host. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

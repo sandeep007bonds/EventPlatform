@@ -21,4 +21,10 @@
     <Project Path="services/inventory/Inventory.Infrastructure/Inventory.Infrastructure.csproj" />
     <Project Path="services/inventory/Inventory.Api/Inventory.Api.csproj" />
   </Folder>
+  <Folder Name="/services/ordering/">
+    <Project Path="services/ordering/Ordering.Domain/Ordering.Domain.csproj" />
+    <Project Path="services/ordering/Ordering.Application/Ordering.Application.csproj" />
+    <Project Path="services/ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" />
+    <Project Path="services/ordering/Ordering.Api/Ordering.Api.csproj" />
+  </Folder>
 </Solution>

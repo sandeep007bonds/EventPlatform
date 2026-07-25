@@ -132,6 +132,7 @@ Put only **local dummy** values there. Real secrets live in Key Vault (cloud), n
 | 4317 / 4318 | OTLP ingest (traces) |
 | 5080 / 7080 | Catalog.Api (http / https) |
 | 5081 / 7081 | Inventory.Api (http / https) |
+| 5082 / 7082 | Ordering.Api (http / https) |
 
 ## End-to-end: Catalog → Inventory
 

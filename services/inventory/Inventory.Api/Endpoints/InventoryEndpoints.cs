@@ -25,10 +25,21 @@ public static class InventoryEndpoints
         holds.MapGet("/{holdId:guid}", GetHoldAsync).WithName("GetHold");
         holds.MapDelete("/{holdId:guid}", ReleaseHoldAsync).WithName("ReleaseHold");
 
-        // Internal (checkout saga, via Dapr service invocation): convert a hold to a sale.
+        // Internal (checkout saga, via Dapr service invocation): convert a hold to a sale, or
+        // release it on compensation (no owner check — the saga acts as the system).
         holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").ExcludeFromDescription();
+        holds.MapPost("/{holdId:guid}/release", SystemReleaseHoldAsync).WithName("SystemReleaseHold").ExcludeFromDescription();
 
         return app;
+    }
+
+    private static async Task<IResult> SystemReleaseHoldAsync(
+        Guid holdId,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        await holds.SystemReleaseAsync(holdId, cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> GetHoldAsync(

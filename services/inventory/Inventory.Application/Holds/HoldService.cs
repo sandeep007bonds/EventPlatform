@@ -233,6 +233,24 @@ public sealed class HoldService(
         return await ReleaseInternalAsync(hold, "reap", cancellationToken);
     }
 
+    /// <summary>
+    /// Releases an active hold on behalf of the system (checkout-saga compensation) — no owner
+    /// check. A no-op if the hold is missing or no longer active.
+    /// </summary>
+    /// <param name="holdId">The hold to release.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the hold was released.</returns>
+    public async Task<bool> SystemReleaseAsync(Guid holdId, CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null || hold.Status != HoldStatus.Active)
+        {
+            return false;
+        }
+
+        return await ReleaseInternalAsync(hold, "release", cancellationToken);
+    }
+
     private async Task<bool> ReleaseInternalAsync(Hold hold, string cause, CancellationToken cancellationToken)
     {
         var itemIds = hold.Items.Select(item => item.InventoryItemId).ToList();
