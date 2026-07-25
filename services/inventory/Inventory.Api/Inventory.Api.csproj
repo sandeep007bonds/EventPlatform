@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Inventory.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Inventory.Application/Inventory.Application.csproj" />
+    <ProjectReference Include="../Inventory.Infrastructure/Inventory.Infrastructure.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapr.AspNetCore" />
+  </ItemGroup>
+
+</Project>

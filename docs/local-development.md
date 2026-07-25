@@ -131,3 +131,25 @@ Put only **local dummy** values there. Real secrets live in Key Vault (cloud), n
 | 16686 | Jaeger UI |
 | 4317 / 4318 | OTLP ingest (traces) |
 | 5080 / 7080 | Catalog.Api (http / https) |
+| 5081 / 7081 | Inventory.Api (http / https) |
+
+## End-to-end: Catalog → Inventory
+
+To see inventory provisioned from a published event, run **both** services with
+their own Dapr sidecars (each in its own terminal), then create → seat-map →
+publish an event in Catalog:
+
+```bash
+# terminal 1
+dapr run --app-id catalog --resources-path platform/dapr/components \
+  --config platform/dapr/config.yaml -- dotnet run --project services/catalog/Catalog.Api
+
+# terminal 2
+dapr run --app-id inventory --resources-path platform/dapr/components \
+  --config platform/dapr/config.yaml -- dotnet run --project services/inventory/Inventory.Api
+```
+
+On publish, Catalog's outbox relay emits `EventPublished`; Inventory receives it
+over pub/sub, pulls the seat map from Catalog (Dapr service invocation), and
+generates one inventory item per seat. Verify with
+`GET https://localhost:7081/v1/events/{eventId}/inventory`.

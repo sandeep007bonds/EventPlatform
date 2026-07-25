@@ -1,0 +1,109 @@
+namespace Inventory.Domain;
+
+/// <summary>
+/// A buyer's temporary claim on a set of seats, subject to a TTL. Converted to a sale on checkout
+/// or released (by the buyer or the expiry reaper).
+/// </summary>
+public sealed class Hold
+{
+    private readonly List<HoldItem> _items = new();
+
+    // Parameterless ctor for EF Core materialization.
+    private Hold()
+    {
+    }
+
+    private Hold(Guid id, Guid tenantId, Guid eventId, Guid userId, DateTimeOffset expiresAt)
+    {
+        Id = id;
+        TenantId = tenantId;
+        EventId = eventId;
+        UserId = userId;
+        ExpiresAt = expiresAt;
+        Status = HoldStatus.Active;
+        CreatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Unique hold id (UUID v7 — time-sortable).</summary>
+    public Guid Id { get; private set; }
+
+    /// <summary>Owning tenant (organizer).</summary>
+    public Guid TenantId { get; private set; }
+
+    /// <summary>The event the held seats belong to.</summary>
+    public Guid EventId { get; private set; }
+
+    /// <summary>The buyer holding the seats.</summary>
+    public Guid UserId { get; private set; }
+
+    /// <summary>The order this hold was converted for, once checkout starts.</summary>
+    public Guid? OrderId { get; private set; }
+
+    /// <summary>When the hold expires (UTC).</summary>
+    public DateTimeOffset ExpiresAt { get; private set; }
+
+    /// <summary>Current hold status.</summary>
+    public HoldStatus Status { get; private set; }
+
+    /// <summary>When the hold was created (UTC).</summary>
+    public DateTimeOffset CreatedAt { get; private set; }
+
+    /// <summary>The inventory items in this hold.</summary>
+    public IReadOnlyCollection<HoldItem> Items => _items;
+
+    /// <summary>Creates an active hold over the given inventory items.</summary>
+    /// <param name="tenantId">Owning tenant.</param>
+    /// <param name="eventId">The event.</param>
+    /// <param name="userId">The buyer.</param>
+    /// <param name="expiresAt">When the hold expires (UTC).</param>
+    /// <param name="inventoryItemIds">The held inventory-item ids.</param>
+    /// <returns>A new active <see cref="Hold"/>.</returns>
+    public static Hold Create(
+        Guid tenantId,
+        Guid eventId,
+        Guid userId,
+        DateTimeOffset expiresAt,
+        IEnumerable<Guid> inventoryItemIds)
+    {
+        ArgumentNullException.ThrowIfNull(inventoryItemIds);
+
+        var hold = new Hold(Guid.CreateVersion7(), tenantId, eventId, userId, expiresAt);
+        foreach (var itemId in inventoryItemIds)
+        {
+            hold._items.Add(new HoldItem(hold.Id, itemId));
+        }
+
+        if (hold._items.Count == 0)
+        {
+            throw new InvalidOperationException("A hold must contain at least one seat.");
+        }
+
+        return hold;
+    }
+
+    /// <summary>Marks the hold converted to a sale for the given order.</summary>
+    /// <param name="orderId">The order the hold was converted for.</param>
+    /// <exception cref="InvalidOperationException">The hold is not active.</exception>
+    public void MarkConverted(Guid orderId)
+    {
+        RequireActive();
+        OrderId = orderId;
+        Status = HoldStatus.Converted;
+    }
+
+    /// <summary>Releases the hold.</summary>
+    /// <exception cref="InvalidOperationException">The hold is not active.</exception>
+    public void Release()
+    {
+        RequireActive();
+        Status = HoldStatus.Released;
+    }
+
+    private void RequireActive()
+    {
+        if (Status != HoldStatus.Active)
+        {
+            throw new InvalidOperationException($"Hold {Id} is {Status}, not Active.");
+        }
+    }
+}

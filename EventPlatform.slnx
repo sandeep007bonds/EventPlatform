@@ -15,4 +15,10 @@
     <Project Path="services/catalog/Catalog.Infrastructure/Catalog.Infrastructure.csproj" />
     <Project Path="services/catalog/Catalog.Api/Catalog.Api.csproj" />
   </Folder>
+  <Folder Name="/services/inventory/">
+    <Project Path="services/inventory/Inventory.Domain/Inventory.Domain.csproj" />
+    <Project Path="services/inventory/Inventory.Application/Inventory.Application.csproj" />
+    <Project Path="services/inventory/Inventory.Infrastructure/Inventory.Infrastructure.csproj" />
+    <Project Path="services/inventory/Inventory.Api/Inventory.Api.csproj" />
+  </Folder>
 </Solution>

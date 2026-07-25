@@ -1,0 +1,9 @@
+global using Dapr.Client;
+global using EventPlatform.Messaging;
+global using Inventory.Application.Abstractions;
+global using Inventory.Domain;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Design;
+global using Microsoft.EntityFrameworkCore.Metadata.Builders;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;

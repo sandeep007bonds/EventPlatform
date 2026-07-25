@@ -1,0 +1,28 @@
+namespace Inventory.Infrastructure.Configurations;
+
+/// <summary>EF Core mapping for the <see cref="Hold"/> aggregate.</summary>
+internal sealed class HoldConfiguration : IEntityTypeConfiguration<Hold>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Hold> builder)
+    {
+        builder.ToTable("hold");
+
+        builder.HasKey(h => h.Id);
+
+        builder.Property(h => h.TenantId).IsRequired();
+        builder.Property(h => h.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+
+        builder.HasIndex(h => new { h.EventId, h.Status });
+        builder.HasIndex(h => h.ExpiresAt);
+
+        builder.HasMany(h => h.Items)
+            .WithOne()
+            .HasForeignKey(item => item.HoldId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata
+            .FindNavigation(nameof(Hold.Items))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
+    }
+}

@@ -36,7 +36,10 @@ local development. Update this with each meaningful change.
   - ✅ **Transactional outbox + Dapr (first use):** `PublishEvent` enqueues `EventPublished` into the `outbox` table in the same transaction; shared `EventPlatform.Messaging` relay publishes it to Dapr pub/sub (at-least-once, CloudEvent id = outbox id)
   - ✅ **Seat map:** `SeatMap`/`Seat` domain, `DefineSeatMap` + `GetSeatMap` slices, `POST`/`GET /v1/events/{id}/seatmap`. Publish now requires a seat map and stamps `SeatCount` on `EventPublished`; `GetSeatMap` is the hand-off Inventory reads ← **verify build locally**
   - 🚧 EF Core migrations — scaffolding in place (Design ref, design-time factory, startup applies migrations); **run `dotnet ef migrations add InitialCreate` and commit the `Migrations/` folder** (see T8) ← **next (needs local SDK)**
-- ⬜ Inventory & Hold — no-oversell core (issue #7) — consumes `EventPublished`
+- 🚧 **Inventory & Hold — no-oversell core (issue #7)**
+  - ✅ **Stage A — provisioning:** service scaffold (Domain `InventoryItem`/`Hold`/`LedgerEntry`, lean Application, EF + Postgres, outbox, migration scaffolding); consumes `EventPublished` via Dapr pub/sub and generates inventory by pulling Catalog's seat map (Dapr service invocation); `GET /v1/events/{id}/inventory` ← **verify build locally**
+  - ⬜ **Stage B — hold hot path:** Redis Lua atomic hold + Postgres optimistic concurrency + hold TTL + reaper; `POST /v1/holds`, release; emit `SeatHeld`/`SeatReleased` via outbox
+  - ⬜ EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — needs local SDK
 - ⬜ Order + checkout saga (#8) — Dapr Workflow
 - ⬜ Payment — Stripe test (#9)
 - ⬜ Ticketing (#10)
@@ -88,6 +91,7 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | T8 | Catalog EF Core migrations | 🚧 infra ready — EF Design ref (`PrivateAssets=all`), `CatalogDbContextDesignTimeFactory`, host now calls `MigrateAsync` in dev. **Remaining:** run `dotnet ef migrations add InitialCreate` (see [local-development](local-development.md#2-database-migrations-ef-core)) and commit `Migrations/`. Covers `events`, `seat_maps`, `seats`, `outbox` |
 | T9 | Transactional outbox building-block | ✅ `EventPlatform.Messaging` — write path (`IEventPublisher`/`OutboxMessage`/`ApplyOutbox`) + `OutboxRelay` (Dapr pub/sub, at-least-once). Consumed side (dedupe on CloudEvent id) lands with Inventory (#7). Needs the `outbox` table in migrations (T8) |
 | T10 | Seat-map read path returns all seats inline | fine at Phase-1 dev scale; page/stream `GET /seatmap` (and the Inventory hand-off) before large-venue maps (50k+ seats). `PublishEvent` also loads seats just to count — swap for a `COUNT(*)` |
+| T11 | Money as minor units assumes 2-decimal currency | Inventory `ToMinor` does `amount × 100`; refine per ISO 4217 exponent (JPY = 0, etc.) before multi-currency |
 
 ---
 
