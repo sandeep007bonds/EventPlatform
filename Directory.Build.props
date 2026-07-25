@@ -25,6 +25,16 @@
     <!-- Central Package Management -->
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
 
+    <!--
+      Audit DIRECT dependencies only (still warnings-as-errors). We keep our own
+      references patched (e.g. OpenTelemetry, Microsoft.OpenApi). Deep *design-time*
+      tooling transitives — EF Core Design pulls a vulnerable System.Security.Cryptography.Xml
+      that never ships (PrivateAssets=all) and can't be pinned (NU1510, framework-provided) —
+      are out of scope for the audit.
+    -->
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>direct</NuGetAuditMode>
+
     <Deterministic>true</Deterministic>
   </PropertyGroup>
 
