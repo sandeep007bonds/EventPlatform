@@ -56,6 +56,22 @@ public interface IInventoryRepository
         int batchSize,
         CancellationToken cancellationToken);
 
+    /// <summary>Gets the ids of events that currently have any held or sold inventory (for reconciliation).</summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The distinct event ids with non-available inventory.</returns>
+    Task<IReadOnlyList<Guid>> GetEventIdsWithActiveInventoryAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads the authoritative non-available seat states (held/sold) for an event, so the Redis fast
+    /// gate can be rebuilt after a restart or flush.
+    /// </summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The held and sold seat states for the event.</returns>
+    Task<IReadOnlyList<SeatReconciliationState>> GetReconciliationStateAsync(
+        Guid eventId,
+        CancellationToken cancellationToken);
+
     /// <summary>Registers a new hold to be persisted.</summary>
     /// <param name="hold">The hold to add.</param>
     void AddHold(Hold hold);

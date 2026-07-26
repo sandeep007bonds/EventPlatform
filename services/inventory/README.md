@@ -7,6 +7,9 @@ The no-oversell system of record for the platform. Owns seat availability, holds
   seat by reading Catalog's seat map (via Dapr service invocation).
 - **Fast gate + final authority:** Redis Lua atomic hold (Stage B) backed by
   Postgres optimistic concurrency (`InventoryItem.Version`).
+- **Self-healing cache:** if Redis is restarted or flushed, the `InventoryReconciler`
+  rebuilds the fast gate from Postgres (the authority). It only ever re-applies
+  held/sold restrictions — never frees a seat — so it cannot itself cause oversell.
 - **Lean** on the hot path: Minimal API, no MediatR (ADR-0009).
 
 ## Endpoints

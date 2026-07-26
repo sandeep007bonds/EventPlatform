@@ -12,6 +12,10 @@ namespace Inventory.Infrastructure;
 /// <param name="redis">The Redis connection.</param>
 internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 {
+    // Presence of this key means the store has been rebuilt from Postgres since its last restart.
+    // A flush wipes it, which is exactly how the reconciler detects that Redis lost its state.
+    private const string ReconcilerSentinelKey = "inv:reconciler:initialized";
+
     // KEYS = seat keys; ARGV[1]=holdId, ARGV[2]=ttl, ARGV[3]=holdKey, ARGV[4]=holdSeatsKey,
     // ARGV[5..]=seatIds (aligned to KEYS). Returns "OK" or "CONFLICT:{seatId}".
     private const string PlaceScript = """
@@ -116,6 +120,55 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         cancellationToken.ThrowIfCancellationRequested();
 
         await redis.GetDatabase().ScriptEvaluateAsync(MarkSoldScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+    }
+
+    /// <inheritdoc />
+    public async Task<bool> IsInitializedAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await redis.GetDatabase().KeyExistsAsync(ReconcilerSentinelKey);
+    }
+
+    /// <inheritdoc />
+    public async Task RestoreAsync(
+        IReadOnlyList<SeatReconciliationState> states,
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var db = redis.GetDatabase();
+        foreach (var state in states)
+        {
+            var seatKey = SeatKey(state.EventId, state.SeatId);
+            if (state.Condition == SeatCondition.Sold)
+            {
+                await db.StringSetAsync(seatKey, "S");
+                continue;
+            }
+
+            // Held: restore only while the hold still has time left; an already-expired one is left
+            // for the reaper to release, so we never resurrect a stale hold.
+            var ttl = (state.HoldExpiresAt ?? now) - now;
+            if (state.HoldId is not { } holdId || ttl <= TimeSpan.Zero)
+            {
+                continue;
+            }
+
+            var seatValue = state.SeatId.ToString("N");
+            await db.StringSetAsync(seatKey, "H:" + holdId.ToString("N"));
+            await db.StringSetAsync(HoldKey(state.EventId, holdId), "1", ttl);
+            await db.SetAddAsync(HoldSeatsKey(state.EventId, holdId), seatValue);
+            await db.KeyExpireAsync(HoldSeatsKey(state.EventId, holdId), ttl);
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task MarkInitializedAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await redis.GetDatabase().StringSetAsync(ReconcilerSentinelKey, "1");
     }
 
     private static RedisKey[] HoldKeys(Guid eventId, IReadOnlyList<Guid> seatIds) =>

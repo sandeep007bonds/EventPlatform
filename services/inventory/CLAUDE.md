@@ -24,13 +24,19 @@ an event.
   TTL + reaper reclaims abandoned holds. See [LLD §4–5](../../docs/design/lld-phase1-seated.md).
 - **Idempotent provisioning:** re-delivery of `EventPublished` is a no-op once an
   event has inventory.
+- **Drift reconciliation:** Redis holds only a sparse cache; a restart/flush loses
+  it. `InventoryReconciler` (a background service) detects this via a sentinel key
+  and rebuilds the fast gate from Postgres — writing back held (with remaining TTL)
+  and sold seats. **Safety invariant:** the rebuild only adds restrictions, never
+  frees a seat, so it can never cause oversell even if it races a live hold.
 
 ## Structure
 
 Layers directly under this folder (no `src/`): `Inventory.Api` (host + endpoints +
-Dapr subscription), `Inventory.Application` (ports + provisioning), `Inventory.Domain`
-(`InventoryItem`, `Hold`, `LedgerEntry` + invariants), `Inventory.Infrastructure`
-(EF Core + Postgres, the Catalog seat-map client, outbox). `tests/` to follow.
+Dapr subscription), `Inventory.Application` (ports + provisioning + reconciliation),
+`Inventory.Domain` (`InventoryItem`, `Hold`, `LedgerEntry` + invariants),
+`Inventory.Infrastructure` (EF Core + Postgres, Redis hold store, the Catalog
+seat-map client, the expiry reaper, the drift reconciler, outbox). `tests/` to follow.
 
 ## Local run
 

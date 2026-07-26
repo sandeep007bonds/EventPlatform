@@ -35,4 +35,28 @@ public interface IHoldStore
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the seats are marked sold.</returns>
     Task MarkSoldAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Returns whether the store has been initialized since its last (re)start. A store that returns
+    /// <see langword="false"/> was just started or flushed and must be rebuilt from Postgres.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the store is warm; <see langword="false"/> if it needs a rebuild.</returns>
+    Task<bool> IsInitializedAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Writes the given authoritative seat restrictions (held/sold) back into the store during a
+    /// rebuild. This only ever adds restrictions — it never frees a seat — so it cannot itself cause
+    /// oversell even if it races a concurrent hold.
+    /// </summary>
+    /// <param name="states">The authoritative non-available seat states from Postgres.</param>
+    /// <param name="now">The current time (UTC), used to compute held-seat TTLs.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the states have been applied.</returns>
+    Task RestoreAsync(IReadOnlyList<SeatReconciliationState> states, DateTimeOffset now, CancellationToken cancellationToken);
+
+    /// <summary>Marks the store initialized so subsequent rebuild checks are skipped until the next flush.</summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the store is marked initialized.</returns>
+    Task MarkInitializedAsync(CancellationToken cancellationToken);
 }

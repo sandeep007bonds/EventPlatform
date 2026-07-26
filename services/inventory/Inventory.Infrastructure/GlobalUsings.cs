@@ -2,6 +2,7 @@ global using Dapr.Client;
 global using EventPlatform.Messaging;
 global using Inventory.Application.Abstractions;
 global using Inventory.Application.Holds;
+global using Inventory.Application.Reconciliation;
 global using Inventory.Domain;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;

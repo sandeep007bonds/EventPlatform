@@ -51,6 +51,38 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> GetEventIdsWithActiveInventoryAsync(CancellationToken cancellationToken) =>
+        await dbContext.InventoryItems
+            .Where(i => i.Status == InventoryStatus.Held || i.Status == InventoryStatus.Sold)
+            .Select(i => i.EventId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<SeatReconciliationState>> GetReconciliationStateAsync(
+        Guid eventId,
+        CancellationToken cancellationToken)
+    {
+        // Sold seats are permanent — no hold, no TTL.
+        var sold = await dbContext.InventoryItems
+            .Where(i => i.EventId == eventId && i.Status == InventoryStatus.Sold)
+            .Select(i => new SeatReconciliationState(eventId, i.SeatId, SeatCondition.Sold, null, null))
+            .ToListAsync(cancellationToken);
+
+        // Held seats join through their active hold to recover the hold id and expiry (the TTL).
+        var held = await (
+            from item in dbContext.InventoryItems
+            where item.EventId == eventId && item.Status == InventoryStatus.Held
+            join holdItem in dbContext.Set<HoldItem>() on item.Id equals holdItem.InventoryItemId
+            join hold in dbContext.Holds on holdItem.HoldId equals hold.Id
+            where hold.Status == HoldStatus.Active
+            select new SeatReconciliationState(eventId, item.SeatId, SeatCondition.Held, hold.Id, hold.ExpiresAt))
+            .ToListAsync(cancellationToken);
+
+        return [.. sold, .. held];
+    }
+
+    /// <inheritdoc />
     public void AddHold(Hold hold) => dbContext.Holds.Add(hold);
 
     /// <inheritdoc />
