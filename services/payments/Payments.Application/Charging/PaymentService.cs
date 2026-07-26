@@ -31,9 +31,7 @@ public sealed class PaymentService(
         var existing = await payments.GetByOrderAndKeyAsync(orderId, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
-            return existing.Status == PaymentStatus.Captured
-                ? new ChargeResult(ChargeOutcome.Captured, existing.Id, existing.ProviderReference, null)
-                : new ChargeResult(ChargeOutcome.Failed, existing.Id, null, existing.FailureReason ?? "payment_failed");
+            return ToChargeResult(existing);
         }
 
         var payment = Payment.Create(tenantId, orderId, gateway.Provider, idempotencyKey, amountMinor, currency);
@@ -72,12 +70,23 @@ public sealed class PaymentService(
                 payment.FailureReason!));
         }
 
-        await payments.SaveChangesAsync(cancellationToken);
+        // Race window: two charges for the same (order, key) both passed the pre-check. The unique
+        // index lets exactly one persist; the loser re-fetches the winner (the gateway is idempotent
+        // on the key, so no double charge, and the loser's outbox events roll back with the save).
+        if (await payments.TrySaveChangesAsync(cancellationToken))
+        {
+            return ToChargeResult(payment);
+        }
 
-        return payment.Status == PaymentStatus.Captured
-            ? new ChargeResult(ChargeOutcome.Captured, payment.Id, payment.ProviderReference, null)
-            : new ChargeResult(ChargeOutcome.Failed, payment.Id, null, payment.FailureReason);
+        var winner = await payments.GetByOrderAndKeyAsync(orderId, idempotencyKey, cancellationToken)
+            ?? throw new InvalidOperationException("Duplicate charge was rejected but no existing payment was found.");
+        return ToChargeResult(winner);
     }
+
+    private static ChargeResult ToChargeResult(Payment payment) =>
+        payment.Status == PaymentStatus.Captured
+            ? new ChargeResult(ChargeOutcome.Captured, payment.Id, payment.ProviderReference, null)
+            : new ChargeResult(ChargeOutcome.Failed, payment.Id, null, payment.FailureReason ?? "payment_failed");
 
     /// <summary>Refunds the captured payment for an order, if any. Idempotent.</summary>
     /// <param name="orderId">The order to refund.</param>

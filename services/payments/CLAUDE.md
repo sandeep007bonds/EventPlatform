@@ -22,7 +22,11 @@ servers; only PSP references are stored.
 ## Design notes
 
 - **Idempotent charge:** deduped on `(order_id, idempotency_key)` — unique index
-  + a pre-check.
+  + a pre-check. Two *concurrent* charges can both pass the pre-check; the unique
+  index lets one persist and `IPaymentRepository.TrySaveChangesAsync` swallows the
+  loser's violation so it re-fetches the winner (no 500). The gateway is called
+  with the same key, so the PSP dedupes it — no double charge — and the loser's
+  outbox events roll back with the failed save.
 - **Gateway behind a port:** `IPaymentGateway`. Dev uses `SimulatedPaymentGateway`
   (captures synchronously). The real **Stripe** gateway (Stripe.net, secret key
   from Key Vault) drops in here. **No card data or secrets in code.**

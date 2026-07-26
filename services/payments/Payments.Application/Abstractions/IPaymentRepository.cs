@@ -47,4 +47,13 @@ public interface IPaymentRepository
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Persists all pending changes, returning <see langword="false"/> instead of throwing when a
+    /// concurrent charge for the same <c>(order, idempotency key)</c> already won the unique index —
+    /// the caller re-fetches that winning payment rather than treating it as an error.
+    /// </summary>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if saved; <see langword="false"/> on a duplicate-key conflict.</returns>
+    Task<bool> TrySaveChangesAsync(CancellationToken cancellationToken);
 }
