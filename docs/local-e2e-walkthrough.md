@@ -4,21 +4,20 @@ Run the **whole platform** on your machine and drive a full purchase:
 **create event → seat map → publish → provision inventory → hold → checkout
 (pay) → order confirmed → ticket issued.**
 
-No Azure, no Kubernetes. Everything is Docker + five .NET processes, each with a
-Dapr sidecar. See [local-development.md](local-development.md) for the background;
-this file is the copy-paste runbook.
+No Azure, no Kubernetes. One command starts everything: Docker (Postgres,
+Redis, Jaeger) plus all five services, each with a Dapr sidecar.
 
 **What "no oversell" means:** the platform's core promise is that the same seat
 is never sold to two people. In a flash sale, thousands of buyers can hit "buy"
 on the same seat within the same second; exactly one may win it — everyone else
-must get a clean "sorry, taken," not a double sale. Section 6 below proves this
+must get a clean "sorry, taken," not a double sale. Section 4 below proves this
 with a load test that races 200 simulated buyers for one seat.
 
-**What "the flow script" is:** step 5 is a small shell script of `curl` calls
-that drives one purchase through the real, running services — create an event,
-define its seats, publish it, wait for inventory, place a hold, check out, and
-read back the confirmed order and issued ticket. It's a way to see the whole
-system work end-to-end without building a UI first.
+**What "the flow script" is:** section 3 is a small shell script of `curl`
+calls that drives one purchase through the real, running services — create an
+event, define its seats, publish it, wait for inventory, place a hold, check
+out, and read back the confirmed order and issued ticket. It's a way to see the
+whole system work end-to-end without building a UI first.
 
 ## 0. Prerequisites
 
@@ -26,108 +25,82 @@ system work end-to-end without building a UI first.
 |------|---------|
 | Docker Desktop | runs Postgres, Redis, Jaeger |
 | .NET 10 SDK | <https://dotnet.microsoft.com/download/dotnet/10.0> |
-| Dapr CLI | <https://docs.dapr.io/getting-started/install-dapr-cli/> then `dapr init` (one-time) |
+| Dapr CLI (>= 1.13) | <https://docs.dapr.io/getting-started/install-dapr-cli/> |
 
-Optional, only if you use the example flow script in step 5: `jq` (JSON parsing
-in `curl` output) and `python3` (to mint the dev JWT). Neither is a platform
-dependency — you can equally paste ids by hand and mint the token at
-<https://jwt.io>.
+Optional, only if you use the example flow script in step 3: `jq` (JSON parsing
+in `curl` output) and `python3` (to mint the dev JWT, used by
+`scripts/dev-token.sh`). Neither is a platform dependency — you can equally
+paste ids by hand and mint a token at <https://jwt.io>.
 
-## 1. Start the backing services
+These scripts are Bash — on Windows use WSL or Git Bash.
 
-```bash
-docker compose up -d          # Postgres:5432, Redis:6380, Jaeger:16686
-```
-
-All five services share one Postgres database (`eventplatform`), each in its own
-schema (`catalog`, `inventory`, …). Redis is the inventory fast gate **and** the
-Dapr pub/sub + workflow state store (see `platform/dapr/components/`).
-
-## 2. Schema — fully automatic, nothing to run
-
-Each service creates its own schema from its current EF Core model the first
-time it starts in Development (`Database.EnsureCreatedAsync()` in `Program.cs`)
-— there is no `dotnet ef` command to run and no `Migrations/` folder to
-generate or commit. Just start the services (step 3) and the tables appear.
-
-> This is deliberately **not** real EF Core migrations (`Migrate`) — that's the
-> right tool once the schema needs to evolve without dropping data (staging/
-> production), and is tracked separately. For disposable local dev,
-> `EnsureCreated` is simpler and needs zero commands from you. If you change a
-> domain model and the columns look stale, the fastest fix locally is
-> `docker compose down -v && docker compose up -d` to drop and recreate the
-> Postgres volume — it'll be rebuilt from the model on next service start.
-
-## 3. Run the five services, each with a Dapr sidecar
-
-Open **five terminals** (or use a multiplexer). Each service runs over plain
-HTTP on its `508x` port so Dapr's callbacks (pub/sub delivery, service
-invocation) and your `curl`s don't fight the dev TLS cert. `--app-port` /
-`--app-protocol http` are what let Dapr deliver events and route
-service-to-service calls by app-id.
+## 1. One-click start
 
 ```bash
-# terminal 1 — Catalog (events + seat maps)
-ASPNETCORE_URLS=http://localhost:5080 dapr run --app-id catalog --app-port 5080 --app-protocol http \
-  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
-  -- dotnet run --project services/catalog/Catalog.Api
-
-# terminal 2 — Inventory (no-oversell holds)
-ASPNETCORE_URLS=http://localhost:5081 dapr run --app-id inventory --app-port 5081 --app-protocol http \
-  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
-  -- dotnet run --project services/inventory/Inventory.Api
-
-# terminal 3 — Ordering (checkout saga / Dapr Workflow)
-ASPNETCORE_URLS=http://localhost:5082 dapr run --app-id ordering --app-port 5082 --app-protocol http \
-  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
-  -- dotnet run --project services/ordering/Ordering.Api
-
-# terminal 4 — Payments (simulated gateway unless a Stripe key is set)
-ASPNETCORE_URLS=http://localhost:5083 dapr run --app-id payments --app-port 5083 --app-protocol http \
-  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
-  -- dotnet run --project services/payments/Payments.Api
-
-# terminal 5 — Ticketing (issues tickets on OrderConfirmed)
-ASPNETCORE_URLS=http://localhost:5084 dapr run --app-id ticketing --app-port 5084 --app-protocol http \
-  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
-  -- dotnet run --project services/ticketing/Ticketing.Api
+./scripts/dev-up.sh
 ```
+
+This single command:
+1. Starts Postgres, Redis, and Jaeger (`docker compose up -d`) and waits for
+   them to report healthy.
+2. Installs the local Dapr runtime the first time you run it (`dapr init`).
+3. Starts all five services — Catalog, Inventory, Ordering, Payments,
+   Ticketing — each with its own Dapr sidecar, via
+   [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
+   (`platform/dapr/dapr.yaml`).
+
+Each service creates its own Postgres schema from its current EF Core model
+the first time it starts (`Database.EnsureCreatedAsync()`, Development only) —
+there's no separate migration step and nothing else to run.
+
+**Ctrl+C stops everything** (all five services and their sidecars). Then, to
+also stop the Docker containers:
+
+```bash
+./scripts/dev-down.sh          # add -v to also wipe the Postgres volume
+```
+
+When it's up you have:
+
+| Service | Scalar API docs |
+|---------|------------------|
+| Catalog | http://localhost:5080/scalar/v1 |
+| Inventory | http://localhost:5081/scalar/v1 |
+| Ordering | http://localhost:5082/scalar/v1 |
+| Payments | http://localhost:5083/scalar/v1 |
+| Ticketing | http://localhost:5084/scalar/v1 |
+| Jaeger UI | http://localhost:16686 |
 
 **Payments gateway:** with no Stripe secret configured, Payments uses the
-`SimulatedPaymentGateway` (captures synchronously, always succeeds) — perfect for
-E2E. To exercise real Stripe instead, set a **test** key before starting it:
-`dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." --project services/payments/Payments.Api`
+`SimulatedPaymentGateway` (captures synchronously, always succeeds) — perfect
+for E2E. To exercise real Stripe instead, set a **test** key *before* running
+`dev-up.sh`: `dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." --project services/payments/Payments.Api`
 (never commit it).
 
-## 4. Mint a dev JWT
+> **Under the hood:** `dev-up.sh` wraps `dapr run -f platform/dapr/dapr.yaml`,
+> which is equivalent to running `dapr run --app-id catalog --app-port 5080
+> --app-protocol http -- dotnet run --project services/catalog/Catalog.Api` for
+> each service in its own terminal — one Dapr multi-app run template replaces
+> five manual commands. `--app-port`/`--app-protocol http` are what let Dapr
+> deliver pub/sub events and route service-to-service calls by app-id.
 
-Every write endpoint reads the tenant from the token (`tenant_id` claim) and the
-buyer from `sub`. In Development the services accept an HS256 token signed with
-`Jwt:DevSigningKey` (set in each `appsettings.Development.json`) — no identity
-provider needed. Mint one:
+## 2. Mint a dev JWT
+
+Every write endpoint reads the tenant from the token (`tenant_id` claim) and
+the buyer from `sub`). In Development every service accepts an HS256 token
+signed with `Jwt:DevSigningKey` (set in each `appsettings.Development.json`) —
+no identity provider needed. In a **second terminal** (the first is running
+`dev-up.sh`):
 
 ```bash
-export TOKEN=$(python3 - <<'PY'
-import base64, hmac, hashlib, json, time, uuid
-secret = "eventplatform-dev-hs256-signing-key-not-a-secret"
-tenant = "11111111-1111-1111-1111-111111111111"
-b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=")
-now = int(time.time())
-head = {"alg": "HS256", "typ": "JWT"}
-body = {"iss": "eventplatform-dev", "aud": "eventplatform", "iat": now, "exp": now + 3600,
-        "tenant_id": tenant, "sub": str(uuid.uuid4())}
-si = b64(json.dumps(head).encode()) + b"." + b64(json.dumps(body).encode())
-sig = b64(hmac.new(secret.encode(), si, hashlib.sha256).digest())
-print((si + b"." + sig).decode())
-PY
-)
+export TOKEN=$(./scripts/dev-token.sh)
 echo "$TOKEN"
 ```
 
-Use the **same** `$TOKEN` for the hold and the checkout — the saga checks that the
-hold's owner (`sub`) matches the checkout caller.
+Use the **same** `$TOKEN` for the hold and the checkout below — the saga checks
+that the hold's owner (`sub`) matches the checkout caller.
 
-## 5. Drive the full flow
+## 3. Drive the full flow
 
 ```bash
 CATALOG=http://localhost:5080
@@ -184,7 +157,7 @@ curl -s "${AUTH[@]}" "$TICKETING/v1/orders/$ORDER_ID/tickets" | jq
 You now have a confirmed order and an issued ticket — the full contested-seat
 purchase, end to end.
 
-## 6. Prove the guarantees
+## 4. Prove the guarantees
 
 - **No oversell under contention.** With the stack up, run the load test — 200
   users race for one seat and exactly one may win:
@@ -195,8 +168,8 @@ purchase, end to end.
   (See [platform/loadtest/README.md](../platform/loadtest/README.md). The scripts
   default to the `https` 7080/7081 ports; pass the `http` URLs as above to match
   this runbook.)
-- **Idempotent checkout.** Re-run step 7 with the **same** `Idempotency-Key` — you
-  get the same `orderId` back, no second charge.
+- **Idempotent checkout.** Re-run checkout (step 3.7) with the **same**
+  `Idempotency-Key` — you get the same `orderId` back, no second charge.
 - **Self-healing fast gate.** `docker compose restart redis`, then place another
   hold: the `InventoryReconciler` rebuilds Redis from Postgres (held/sold seats)
   within its interval, so previously-sold seats are still rejected.
@@ -204,11 +177,11 @@ purchase, end to end.
   span across Catalog → Inventory → Ordering → Payments → Ticketing.
 - **Health:** `curl http://localhost:508x/health/ready` for each service.
 
-## 7. Payments webhooks (optional, real Stripe only)
+## 5. Payments webhooks (optional, real Stripe only)
 
 If you ran Payments with a real Stripe test key and want to exercise async
-capture/refunds, set a webhook signing secret and forward events with the Stripe
-CLI:
+capture/refunds, set a webhook signing secret before starting `dev-up.sh` and
+forward events with the Stripe CLI:
 
 ```bash
 dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project services/payments/Payments.Api
@@ -218,19 +191,15 @@ stripe listen --forward-to http://localhost:5083/v1/payments/webhooks/stripe
 The endpoint verifies the `Stripe-Signature`, dedupes on the Stripe event id, and
 reconciles the payment idempotently. Without a signing secret it returns `503`.
 
-## 8. Teardown
-
-```bash
-# Ctrl-C each dapr run; then:
-docker compose down          # add -v to also wipe the Postgres volume
-```
-
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (step 4) |
-| `inventory` stays `seatCount: 0` | Inventory sidecar not up, or `--app-port`/`--app-protocol http` missing so pub/sub can't deliver |
-| Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`; ensure `--resources-path` points there |
-| `relation does not exist` | The schema wasn't created — check the service's own startup logs for an `EnsureCreated`/Postgres connection error (bad connection string, Postgres not up yet) |
-| Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` |
+| `dev-up.sh` exits at "Dapr CLI not found" | Install it, then re-run — <https://docs.dapr.io/getting-started/install-dapr-cli/> |
+| `dev-up.sh` hangs waiting for postgres/redis | Check `docker compose logs postgres` / `docker compose logs redis` |
+| `dapr run -f` errors on the yaml | Your Dapr CLI is too old — multi-app run needs **>= 1.13**; `dapr --version` to check, then upgrade |
+| `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (section 2) |
+| `inventory` stays `seatCount: 0` | Check the inventory sidecar's logs in the `dev-up.sh` output for a pub/sub delivery error |
+| Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`, already wired into `platform/dapr/dapr.yaml` |
+| `relation does not exist` | The schema wasn't created — check that service's startup logs for an `EnsureCreated`/Postgres connection error |
+| Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` (already set correctly in `platform/dapr/dapr.yaml`) |

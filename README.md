@@ -6,9 +6,12 @@ A high-performance, reliable ticketing platform for large-scale live events
 for a limited, perishable inventory of seats.
 
 > **Status:** Design complete; scaffolding in progress. The repo holds the full
-> architecture, ADRs, and detailed design, plus the monorepo skeleton (shared
-> hosting library, contracts, a reference service) and a local Docker dev stack.
-> See [Local Development](docs/local-development.md) to run it — no Azure needed.
+> architecture, ADRs, and detailed design, plus five working services (Catalog,
+> Inventory, Ordering, Payments, Ticketing) and a local Docker + Dapr dev stack.
+> Run the whole thing with one command — `./scripts/dev-up.sh` — and drive a
+> full purchase end to end: see [Local Development](docs/local-development.md)
+> and the [local end-to-end walkthrough](docs/local-e2e-walkthrough.md). No
+> Azure needed.
 
 ## The core problem
 

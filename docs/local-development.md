@@ -5,10 +5,22 @@ runs on your machine with Docker. Azure is only used when we *deploy* (AKS). Thi
 is a deliberate benefit of the Dapr + containers design: the same service code
 runs locally and in the cloud — only the Dapr component config differs.
 
-> **Want the full purchase flow across all five services?** See the copy-paste
-> runbook in [local-e2e-walkthrough.md](local-e2e-walkthrough.md): create event →
-> seat map → publish → provision inventory → hold → checkout (pay) → order
-> confirmed → ticket issued, plus how to mint a dev JWT and prove no-oversell.
+## Quick start (one command)
+
+```bash
+./scripts/dev-up.sh
+```
+
+Starts Postgres, Redis, Jaeger, and all five services (each with a Dapr
+sidecar). Ctrl+C stops everything. See
+**[local-e2e-walkthrough.md](local-e2e-walkthrough.md)** for the full runbook —
+prerequisites, minting a dev auth token, and a copy-paste script that drives a
+complete purchase (create event → seat map → publish → hold → checkout → order
+→ ticket) — plus how to prove no-oversell, idempotent checkout, and the
+self-healing Redis fast gate.
+
+The rest of this page is background on how the pieces underneath that script
+fit together.
 
 ## Prerequisites
 
@@ -16,19 +28,13 @@ runs locally and in the cloud — only the Dapr component config differs.
 |------|-----|
 | **Docker Desktop** | Runs Postgres, Redis, Jaeger (and later, more) |
 | **.NET 10 SDK** | Build & run the services — https://dotnet.microsoft.com/download/dotnet/10.0 |
-| **Dapr CLI** | Needed once services use Dapr (pub/sub, workflow) — https://docs.dapr.io/getting-started/install-dapr-cli/ |
+| **Dapr CLI (>= 1.13)** | Runs each service with a sidecar (pub/sub, workflow, service invocation) — https://docs.dapr.io/getting-started/install-dapr-cli/ |
 
 Optional: Visual Studio 2022 (17.14+ for `.slnx`), Rider, or VS Code + C# Dev Kit.
 
-## 1. Start the backing services
+## Backing services
 
-From the repo root:
-
-```bash
-docker compose up -d
-```
-
-This starts:
+`docker compose up -d` (what `dev-up.sh` calls first) starts:
 
 | Service | Address | Notes |
 |---------|---------|-------|
@@ -36,9 +42,9 @@ This starts:
 | Redis | `localhost:6380` | 6379 is left free for Dapr's own runtime |
 | Jaeger UI | http://localhost:16686 | traces from every service (OTLP on 4317) |
 
-Stop with `docker compose down` (add `-v` to also wipe the Postgres volume).
+Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 
-## 2. Database schema — automatic in Development
+## Database schema — automatic in Development
 
 Nothing to run. Each service creates its own Postgres schema from its current
 EF Core model the first time it starts in Development
@@ -49,7 +55,7 @@ If you change a domain model and the columns look stale, the fastest local fix
 is to drop and recreate the disposable Postgres volume:
 
 ```bash
-docker compose down -v && docker compose up -d
+./scripts/dev-down.sh -v && ./scripts/dev-up.sh
 ```
 
 > **Why not EF Core migrations here?** `EnsureCreated` can't evolve an existing
@@ -61,39 +67,31 @@ docker compose down -v && docker compose up -d
 > when that tooling is wired up. For local dev, `EnsureCreated` needs zero
 > commands from you.
 
-## 3. Run a service *with* Dapr
+## How the services run with Dapr
 
-Catalog now publishes `EventPublished` through the transactional outbox, and the
-outbox relay publishes to Dapr pub/sub — so run it with a Dapr sidecar that loads
-our local components:
+`scripts/dev-up.sh` runs `dapr run -f platform/dapr/dapr.yaml` — a
+[Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
+template that starts all five services with their sidecars in one process
+tree. It's equivalent to running, for each service, its own:
 
 ```bash
-dapr init            # one-time; installs the Dapr runtime (uses Docker)
-
-dapr run \
-  --app-id catalog \
-  --resources-path platform/dapr/components \
-  --config platform/dapr/config.yaml \
+dapr run --app-id catalog --app-port 5080 --app-protocol http \
+  --resources-path platform/dapr/components --config platform/dapr/config.yaml \
   -- dotnet run --project services/catalog/Catalog.Api
 ```
 
-Then open:
-- **API docs (Scalar):** https://localhost:7080/scalar/v1
-- **Sample endpoint:** https://localhost:7080/v1/events/00000000-0000-0000-0000-000000000000
-- **Health:** https://localhost:7080/health/live and `/health/ready`
-- **Traces:** http://localhost:16686 (pick the `catalog` service)
+`--app-port`/`--app-protocol http` are what let Dapr deliver pub/sub events and
+route service-to-service (service invocation) calls by app-id. The local Dapr
+components in `platform/dapr/components/` point at the Docker Redis
+(`localhost:6380`) for **both** pub/sub and the Dapr Workflow state store. In
+Azure, the **same-named** components point at Service Bus / Azure Cache — so
+nothing in the service code changes.
 
-> First HTTPS run may prompt for the dev certificate — trust it once with
-> `dotnet dev-certs https --trust`.
-
-> **Without a sidecar:** you can still `dotnet run` the API directly, but the
+> **Without a sidecar:** you can still `dotnet run` an API directly, but the
 > outbox relay will log a publish error every couple of seconds (messages just
-> stay pending in the `outbox` table until a sidecar is present). Use the
-> `dapr run` command above for the full path.
-
-The local Dapr components in `platform/dapr/components/` point at the Docker Redis
-(`localhost:6380`). In Azure, the **same-named** components point at Service Bus /
-Azure Cache — so nothing in the service code changes.
+> stay pending in the `outbox` table until a sidecar is present), and Dapr
+> service invocation / pub/sub / workflow calls fail. Always use `dev-up.sh`
+> (or `dapr run`) for anything beyond compiling a single service.
 
 ### How the outbox flows
 
@@ -103,7 +101,7 @@ Azure Cache — so nothing in the service code changes.
    to Dapr pub/sub (`pubsub` component), stamping the outbox id as the CloudEvent
    id so consumers can dedupe. Delivery is **at-least-once**.
 
-## 4. Secrets (local)
+## Secrets (local)
 
 The local Dapr secret store reads `platform/dapr/secrets.local.json` (git-ignored).
 Create it from the example:
@@ -117,8 +115,9 @@ Put only **local dummy** values there. Real secrets live in Key Vault (cloud), n
 ### Stripe key (Payments)
 
 The Payments service uses the real Stripe gateway when `Payments:Stripe:SecretKey`
-is configured; otherwise it uses the dev simulator. **Never commit the key.** For
-local dev, use user-secrets (stored outside the repo):
+is configured; otherwise it uses the dev simulator (`dev-up.sh` works fine
+either way). **Never commit the key.** For local dev, use user-secrets (stored
+outside the repo), set *before* running `dev-up.sh`:
 
 ```bash
 dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." \
@@ -133,7 +132,8 @@ a **test** key locally, and roll any key that has ever been shared.
 - ❌ An Azure subscription
 - ❌ AKS / Kubernetes (services run as plain processes locally)
 - ❌ Azure Service Bus / Event Hubs (Dapr uses local Redis)
-- ❌ Entra / a real identity provider (dev endpoints are anonymous; add Keycloak in Docker later if you want real tokens)
+- ❌ A real identity provider (Development accepts a locally-signed dev JWT — see
+  the walkthrough's token-minting step; production uses real OIDC)
 
 ## Ports summary
 
@@ -143,29 +143,11 @@ a **test** key locally, and roll any key that has ever been shared.
 | 6380 | Redis (app) |
 | 16686 | Jaeger UI |
 | 4317 / 4318 | OTLP ingest (traces) |
-| 5080 / 7080 | Catalog.Api (http / https) |
-| 5081 / 7081 | Inventory.Api (http / https) |
-| 5082 / 7082 | Ordering.Api (http / https) |
-| 5083 / 7083 | Payments.Api (http / https) |
-| 5084 / 7084 | Ticketing.Api (http / https) |
+| 5080 | Catalog.Api |
+| 5081 | Inventory.Api |
+| 5082 | Ordering.Api |
+| 5083 | Payments.Api |
+| 5084 | Ticketing.Api |
 
-## End-to-end: Catalog → Inventory
-
-To see inventory provisioned from a published event, run **both** services with
-their own Dapr sidecars (each in its own terminal), then create → seat-map →
-publish an event in Catalog:
-
-```bash
-# terminal 1
-dapr run --app-id catalog --resources-path platform/dapr/components \
-  --config platform/dapr/config.yaml -- dotnet run --project services/catalog/Catalog.Api
-
-# terminal 2
-dapr run --app-id inventory --resources-path platform/dapr/components \
-  --config platform/dapr/config.yaml -- dotnet run --project services/inventory/Inventory.Api
-```
-
-On publish, Catalog's outbox relay emits `EventPublished`; Inventory receives it
-over pub/sub, pulls the seat map from Catalog (Dapr service invocation), and
-generates one inventory item per seat. Verify with
-`GET https://localhost:7081/v1/events/{eventId}/inventory`.
+`dev-up.sh` runs every service over plain HTTP on these ports (no dev TLS cert
+needed) — see [local-e2e-walkthrough.md](local-e2e-walkthrough.md) for why.

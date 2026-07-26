@@ -1,0 +1,61 @@
+# Dapr multi-app run template — starts all five services with their sidecars using ONE command:
+#
+#   dapr run -f platform/dapr/dapr.yaml
+#
+# (or just `./scripts/dev-up.sh`, which also brings up Postgres/Redis/Jaeger first). Requires Dapr
+# CLI >= 1.13 (multi-app run). Paths below are relative to this file's directory.
+#
+# Each app runs over plain HTTP on its 508x port (no dev TLS cert needed) and forces the
+# Development environment so it picks up appsettings.Development.json (dev-auth signing key,
+# EnsureCreated schema, etc.) regardless of shell environment. --no-launch-profile makes these
+# explicit env vars authoritative instead of the project's launchSettings.json.
+version: 1
+common:
+  resourcesPath: ./components
+  configFilePath: ./config.yaml
+
+apps:
+  - appID: catalog
+    appDirPath: ../../services/catalog/Catalog.Api
+    appProtocol: http
+    appPort: 5080
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5080
+
+  - appID: inventory
+    appDirPath: ../../services/inventory/Inventory.Api
+    appProtocol: http
+    appPort: 5081
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5081
+
+  - appID: ordering
+    appDirPath: ../../services/ordering/Ordering.Api
+    appProtocol: http
+    appPort: 5082
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5082
+
+  - appID: payments
+    appDirPath: ../../services/payments/Payments.Api
+    appProtocol: http
+    appPort: 5083
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5083
+
+  - appID: ticketing
+    appDirPath: ../../services/ticketing/Ticketing.Api
+    appProtocol: http
+    appPort: 5084
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5084

@@ -24,6 +24,7 @@ local development. Update this with each meaningful change.
 - ✅ `EventPlatform.Hosting` — shared service defaults (auth, OpenAPI, JSON, OTel, health)
 - ✅ `EventPlatform.Contracts` — base integration event + sample
 - ✅ Local Docker dev stack (compose + Dapr components + guide)
+- ✅ **One-click local dev:** `./scripts/dev-up.sh` starts Postgres/Redis/Jaeger, waits for health, then starts all five services + Dapr sidecars via a Dapr multi-app run template (`platform/dapr/dapr.yaml`) — replaces five manual `dapr run` terminals with one command (Ctrl+C stops everything); `scripts/dev-down.sh` tears down Docker; `scripts/dev-token.sh` mints the dev auth JWT. Docs (`local-development.md`, `local-e2e-walkthrough.md`) updated to lead with it
 - ✅ **Build hardening — green under warnings-as-errors** (deps patched, .NET 10 pruning, global usings, analyzer config)
 - ✅ **Service structure flattened** (no `src/`) — layers directly under `services/<name>/`; standard for all services
 - 🚧 **Catalog service implementation (issue #6)** ← current focus
