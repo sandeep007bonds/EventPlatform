@@ -5,6 +5,11 @@ runs on your machine with Docker. Azure is only used when we *deploy* (AKS). Thi
 is a deliberate benefit of the Dapr + containers design: the same service code
 runs locally and in the cloud — only the Dapr component config differs.
 
+> **Want the full purchase flow across all five services?** See the copy-paste
+> runbook in [local-e2e-walkthrough.md](local-e2e-walkthrough.md): create event →
+> seat map → publish → provision inventory → hold → checkout (pay) → order
+> confirmed → ticket issued, plus how to mint a dev JWT and prove no-oversell.
+
 ## Prerequisites
 
 | Tool | Why |
