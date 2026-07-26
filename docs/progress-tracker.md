@@ -54,7 +54,9 @@ local development. Update this with each meaningful change.
   - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway` (sync capture). **Ordering now calls Payments** (`DaprPaymentClient` replaced the stub) ← **verify build locally**
   - ⬜ **T-stripe:** real Stripe gateway (Stripe.net, secret from Key Vault, `webhook_inbox` for async capture)
   - ⬜ EF Core migrations `InitialCreate` (payment, outbox) — needs local SDK
-- ⬜ Ticketing (#10)
+- ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
+  - ⬜ EF Core migrations `InitialCreate` (ticket, outbox) — needs local SDK
+  - ⬜ T-ticket-token: sign/rotate the scan token before production
 - ⬜ No-oversell load test (#11)
 
 ---

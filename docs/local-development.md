@@ -134,6 +134,7 @@ Put only **local dummy** values there. Real secrets live in Key Vault (cloud), n
 | 5081 / 7081 | Inventory.Api (http / https) |
 | 5082 / 7082 | Ordering.Api (http / https) |
 | 5083 / 7083 | Payments.Api (http / https) |
+| 5084 / 7084 | Ticketing.Api (http / https) |
 
 ## End-to-end: Catalog → Inventory
 

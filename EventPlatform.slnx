@@ -33,4 +33,10 @@
     <Project Path="services/payments/Payments.Infrastructure/Payments.Infrastructure.csproj" />
     <Project Path="services/payments/Payments.Api/Payments.Api.csproj" />
   </Folder>
+  <Folder Name="/services/ticketing/">
+    <Project Path="services/ticketing/Ticketing.Domain/Ticketing.Domain.csproj" />
+    <Project Path="services/ticketing/Ticketing.Application/Ticketing.Application.csproj" />
+    <Project Path="services/ticketing/Ticketing.Infrastructure/Ticketing.Infrastructure.csproj" />
+    <Project Path="services/ticketing/Ticketing.Api/Ticketing.Api.csproj" />
+  </Folder>
 </Solution>
