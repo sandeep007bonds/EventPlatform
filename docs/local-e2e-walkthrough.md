@@ -8,6 +8,18 @@ No Azure, no Kubernetes. Everything is Docker + five .NET processes, each with a
 Dapr sidecar. See [local-development.md](local-development.md) for the background;
 this file is the copy-paste runbook.
 
+**What "no oversell" means:** the platform's core promise is that the same seat
+is never sold to two people. In a flash sale, thousands of buyers can hit "buy"
+on the same seat within the same second; exactly one may win it — everyone else
+must get a clean "sorry, taken," not a double sale. Section 6 below proves this
+with a load test that races 200 simulated buyers for one seat.
+
+**What "the flow script" is:** step 5 is a small shell script of `curl` calls
+that drives one purchase through the real, running services — create an event,
+define its seats, publish it, wait for inventory, place a hold, check out, and
+read back the confirmed order and issued ticket. It's a way to see the whole
+system work end-to-end without building a UI first.
+
 ## 0. Prerequisites
 
 | Tool | Install |
@@ -15,8 +27,11 @@ this file is the copy-paste runbook.
 | Docker Desktop | runs Postgres, Redis, Jaeger |
 | .NET 10 SDK | <https://dotnet.microsoft.com/download/dotnet/10.0> |
 | Dapr CLI | <https://docs.dapr.io/getting-started/install-dapr-cli/> then `dapr init` (one-time) |
-| dotnet-ef | `dotnet tool install --global dotnet-ef` |
-| jq, python3 | used by the flow script below (curl/JSON + JWT) |
+
+Optional, only if you use the example flow script in step 5: `jq` (JSON parsing
+in `curl` output) and `python3` (to mint the dev JWT). Neither is a platform
+dependency — you can equally paste ids by hand and mint the token at
+<https://jwt.io>.
 
 ## 1. Start the backing services
 
@@ -28,23 +43,20 @@ All five services share one Postgres database (`eventplatform`), each in its own
 schema (`catalog`, `inventory`, …). Redis is the inventory fast gate **and** the
 Dapr pub/sub + workflow state store (see `platform/dapr/components/`).
 
-## 2. Generate the EF Core migrations (one-time)
+## 2. Schema — fully automatic, nothing to run
 
-The `Migrations/` folders are not committed yet, so create them once. Each
-service owns its schema; each host applies its own migrations on startup in
-Development.
+Each service creates its own schema from its current EF Core model the first
+time it starts in Development (`Database.EnsureCreatedAsync()` in `Program.cs`)
+— there is no `dotnet ef` command to run and no `Migrations/` folder to
+generate or commit. Just start the services (step 3) and the tables appear.
 
-```bash
-for svc in Catalog Inventory Ordering Payments Ticketing; do
-  low=$(echo "$svc" | tr '[:upper:]' '[:lower:]')
-  dotnet ef migrations add InitialCreate \
-    --project   services/$low/$svc.Infrastructure \
-    --startup-project services/$low/$svc.Api
-done
-```
-
-(Commit those `Migrations/` folders — they are source.) You only repeat this per
-service when its model changes (`dotnet ef migrations add <Name> …`).
+> This is deliberately **not** real EF Core migrations (`Migrate`) — that's the
+> right tool once the schema needs to evolve without dropping data (staging/
+> production), and is tracked separately. For disposable local dev,
+> `EnsureCreated` is simpler and needs zero commands from you. If you change a
+> domain model and the columns look stale, the fastest fix locally is
+> `docker compose down -v && docker compose up -d` to drop and recreate the
+> Postgres volume — it'll be rebuilt from the model on next service start.
 
 ## 3. Run the five services, each with a Dapr sidecar
 
@@ -220,5 +232,5 @@ docker compose down          # add -v to also wipe the Postgres volume
 | `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (step 4) |
 | `inventory` stays `seatCount: 0` | Inventory sidecar not up, or `--app-port`/`--app-protocol http` missing so pub/sub can't deliver |
 | Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`; ensure `--resources-path` points there |
-| `relation does not exist` | Migrations not generated (step 2) — the DB has no tables |
+| `relation does not exist` | The schema wasn't created — check the service's own startup logs for an `EnsureCreated`/Postgres connection error (bad connection string, Postgres not up yet) |
 | Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` |

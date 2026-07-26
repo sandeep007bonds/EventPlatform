@@ -35,19 +35,20 @@ local development. Update this with each meaningful change.
   - ✅ `PublishEvent` slice (draft → published)
   - ✅ **Transactional outbox + Dapr (first use):** `PublishEvent` enqueues `EventPublished` into the `outbox` table in the same transaction; shared `EventPlatform.Messaging` relay publishes it to Dapr pub/sub (at-least-once, CloudEvent id = outbox id)
   - ✅ **Seat map:** `SeatMap`/`Seat` domain, `DefineSeatMap` + `GetSeatMap` slices, `POST`/`GET /v1/events/{id}/seatmap`. Publish now requires a seat map and stamps `SeatCount` on `EventPublished`; `GetSeatMap` is the hand-off Inventory reads ← **verify build locally**
-  - 🚧 EF Core migrations — scaffolding in place (Design ref, design-time factory, startup applies migrations); **run `dotnet ef migrations add InitialCreate` and commit the `Migrations/` folder** (see T8) ← **next (needs local SDK)**
+  - ✅ Local dev schema: `Database.EnsureCreatedAsync()` on startup (Development only) creates the schema from the current model — no `dotnet ef` command needed for local dev
+  - ⬜ Real EF Core migrations `InitialCreate` (Design ref + design-time factory already in place) — deferred to cloud-deployment work (T8); needed for staging/production, not local dev
 - 🚧 **Inventory & Hold — no-oversell core (issue #7)**
   - ✅ **Stage A — provisioning:** service scaffold (Domain `InventoryItem`/`Hold`/`LedgerEntry`, lean Application, EF + Postgres, outbox, migration scaffolding); consumes `EventPublished` via Dapr pub/sub and generates inventory by pulling Catalog's seat map (Dapr service invocation); `GET /v1/events/{id}/inventory` ← **verify build locally**
   - ✅ **Stage B — hold hot path:** Redis Lua atomic check-and-set (`RedisHoldStore`) as the fast gate + Postgres optimistic concurrency (`Version`) as the final authority + outbox; `POST /v1/holds` and `DELETE /v1/holds/{id}` emit `SeatHeld`/`SeatReleased`. Sparse Redis model (missing key = available; no per-seat seeding) ← **verify build locally**
   - ✅ **Stage C — expiry reaper:** `ExpiredHoldReaper` background service reclaims holds past `expires_at` — returns seats to available in Postgres (authority), clears the Redis seat keys, emits `SeatReleased`. Each hold is its own unit of work ← **verify build locally**
   - ✅ **Saga hooks (for #8):** `GET /v1/holds/{id}` (validate: owner/expiry + priced lines), internal `POST /v1/holds/{id}/convert` (idempotent convert-to-sold: seats → `S`, emits `SeatSold`)
   - ✅ Redis↔Postgres drift reconciler: `InventoryReconciler` background service detects a flushed/restarted Redis via a sentinel key and rebuilds the fast gate from Postgres (held seats with remaining TTL + sold seats), joining held items back to their active hold for the TTL. Only re-applies restrictions, never frees a seat (cannot cause oversell); runs on startup + interval — verified by CI
-  - ⬜ EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — needs local SDK
+  - ⬜ Real EF Core migrations `InitialCreate` (inventory_item, hold, hold_item, inventory_ledger, outbox) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
 - 🚧 **Ordering — checkout saga (#8)**
   - ✅ Service scaffold: `Order`/`OrderLine` domain, `CheckoutService` saga (validate → create → charge → convert → confirm + compensation), EF + Postgres, outbox, migration scaffolding; `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders/{id}` ← **verify build locally**
   - ✅ Inventory hooks reused: `IHoldClient` (Dapr) → GET hold / convert / release; payment **stubbed** (`StubPaymentClient`)
   - ✅ **Durability — Dapr Workflow:** `CheckoutWorkflow` (deterministic orchestrator) + 8 activities (fetch hold, create order, charge, convert, confirm + compensations release/refund/fail). `/v1/checkout` schedules the workflow and awaits completion; a crash mid-flight resumes where it left off (ADR-0010). Replaced the in-process `CheckoutService` — verified by CI
-  - ⬜ EF Core migrations `InitialCreate` (orders, order_line, outbox) — needs local SDK
+  - ⬜ Real EF Core migrations `InitialCreate` (orders, order_line, outbox) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
   - ✅ Concurrent-duplicate checkout: `CreateOrderActivity` re-checks + `IOrderRepository.TryAddAsync` swallows the `(tenant, idempotency_key)` unique-violation (Postgres 23505); the losing racer re-fetches the winner and the workflow short-circuits to `Duplicate` (409) — no 500, no double charge — verified by CI
 - 🚧 **Payments (#9)**
   - ✅ Service scaffold: `Payment` domain, `PaymentService` (idempotent charge/refund on `(order, key)`), EF + Postgres, outbox, migration scaffolding; internal `POST /v1/payments/charge` + `/refund`; emits `PaymentCaptured`/`PaymentFailed`/`PaymentRefunded`
@@ -56,9 +57,9 @@ local development. Update this with each meaningful change.
   - ✅ **Stripe gateway (Stripe.net):** `StripePaymentGateway` creates + confirms a PaymentIntent (Stripe idempotency key), refunds via the Refund API. Selected automatically when `Payments:Stripe:SecretKey` is configured (Key Vault / user-secrets / env) — **never committed**. PCI SAQ-A.
   - ✅ **Stripe webhook inbox (async capture / 3DS / refunds):** `POST /v1/payments/webhooks/stripe` verifies the `Stripe-Signature` against `Payments:Stripe:WebhookSecret` (`StripeWebhookGateway`), reconciles the `Payment` idempotently (`PaymentWebhookService`, new idempotent domain transitions), and emits the matching outbox event. At-least-once → exactly-once via a `processed_webhook_event` dedupe ledger committed in the same transaction; neutral `PaymentWebhookNotification` keeps the Stripe SDK out of Application/Domain — verified by CI
   - ⬜ **T-stripe (remaining):** client-side card collection + `payment_method` on the charge (replace `pm_card_visa`, enables real 3DS)
-  - ⬜ EF Core migrations `InitialCreate` (payment, outbox, **processed_webhook_event**) — needs local SDK
+  - ⬜ Real EF Core migrations `InitialCreate` (payment, outbox, **processed_webhook_event**) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
 - ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
-  - ⬜ EF Core migrations `InitialCreate` (ticket, outbox) — needs local SDK
+  - ⬜ Real EF Core migrations `InitialCreate` (ticket, outbox) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
   - ⬜ T-ticket-token: sign/rotate the scan token before production
 - 🚧 **No-oversell load test (#11)**
   - ✅ k6 harness (`platform/loadtest/`): `no-oversell.js` (N users race for **one** seat; hard gate `holds_succeeded: count<2`), `throughput.js` (sustained load over a big seat map; p95<250ms / p99<500ms / err<1%), `lib/jwt.js` (HS256 dev-token minting), README

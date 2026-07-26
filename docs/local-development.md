@@ -38,34 +38,28 @@ This starts:
 
 Stop with `docker compose down` (add `-v` to also wipe the Postgres volume).
 
-## 2. Database migrations (EF Core)
+## 2. Database schema — automatic in Development
 
-The schema is owned by **EF Core migrations** (not `EnsureCreated`). In dev the
-Catalog host applies any pending migrations on startup, so normally you don't run
-anything by hand. You only touch the tooling when the model changes.
+Nothing to run. Each service creates its own Postgres schema from its current
+EF Core model the first time it starts in Development
+(`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef` command, no
+`Migrations/` folder to generate or commit.
 
-One-time tool install:
-
-```bash
-dotnet tool install --global dotnet-ef
-```
-
-Generate the initial migration (run once, then commit the generated
-`Migrations/` folder — it is part of the source):
+If you change a domain model and the columns look stale, the fastest local fix
+is to drop and recreate the disposable Postgres volume:
 
 ```bash
-dotnet ef migrations add InitialCreate \
-  --project services/catalog/Catalog.Infrastructure \
-  --startup-project services/catalog/Catalog.Api
+docker compose down -v && docker compose up -d
 ```
 
-After that, each model change is a new migration (`dotnet ef migrations add <Name>`
-with the same `--project`/`--startup-project`). To apply migrations to a running
-DB without launching the API, use `dotnet ef database update` (same arguments);
-override the target with the `CATALOG_DB` connection-string env var.
-
-> A design-time factory (`CatalogDbContextDesignTimeFactory`) lets the tooling
-> build the context without starting the API host (Dapr, the outbox relay, …).
+> **Why not EF Core migrations here?** `EnsureCreated` can't evolve an existing
+> schema without data loss, so it's the wrong tool once we need staging/production
+> deployments that preserve data. That's real EF Core migrations
+> (`dotnet ef migrations add`, `Database.Migrate()`), tracked separately as
+> cloud-deployment work (see `docs/progress-tracker.md`) — each service already
+> has a design-time factory (e.g. `CatalogDbContextDesignTimeFactory`) ready for
+> when that tooling is wired up. For local dev, `EnsureCreated` needs zero
+> commands from you.
 
 ## 3. Run a service *with* Dapr
 

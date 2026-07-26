@@ -26,13 +26,15 @@ var app = builder.Build();
 app.UseServiceDefaults();
 app.MapOrderingEndpoints();
 
-// DEV ONLY: apply EF Core migrations on startup so the service runs against local Postgres out of
-// the box. In shared/deployed environments migrations are applied by a separate step, not the host.
+// DEV ONLY: create the schema from the current model on startup, so the service runs against local
+// Postgres with zero setup — no `dotnet ef` command, no committed Migrations/ folder. This is
+// EnsureCreated, not Migrate: fine for local dev where the DB is disposable, but it cannot evolve an
+// existing schema. Shared/deployed environments apply real EF Core migrations via a separate step.
 if (app.Environment.IsDevelopment())
 {
     using var scope = app.Services.CreateScope();
     var dbContext = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
-    await dbContext.Database.MigrateAsync();
+    await dbContext.Database.EnsureCreatedAsync();
 }
 
 await app.RunAsync();
