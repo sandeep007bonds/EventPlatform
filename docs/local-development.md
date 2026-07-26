@@ -115,6 +115,20 @@ cp platform/dapr/secrets.local.example.json platform/dapr/secrets.local.json
 
 Put only **local dummy** values there. Real secrets live in Key Vault (cloud), never in the repo.
 
+### Stripe key (Payments)
+
+The Payments service uses the real Stripe gateway when `Payments:Stripe:SecretKey`
+is configured; otherwise it uses the dev simulator. **Never commit the key.** For
+local dev, use user-secrets (stored outside the repo):
+
+```bash
+dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." \
+  --project services/payments/Payments.Api
+```
+
+In the cloud the key comes from **Key Vault** (surfaced as the same config key). Use
+a **test** key locally, and roll any key that has ever been shared.
+
 ## What is NOT needed locally
 
 - ❌ An Azure subscription

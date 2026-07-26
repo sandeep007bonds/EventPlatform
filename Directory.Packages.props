@@ -45,6 +45,7 @@
     <PackageVersion Include="Dapr.AspNetCore" Version="1.15.0" />
     <PackageVersion Include="Dapr.Workflow" Version="1.15.0" />
     <PackageVersion Include="StackExchange.Redis" Version="2.8.16" />
+    <PackageVersion Include="Stripe.net" Version="47.0.0" />
     <PackageVersion Include="FluentValidation" Version="11.10.0" />
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
   </ItemGroup>

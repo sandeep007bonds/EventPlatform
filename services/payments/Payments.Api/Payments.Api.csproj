@@ -2,6 +2,9 @@
 
   <PropertyGroup>
     <RootNamespace>Payments.Api</RootNamespace>
+    <!-- Enables `dotnet user-secrets` for local secrets (e.g. the Stripe key). The id is not a
+         secret; the values live in the user's secret store, outside the repo. -->
+    <UserSecretsId>eventplatform-payments</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

@@ -21,7 +21,19 @@ public static class DependencyInjection
 
         services.AddDbContext<PaymentDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IPaymentRepository, PaymentRepository>();
-        services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
+
+        // Real Stripe gateway when a secret key is configured (Key Vault / user-secrets / env);
+        // otherwise the dev simulator. The key is never read from a committed file.
+        var stripeSecretKey = configuration["Payments:Stripe:SecretKey"];
+        if (string.IsNullOrWhiteSpace(stripeSecretKey))
+        {
+            services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
+        }
+        else
+        {
+            services.AddSingleton<IPaymentGateway>(new StripePaymentGateway(stripeSecretKey));
+        }
+
         services.AddOutbox<PaymentDbContext>();
 
         return services;

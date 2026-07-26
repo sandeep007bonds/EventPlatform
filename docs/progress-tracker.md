@@ -51,8 +51,9 @@ local development. Update this with each meaningful change.
   - ⬜ Concurrent-duplicate checkout: handle the unique-index violation (re-fetch existing) rather than 500
 - 🚧 **Payments (#9)**
   - ✅ Service scaffold: `Payment` domain, `PaymentService` (idempotent charge/refund on `(order, key)`), EF + Postgres, outbox, migration scaffolding; internal `POST /v1/payments/charge` + `/refund`; emits `PaymentCaptured`/`PaymentFailed`/`PaymentRefunded`
-  - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway` (sync capture). **Ordering now calls Payments** (`DaprPaymentClient` replaced the stub) ← **verify build locally**
-  - ⬜ **T-stripe:** real Stripe gateway (Stripe.net, secret from Key Vault, `webhook_inbox` for async capture)
+  - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway`. **Ordering calls Payments** (`DaprPaymentClient`).
+  - ✅ **Stripe gateway (Stripe.net):** `StripePaymentGateway` creates + confirms a PaymentIntent (Stripe idempotency key), refunds via the Refund API. Selected automatically when `Payments:Stripe:SecretKey` is configured (Key Vault / user-secrets / env) — **never committed**. PCI SAQ-A.
+  - ⬜ **T-stripe (remaining):** client-side card collection + `payment_method` on the charge (replace `pm_card_visa`); `webhook_inbox` for async capture/3DS; signature verification
   - ⬜ EF Core migrations `InitialCreate` (payment, outbox) — needs local SDK
 - ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
   - ⬜ EF Core migrations `InitialCreate` (ticket, outbox) — needs local SDK
