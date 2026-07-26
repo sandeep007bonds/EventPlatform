@@ -8,8 +8,8 @@ public sealed class PaymentDbContext(DbContextOptions<PaymentDbContext> options)
     /// <summary>The payments table.</summary>
     public DbSet<Payment> Payments => Set<Payment>();
 
-    /// <summary>The processed provider-webhook idempotency ledger.</summary>
-    public DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
+    /// <summary>The processed provider-webhook idempotency ledger (infrastructure-internal).</summary>
+    internal DbSet<ProcessedWebhookEvent> ProcessedWebhookEvents => Set<ProcessedWebhookEvent>();
 
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
