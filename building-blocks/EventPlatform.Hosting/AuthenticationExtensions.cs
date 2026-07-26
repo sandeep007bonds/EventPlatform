@@ -22,21 +22,44 @@ public static class AuthenticationExtensions
         ArgumentNullException.ThrowIfNull(configuration);
 
         var jwt = configuration.GetSection("Jwt");
+        var devSigningKey = jwt["DevSigningKey"];
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = jwt["Authority"];
-                options.Audience = jwt["Audience"];
                 options.RequireHttpsMetadata = jwt.GetValue("RequireHttpsMetadata", defaultValue: true);
-                options.TokenValidationParameters = new TokenValidationParameters
+
+                if (string.IsNullOrWhiteSpace(devSigningKey))
                 {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true,
-                    ClockSkew = TimeSpan.FromSeconds(30),
-                };
+                    // Production: validate against the real OIDC identity provider.
+                    options.Authority = jwt["Authority"];
+                    options.Audience = jwt["Audience"];
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidateAudience = true,
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        ClockSkew = TimeSpan.FromSeconds(30),
+                    };
+                }
+                else
+                {
+                    // DEV ONLY — `Jwt:DevSigningKey` is set only in Development config, never in
+                    // production/Key Vault. Validates tokens signed with a local symmetric key so
+                    // the stack can be exercised (and load-tested) without a real identity provider.
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateIssuer = true,
+                        ValidIssuer = jwt["Issuer"] ?? "eventplatform-dev",
+                        ValidateAudience = true,
+                        ValidAudience = jwt["Audience"] ?? "eventplatform",
+                        ValidateLifetime = true,
+                        ValidateIssuerSigningKey = true,
+                        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(devSigningKey)),
+                        ClockSkew = TimeSpan.FromSeconds(30),
+                    };
+                }
             });
 
         services.AddAuthorization();

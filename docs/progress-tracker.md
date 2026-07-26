@@ -58,7 +58,10 @@ local development. Update this with each meaningful change.
 - ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
   - ⬜ EF Core migrations `InitialCreate` (ticket, outbox) — needs local SDK
   - ⬜ T-ticket-token: sign/rotate the scan token before production
-- ⬜ No-oversell load test (#11)
+- 🚧 **No-oversell load test (#11)**
+  - ✅ k6 harness (`platform/loadtest/`): `no-oversell.js` (N users race for **one** seat; hard gate `holds_succeeded: count<2`), `throughput.js` (sustained load over a big seat map; p95<250ms / p99<500ms / err<1%), `lib/jwt.js` (HS256 dev-token minting), README
+  - ✅ Dev-auth path in `EventPlatform.Hosting/AuthenticationExtensions.cs`: symmetric-key JWT validation gated on `Jwt:DevSigningKey` (Development-only; prod stays OIDC) — verified by CI
+  - ⬜ Run against the live stack (needs Catalog + Inventory + Dapr + Postgres + Redis up locally) and record the numbers
 
 ---
 
