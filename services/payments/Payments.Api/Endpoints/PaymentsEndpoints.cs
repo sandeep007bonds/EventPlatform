@@ -34,7 +34,7 @@ public static class PaymentsEndpoints
 
         // The signature is computed over the exact bytes Stripe sent, so read the raw body.
         string payload;
-        using (var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8))
+        using (var reader = new StreamReader(httpContext.Request.Body))
         {
             payload = await reader.ReadToEndAsync(cancellationToken);
         }
