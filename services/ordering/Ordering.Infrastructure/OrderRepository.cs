@@ -5,7 +5,22 @@ namespace Ordering.Infrastructure;
 internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepository
 {
     /// <inheritdoc />
-    public void Add(Order order) => dbContext.Orders.Add(order);
+    public async Task<bool> TryAddAsync(Order order, CancellationToken cancellationToken)
+    {
+        dbContext.Orders.Add(order);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        {
+            // A concurrent checkout with the same idempotency key won the race. Drop the rejected
+            // order graph (root + lines) so the context is clean, and let the caller re-fetch.
+            dbContext.ChangeTracker.Clear();
+            return false;
+        }
+    }
 
     /// <inheritdoc />
     public Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>

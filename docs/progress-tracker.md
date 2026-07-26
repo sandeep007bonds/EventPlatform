@@ -48,7 +48,7 @@ local development. Update this with each meaningful change.
   - ✅ Inventory hooks reused: `IHoldClient` (Dapr) → GET hold / convert / release; payment **stubbed** (`StubPaymentClient`)
   - ✅ **Durability — Dapr Workflow:** `CheckoutWorkflow` (deterministic orchestrator) + 8 activities (fetch hold, create order, charge, convert, confirm + compensations release/refund/fail). `/v1/checkout` schedules the workflow and awaits completion; a crash mid-flight resumes where it left off (ADR-0010). Replaced the in-process `CheckoutService` — verified by CI
   - ⬜ EF Core migrations `InitialCreate` (orders, order_line, outbox) — needs local SDK
-  - ⬜ Concurrent-duplicate checkout: handle the unique-index violation (re-fetch existing) rather than 500
+  - ✅ Concurrent-duplicate checkout: `CreateOrderActivity` re-checks + `IOrderRepository.TryAddAsync` swallows the `(tenant, idempotency_key)` unique-violation (Postgres 23505); the losing racer re-fetches the winner and the workflow short-circuits to `Duplicate` (409) — no 500, no double charge — verified by CI
 - 🚧 **Payments (#9)**
   - ✅ Service scaffold: `Payment` domain, `PaymentService` (idempotent charge/refund on `(order, key)`), EF + Postgres, outbox, migration scaffolding; internal `POST /v1/payments/charge` + `/refund`; emits `PaymentCaptured`/`PaymentFailed`/`PaymentRefunded`
   - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway`. **Ordering calls Payments** (`DaprPaymentClient`).

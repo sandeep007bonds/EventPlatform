@@ -26,4 +26,10 @@ public enum CheckoutOutcome
 
     /// <summary>A prior attempt for this idempotency key ended in failure.</summary>
     Failed,
+
+    /// <summary>
+    /// A concurrent checkout for the same idempotency key won the race to create the order; this
+    /// attempt did nothing (no double charge). The caller should re-fetch or retry the key.
+    /// </summary>
+    Duplicate,
 }

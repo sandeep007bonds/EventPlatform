@@ -85,6 +85,8 @@ public static class OrderingEndpoints
                 Results.Conflict(new { message = "The seats could not be sold.", orderId = result.OrderId }),
             CheckoutOutcome.Failed =>
                 Results.Conflict(new { message = "A prior checkout for this key failed.", orderId = result.OrderId }),
+            CheckoutOutcome.Duplicate =>
+                Results.Conflict(new { message = "A concurrent checkout for this key is being processed; retry the key or fetch the order.", orderId = result.OrderId }),
             _ => Results.Problem("Unexpected checkout outcome."),
         };
     }

@@ -19,16 +19,25 @@ is named `Ordering` so the type never clashes with its namespace.
 ## Design notes
 
 - **Idempotent checkout:** deduped on `(tenant_id, idempotency_key)` — unique
-  index + a pre-check. The `Idempotency-Key` header is required.
-- **Saga:** `CheckoutService` runs the steps sequentially in-process with explicit
-  compensation (release hold, refund). **Follow-up:** move to a **Dapr Workflow**
-  so the saga survives a crash mid-flight (ADR-0010, LLD §6).
+  index + a pre-check. The `Idempotency-Key` header is required. Two *concurrent*
+  requests can both pass the pre-check; the unique index then lets exactly one
+  order win. `CreateOrderActivity` re-checks, and `IOrderRepository.TryAddAsync`
+  swallows the unique-violation so the loser re-fetches the winner and the
+  workflow short-circuits to `Duplicate` (409) — never a 500, never a double
+  charge.
+- **Saga (ADR-0010):** the checkout saga runs as a **Dapr Workflow**
+  (`Ordering.Workflow`): `CheckoutWorkflow` orchestrates activities (fetch hold →
+  create order → charge → convert-to-sold → confirm) with compensation (fail
+  order, refund, release hold). The orchestrator is deterministic — all I/O is in
+  activities — so a crash mid-flight resumes exactly where it left off. The Api
+  schedules the workflow and awaits its completion.
 - **Cross-service calls** go through ports: `IHoldClient` (Inventory) and
   `IPaymentClient` (Payments), both via Dapr service invocation.
 
 ## Structure
 
-`Ordering.Api` (host + endpoints) · `Ordering.Application` (checkout saga + ports) ·
+`Ordering.Api` (host + endpoints + workflow registration) · `Ordering.Application`
+(ports + checkout contracts) · `Ordering.Workflow` (`CheckoutWorkflow` + activities) ·
 `Ordering.Domain` (`Order`, `OrderLine` + invariants) · `Ordering.Infrastructure`
 (EF Core + Postgres, Dapr hold client, payment stub, outbox). `tests/` to follow.
 

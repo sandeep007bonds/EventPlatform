@@ -9,10 +9,15 @@ checkout saga.
 compensation on failure (release hold, refund). Idempotent on
 `(tenant, Idempotency-Key)`.
 
+- Runs as a **Dapr Workflow** (`Ordering.Workflow`, ADR-0010): the orchestrator
+  is deterministic and only calls activities, so a crash mid-flight resumes
+  exactly where it left off. The Api schedules the workflow and awaits its result.
 - **Inventory** and **Payments** calls go through `IHoldClient` / `IPaymentClient`
   (Dapr service invocation).
-- **Durability upgrade (planned):** run the saga as a **Dapr Workflow** so it
-  survives a crash mid-flight (ADR-0010).
+- **Concurrent-duplicate safe:** if two requests with the same `Idempotency-Key`
+  race past the pre-check, the unique index lets one order win; the loser
+  re-fetches it and the workflow returns `409` (`Duplicate`) — no 500, no double
+  charge.
 
 ## Endpoints
 
@@ -23,7 +28,8 @@ compensation on failure (release hold, refund). Idempotent on
 
 ## Layers
 
-`Ordering.Api` · `Ordering.Application` (saga + ports) · `Ordering.Domain`
+`Ordering.Api` · `Ordering.Application` (ports + checkout contracts) ·
+`Ordering.Workflow` (`CheckoutWorkflow` + activities) · `Ordering.Domain`
 (`Order`) · `Ordering.Infrastructure` (EF Core + Postgres, Dapr client, outbox).
 
 See [service CLAUDE.md](CLAUDE.md) and the [LLD](../../docs/design/lld-phase1-seated.md).

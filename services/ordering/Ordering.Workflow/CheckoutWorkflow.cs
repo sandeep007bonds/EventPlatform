@@ -42,6 +42,14 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             nameof(CreateOrderActivity),
             new CreateOrderInput(input.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines));
 
+        // A concurrent checkout for the same idempotency key already owns this order — stop here so
+        // we never charge twice. The winning saga drives the order to its terminal state; the caller
+        // re-fetches (or retries the key) to learn the outcome.
+        if (order.AlreadyExisted)
+        {
+            return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Duplicate), order.OrderId);
+        }
+
         // 3. Charge. On failure: fail the order and release the hold.
         var charge = await context.CallActivityAsync<ChargeOutput>(
             nameof(ChargeActivity),

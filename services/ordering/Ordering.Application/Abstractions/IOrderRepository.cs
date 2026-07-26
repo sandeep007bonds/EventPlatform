@@ -6,9 +6,17 @@ namespace Ordering.Application.Abstractions;
 /// </summary>
 public interface IOrderRepository
 {
-    /// <summary>Registers a new order to be persisted.</summary>
+    /// <summary>
+    /// Adds and persists a new order, tolerating a concurrent duplicate. Returns
+    /// <see langword="false"/> when another order with the same tenant-scoped idempotency key
+    /// already exists (the unique index rejected the insert) — the caller should re-fetch the
+    /// winner rather than treat it as an error. Any other failure still throws.
+    /// </summary>
     /// <param name="order">The order to add.</param>
-    void Add(Order order);
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if this call persisted the order; <see langword="false"/> if a
+    /// concurrent duplicate already claimed the idempotency key.</returns>
+    Task<bool> TryAddAsync(Order order, CancellationToken cancellationToken);
 
     /// <summary>Gets an order (with lines) by id, or <see langword="null"/>.</summary>
     /// <param name="id">The order id.</param>
