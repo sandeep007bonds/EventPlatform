@@ -83,11 +83,6 @@ public sealed class PaymentService(
         return ToChargeResult(winner);
     }
 
-    private static ChargeResult ToChargeResult(Payment payment) =>
-        payment.Status == PaymentStatus.Captured
-            ? new ChargeResult(ChargeOutcome.Captured, payment.Id, payment.ProviderReference, null)
-            : new ChargeResult(ChargeOutcome.Failed, payment.Id, null, payment.FailureReason ?? "payment_failed");
-
     /// <summary>Refunds the captured payment for an order, if any. Idempotent.</summary>
     /// <param name="orderId">The order to refund.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -117,4 +112,9 @@ public sealed class PaymentService(
         await payments.SaveChangesAsync(cancellationToken);
         return true;
     }
+
+    private static ChargeResult ToChargeResult(Payment payment) =>
+        payment.Status == PaymentStatus.Captured
+            ? new ChargeResult(ChargeOutcome.Captured, payment.Id, payment.ProviderReference, null)
+            : new ChargeResult(ChargeOutcome.Failed, payment.Id, null, payment.FailureReason ?? "payment_failed");
 }
