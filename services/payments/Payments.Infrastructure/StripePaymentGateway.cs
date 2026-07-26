@@ -48,9 +48,11 @@ internal sealed class StripePaymentGateway : IPaymentGateway
 
         var intent = await paymentIntents.CreateAsync(options, requestOptions, cancellationToken);
 
+        // Always surface the PaymentIntent id (even when not yet captured) so the payment can record
+        // it and a later `payment_intent.*` webhook correlates back — see StripeWebhookGateway.
         return string.Equals(intent.Status, "succeeded", StringComparison.Ordinal)
             ? new GatewayResult(Succeeded: true, Reference: intent.Id, FailureReason: null)
-            : new GatewayResult(Succeeded: false, Reference: null, FailureReason: intent.Status);
+            : new GatewayResult(Succeeded: false, Reference: intent.Id, FailureReason: intent.Status);
     }
 
     /// <inheritdoc />

@@ -55,6 +55,13 @@ public sealed class PaymentService(
         }
         else
         {
+            // Keep the provider reference on a non-captured payment (e.g. requires_action / 3-D
+            // Secure) so an out-of-band webhook can later reconcile it to a capture.
+            if (result.Reference is not null)
+            {
+                payment.RecordProviderReference(result.Reference);
+            }
+
             payment.MarkFailed(result.FailureReason ?? "payment_failed");
             events.Enqueue(new PaymentFailed(
                 Guid.CreateVersion7(),

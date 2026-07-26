@@ -14,7 +14,49 @@ public static class PaymentsEndpoints
         group.MapPost("/charge", ChargeAsync).WithName("Charge").ExcludeFromDescription();
         group.MapPost("/refund", RefundAsync).WithName("Refund").ExcludeFromDescription();
 
+        // Provider callback: authenticated by signature, not a bearer token, so anonymous.
+        group.MapPost("/webhooks/stripe", StripeWebhookAsync)
+            .WithName("StripeWebhook")
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+
         return app;
+    }
+
+    private static async Task<IResult> StripeWebhookAsync(HttpContext httpContext, CancellationToken cancellationToken)
+    {
+        var gateway = httpContext.RequestServices.GetService<IPaymentWebhookGateway>();
+        if (gateway is null)
+        {
+            // No webhook signing secret configured — there is nothing to verify against.
+            return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+        }
+
+        // The signature is computed over the exact bytes Stripe sent, so read the raw body.
+        string payload;
+        using (var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8))
+        {
+            payload = await reader.ReadToEndAsync(cancellationToken);
+        }
+
+        PaymentWebhookNotification? notification;
+        try
+        {
+            notification = gateway.Verify(payload, httpContext.Request.Headers["Stripe-Signature"]);
+        }
+        catch (PaymentWebhookVerificationException)
+        {
+            return Results.BadRequest();
+        }
+
+        if (notification is not null)
+        {
+            var webhooks = httpContext.RequestServices.GetRequiredService<PaymentWebhookService>();
+            await webhooks.ProcessAsync(notification, cancellationToken);
+        }
+
+        // Acknowledge (even for ignored event types) so the provider stops retrying.
+        return Results.Ok();
     }
 
     private static async Task<IResult> ChargeAsync(

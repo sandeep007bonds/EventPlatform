@@ -34,6 +34,15 @@ public static class DependencyInjection
             services.AddSingleton<IPaymentGateway>(new StripePaymentGateway(stripeSecretKey));
         }
 
+        // Inbound Stripe webhooks (async capture / 3-D Secure / refunds) are only accepted when a
+        // signing secret is configured; without it the endpoint has nothing to verify against and
+        // returns 503. The secret is never committed (Key Vault / user-secrets / env).
+        var stripeWebhookSecret = configuration["Payments:Stripe:WebhookSecret"];
+        if (!string.IsNullOrWhiteSpace(stripeWebhookSecret))
+        {
+            services.AddSingleton<IPaymentWebhookGateway>(new StripeWebhookGateway(stripeWebhookSecret));
+        }
+
         services.AddOutbox<PaymentDbContext>();
 
         return services;

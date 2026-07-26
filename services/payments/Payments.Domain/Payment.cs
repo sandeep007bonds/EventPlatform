@@ -120,6 +120,80 @@ public sealed class Payment
         Status = PaymentStatus.Refunded;
     }
 
+    /// <summary>
+    /// Records the provider reference (e.g. Stripe PaymentIntent id) while the payment is still in
+    /// flight, so an out-of-band provider webhook can correlate back to this payment. Setting the
+    /// same reference again is a no-op.
+    /// </summary>
+    /// <param name="providerReference">The PSP reference.</param>
+    /// <exception cref="InvalidOperationException">The payment is no longer initiated.</exception>
+    public void RecordProviderReference(string providerReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerReference);
+        if (string.Equals(ProviderReference, providerReference, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        Require(PaymentStatus.Initiated);
+        ProviderReference = providerReference;
+    }
+
+    /// <summary>
+    /// Idempotently captures the payment in response to a provider notification. Returns
+    /// <see langword="false"/> without changing state when the payment is not initiated (the
+    /// notification was a duplicate or arrived after another transition).
+    /// </summary>
+    /// <param name="providerReference">The PSP reference.</param>
+    /// <returns><see langword="true"/> if this call captured the payment.</returns>
+    public bool TryMarkCaptured(string providerReference)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(providerReference);
+        if (Status != PaymentStatus.Initiated)
+        {
+            return false;
+        }
+
+        ProviderReference = providerReference;
+        Status = PaymentStatus.Captured;
+        return true;
+    }
+
+    /// <summary>
+    /// Idempotently fails the payment in response to a provider notification. Returns
+    /// <see langword="false"/> without changing state when the payment is not initiated.
+    /// </summary>
+    /// <param name="reason">Why the charge failed.</param>
+    /// <returns><see langword="true"/> if this call failed the payment.</returns>
+    public bool TryMarkFailed(string reason)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(reason);
+        if (Status != PaymentStatus.Initiated)
+        {
+            return false;
+        }
+
+        FailureReason = reason;
+        Status = PaymentStatus.Failed;
+        return true;
+    }
+
+    /// <summary>
+    /// Idempotently refunds the payment in response to a provider notification. Returns
+    /// <see langword="false"/> without changing state when the payment is not captured.
+    /// </summary>
+    /// <returns><see langword="true"/> if this call refunded the payment.</returns>
+    public bool TryMarkRefunded()
+    {
+        if (Status != PaymentStatus.Captured)
+        {
+            return false;
+        }
+
+        Status = PaymentStatus.Refunded;
+        return true;
+    }
+
     private void Require(PaymentStatus expected)
     {
         if (Status != expected)

@@ -14,7 +14,8 @@ servers; only PSP references are stored.
 
 - **Data store:** PostgreSQL `payments` DB (this service only)
 - **Public API:** internal `POST /v1/payments/charge`, `POST /v1/payments/refund`
-  (called by the checkout saga via Dapr service invocation)
+  (called by the checkout saga via Dapr service invocation); public
+  `POST /v1/payments/webhooks/stripe` (Stripe provider callback, signature-verified)
 - **Events published:** `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded`
 - **Events consumed:** —
 
@@ -24,14 +25,24 @@ servers; only PSP references are stored.
   + a pre-check.
 - **Gateway behind a port:** `IPaymentGateway`. Dev uses `SimulatedPaymentGateway`
   (captures synchronously). The real **Stripe** gateway (Stripe.net, secret key
-  from Key Vault, webhook inbox for async capture) drops in here — see tracker
-  T-stripe. **No card data or secrets in code.**
+  from Key Vault) drops in here. **No card data or secrets in code.**
+- **Webhook inbox (async capture / 3-D Secure / refunds):** `IPaymentWebhookGateway`
+  (Stripe impl) verifies the `Stripe-Signature` header against
+  `Payments:Stripe:WebhookSecret`, then `PaymentWebhookService` reconciles the
+  `Payment` idempotently and emits the matching outbox event. At-least-once
+  delivery is made exactly-once by deduping on the Stripe event id in the
+  `processed_webhook_event` ledger, committed in the **same transaction** as the
+  payment change and the outbox message. The neutral `PaymentWebhookNotification`
+  keeps the Stripe SDK out of the Application/Domain layers.
+- **Provider correlation:** the charge stores the PaymentIntent id
+  (`ProviderReference`) even when not yet captured, so a later webhook maps back
+  to the right payment.
 
 ## Structure
 
-`Payments.Api` (host + endpoints) · `Payments.Application` (charge/refund + ports) ·
-`Payments.Domain` (`Payment` + invariants) · `Payments.Infrastructure` (EF Core +
-Postgres, gateway, outbox). `tests/` to follow.
+`Payments.Api` (host + endpoints) · `Payments.Application` (charge/refund/webhook
++ ports) · `Payments.Domain` (`Payment` + invariants) · `Payments.Infrastructure`
+(EF Core + Postgres, gateway, webhook verifier, outbox). `tests/` to follow.
 
 ## Local run
 
