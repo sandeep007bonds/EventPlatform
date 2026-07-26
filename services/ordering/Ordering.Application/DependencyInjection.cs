@@ -10,8 +10,8 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        // CheckoutOptions is consumed by the checkout workflow's create-order activity.
         services.AddSingleton(new CheckoutOptions());
-        services.AddScoped<CheckoutService>();
 
         return services;
     }

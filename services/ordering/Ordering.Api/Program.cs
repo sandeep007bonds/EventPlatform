@@ -7,6 +7,20 @@ builder.AddServiceDefaults(serviceName: "ordering");
 builder.Services.AddOrderingApplication();
 builder.Services.AddOrderingInfrastructure(builder.Configuration);
 
+// Durable checkout saga (Dapr Workflow).
+builder.Services.AddDaprWorkflow(options =>
+{
+    options.RegisterWorkflow<CheckoutWorkflow>();
+    options.RegisterActivity<FetchHoldActivity>();
+    options.RegisterActivity<CreateOrderActivity>();
+    options.RegisterActivity<ChargeActivity>();
+    options.RegisterActivity<ConvertActivity>();
+    options.RegisterActivity<ConfirmOrderActivity>();
+    options.RegisterActivity<ReleaseHoldActivity>();
+    options.RegisterActivity<RefundActivity>();
+    options.RegisterActivity<FailOrderActivity>();
+});
+
 var app = builder.Build();
 
 app.UseServiceDefaults();

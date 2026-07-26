@@ -25,6 +25,7 @@
     <Project Path="services/ordering/Ordering.Domain/Ordering.Domain.csproj" />
     <Project Path="services/ordering/Ordering.Application/Ordering.Application.csproj" />
     <Project Path="services/ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" />
+    <Project Path="services/ordering/Ordering.Workflow/Ordering.Workflow.csproj" />
     <Project Path="services/ordering/Ordering.Api/Ordering.Api.csproj" />
   </Folder>
   <Folder Name="/services/payments/">

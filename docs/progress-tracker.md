@@ -46,7 +46,7 @@ local development. Update this with each meaningful change.
 - 🚧 **Ordering — checkout saga (#8)**
   - ✅ Service scaffold: `Order`/`OrderLine` domain, `CheckoutService` saga (validate → create → charge → convert → confirm + compensation), EF + Postgres, outbox, migration scaffolding; `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders/{id}` ← **verify build locally**
   - ✅ Inventory hooks reused: `IHoldClient` (Dapr) → GET hold / convert / release; payment **stubbed** (`StubPaymentClient`)
-  - ⬜ **Durability:** move the saga to a **Dapr Workflow** (crash-safe orchestration, ADR-0010)
+  - ✅ **Durability — Dapr Workflow:** `CheckoutWorkflow` (deterministic orchestrator) + 8 activities (fetch hold, create order, charge, convert, confirm + compensations release/refund/fail). `/v1/checkout` schedules the workflow and awaits completion; a crash mid-flight resumes where it left off (ADR-0010). Replaced the in-process `CheckoutService` — verified by CI
   - ⬜ EF Core migrations `InitialCreate` (orders, order_line, outbox) — needs local SDK
   - ⬜ Concurrent-duplicate checkout: handle the unique-index violation (re-fetch existing) rather than 500
 - 🚧 **Payments (#9)**

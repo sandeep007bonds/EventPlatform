@@ -1,4 +1,5 @@
 global using System.Security.Claims;
+global using Dapr.Workflow;
 global using EventPlatform.Hosting;
 global using Microsoft.AspNetCore.Mvc;
 global using Microsoft.EntityFrameworkCore;
@@ -8,3 +9,4 @@ global using Ordering.Application.Abstractions;
 global using Ordering.Application.Checkout;
 global using Ordering.Domain;
 global using Ordering.Infrastructure;
+global using Ordering.Workflow;

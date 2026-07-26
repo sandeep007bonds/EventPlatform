@@ -21,7 +21,8 @@ public static class OrderingEndpoints
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
         ITenantContext tenant,
         ClaimsPrincipal principal,
-        CheckoutService checkout,
+        DaprWorkflowClient workflowClient,
+        IOrderRepository orders,
         CancellationToken cancellationToken)
     {
         if (tenant.TenantId is null)
@@ -40,14 +41,37 @@ public static class OrderingEndpoints
             return Results.BadRequest(new { message = "The Idempotency-Key header is required." });
         }
 
-        var result = await checkout.CheckoutAsync(
-            tenant.TenantId.Value,
-            userId.Value,
-            request.HoldId,
-            idempotencyKey,
+        // Idempotency: a prior attempt with this key wins before starting a new workflow.
+        var existing = await orders.GetByIdempotencyKeyAsync(tenant.TenantId.Value, idempotencyKey, cancellationToken);
+        if (existing is not null)
+        {
+            return existing.Status == OrderStatus.Confirmed
+                ? Results.Created($"/v1/orders/{existing.Id}", new { orderId = existing.Id })
+                : Results.Conflict(new { message = "A prior checkout for this key did not complete.", orderId = existing.Id });
+        }
+
+        var instanceId = Guid.CreateVersion7().ToString("N");
+        await workflowClient.ScheduleNewWorkflowAsync(
+            nameof(CheckoutWorkflow),
+            instanceId,
+            new CheckoutWorkflowInput(tenant.TenantId.Value, userId.Value, request.HoldId, idempotencyKey));
+
+        var state = await workflowClient.WaitForWorkflowCompletionAsync(
+            instanceId,
+            getInputsAndOutputs: true,
             cancellationToken);
 
-        return result.Outcome switch
+        return MapCheckoutOutcome(state.ReadOutputAs<CheckoutWorkflowResult>());
+    }
+
+    private static IResult MapCheckoutOutcome(CheckoutWorkflowResult? result)
+    {
+        if (result is null || !Enum.TryParse<CheckoutOutcome>(result.Outcome, out var outcome))
+        {
+            return Results.Problem("Unexpected checkout outcome.");
+        }
+
+        return outcome switch
         {
             CheckoutOutcome.Confirmed =>
                 Results.Created($"/v1/orders/{result.OrderId}", new { orderId = result.OrderId }),

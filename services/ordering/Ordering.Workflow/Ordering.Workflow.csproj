@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Dapr Workflow: the durable, crash-safe checkout saga orchestration (ADR-0010).
+       Uses the Application ports; the orchestrator is deterministic, activities do the I/O. -->
+
+  <PropertyGroup>
+    <RootNamespace>Ordering.Workflow</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Ordering.Application/Ordering.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Dapr.Workflow" />
+  </ItemGroup>
+
+</Project>
