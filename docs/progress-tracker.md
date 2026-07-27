@@ -18,6 +18,7 @@ local development. Update this with each meaningful change.
 - ✅ Build config: `.editorconfig`, `Directory.Build.props`, CPM, PR template
 - ✅ Root + per-service `CLAUDE.md`
 - ✅ Roadmap issues (#1–#11) on GitHub
+- ✅ **Data flow & service boundaries reference** (`docs/data-flow-and-service-boundaries.md`): as-built (not pre-implementation) reference — the boundary/ownership table for all five services, the communication matrix (sync/Dapr service invocation, async/Dapr pub/sub, direct-Redis, external/Stripe, gRPC internals), the full purchase-flow sequence with a mermaid diagram, and the background processes
 
 ### Code scaffold
 - ✅ Solution (`.slnx`)
