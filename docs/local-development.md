@@ -107,8 +107,9 @@ nothing in the service code changes.
 
 ## Secrets (local)
 
-The local Dapr secret store reads `platform/dapr/secrets.local.json` (git-ignored).
-Create it from the example:
+The local Dapr secret store reads `platform/dapr/secrets.local.json`
+(git-ignored). `dev-up.sh` creates it from the example automatically if it's
+missing; to do it by hand:
 
 ```bash
 cp platform/dapr/secrets.local.example.json platform/dapr/secrets.local.json

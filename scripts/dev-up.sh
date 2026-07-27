@@ -9,6 +9,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# The local Dapr secret store reads this file (git-ignored; only local dummy
+# values belong here, per local-development.md). Auto-create it so first-run
+# doesn't fail on a missing file.
+if [ ! -f "$repo_root/platform/dapr/secrets.local.json" ]; then
+  echo "==> Creating platform/dapr/secrets.local.json from the example (local dummy values only)..."
+  cp "$repo_root/platform/dapr/secrets.local.example.json" "$repo_root/platform/dapr/secrets.local.json"
+fi
+
 echo "==> Starting backing services (Postgres, Redis, Jaeger)..."
 docker compose up -d
 
@@ -44,6 +52,15 @@ if [ ! -x "$dapr_home/bin/daprd" ] && [ ! -x "$dapr_home/bin/daprd.exe" ]; then
   echo "==> Dapr runtime not initialized locally — running 'dapr init' (one-time, uses Docker)..."
   dapr init
 fi
+
+# Build once, up front. All five services reference the same building-blocks
+# projects (EventPlatform.Contracts, .Hosting, .Messaging); launching five
+# concurrent `dotnet run`s without this can make two of them try to compile and
+# write the same shared DLL at once, failing with CS2012 ("cannot open ... for
+# writing -- being used by another process"). Pre-building means each `dotnet
+# run` below finds everything already up to date and doesn't race the others.
+echo "==> Building the solution once (avoids a concurrent-build race on shared projects)..."
+dotnet build "$repo_root/EventPlatform.slnx"
 
 echo "==> Starting all five services with their Dapr sidecars (Ctrl+C stops everything)..."
 echo "    Catalog    http://localhost:5080/scalar/v1"
