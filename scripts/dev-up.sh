@@ -97,10 +97,19 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# Staggered: launching several dapr/dotnet processes at once on Windows can trip a
+# separate, intermittent Windows job-object assignment race ("failed to assign
+# process to job object"), which kills the app before it starts. A couple of
+# seconds between launches gives each one time to finish registering before the
+# next starts.
 start_service catalog 5080 "$repo_root/services/catalog/Catalog.Api"
+sleep 3
 start_service inventory 5081 "$repo_root/services/inventory/Inventory.Api"
+sleep 3
 start_service ordering 5082 "$repo_root/services/ordering/Ordering.Api"
+sleep 3
 start_service payments 5083 "$repo_root/services/payments/Payments.Api"
+sleep 3
 start_service ticketing 5084 "$repo_root/services/ticketing/Ticketing.Api"
 
 wait

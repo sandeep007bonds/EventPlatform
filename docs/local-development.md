@@ -46,10 +46,14 @@ Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 
 ## Database schema — automatic in Development
 
-Nothing to run. Each service creates its own Postgres schema from its current
-EF Core model the first time it starts in Development
-(`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef` command, no
-`Migrations/` folder to generate or commit.
+Nothing to run. Each service has its own Postgres **database** (`catalog`,
+`inventory`, `ordering`, `payments`, `ticketing` — true database-per-service)
+and creates it from its current EF Core model the first time it starts in
+Development (`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef`
+command, no `Migrations/` folder to generate or commit. Each service must have
+its own database name for this to work: `EnsureCreatedAsync()` only creates
+tables when the target database doesn't exist yet, so two services sharing one
+database would silently end up with only the first one's tables.
 
 If you change a domain model and the columns look stale, the fastest local fix
 is to drop and recreate the disposable Postgres volume:

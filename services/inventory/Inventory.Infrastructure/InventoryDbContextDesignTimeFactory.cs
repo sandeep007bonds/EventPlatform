@@ -8,7 +8,7 @@ namespace Inventory.Infrastructure;
 internal sealed class InventoryDbContextDesignTimeFactory : IDesignTimeDbContextFactory<InventoryDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=eventplatform;Username=eventplatform;Password=localdev";
+        "Host=localhost;Port=5432;Database=inventory;Username=eventplatform;Password=localdev";
 
     /// <inheritdoc />
     public InventoryDbContext CreateDbContext(string[] args)

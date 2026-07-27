@@ -52,9 +52,14 @@ This single command:
    [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
    (`platform/dapr/dapr.yaml`).
 
-Each service creates its own Postgres schema from its current EF Core model
-the first time it starts (`Database.EnsureCreatedAsync()`, Development only) —
-there's no separate migration step and nothing else to run.
+Each service has its own Postgres **database** (`catalog`, `inventory`,
+`ordering`, `payments`, `ticketing` — true database-per-service, not just
+separate schemas in one shared database) and creates it from its current EF
+Core model the first time it starts (`Database.EnsureCreatedAsync()`,
+Development only) — there's no separate migration step and nothing else to
+run. This matters: `EnsureCreatedAsync()` only creates tables when the
+*database itself* doesn't exist yet, so each service needs its own database
+name for this to work automatically.
 
 **Ctrl+C stops everything** (all five services and their sidecars). Then, to
 also stop the Docker containers:
@@ -201,9 +206,9 @@ reconciles the payment idempotently. Without a signing secret it returns `503`.
 | `dev-up.sh` exits at "Dapr CLI not found" | Install it, then re-run — <https://docs.dapr.io/getting-started/install-dapr-cli/> |
 | `dev-up.sh` hangs waiting for postgres/redis | Check `docker compose logs postgres` / `docker compose logs redis` |
 | `dapr run -f` errors on the yaml | Your Dapr CLI is too old — multi-app run needs **>= 1.13**; `dapr --version` to check, then upgrade |
-| A service exits immediately with `0xc000013a` (Windows/Git Bash) | Known Dapr issue: multi-app run's console-signal handling can kill a `dotnet` child process on Windows before it starts — not a real crash. `dev-up.sh` detects Git Bash/MSYS/Cygwin automatically and falls back to one `dapr run` process per service, which doesn't hit this; just re-run it |
+| A service exits immediately with `0xc000013a` + `failed to assign process to job object` (Windows/Git Bash) | A known Dapr-CLI/Windows job-object interaction, not a real crash — it's intermittent (usually only the first service or two hit it). `dev-up.sh` already staggers service startup by a few seconds on Windows to reduce it; if one still fails, just re-run `bash scripts/dev-up.sh` — Postgres/Redis are already up so it'll skip straight to Dapr |
 | `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (section 2) |
 | `inventory` stays `seatCount: 0` | Check the inventory sidecar's logs in the `dev-up.sh` output for a pub/sub delivery error |
 | Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`, already wired into `platform/dapr/dapr.yaml` |
-| `relation does not exist` | The schema wasn't created — check that service's startup logs for an `EnsureCreated`/Postgres connection error |
+| `relation "X.Y" does not exist` | That service's connection string in `appsettings.Development.json` must point at its **own** database (`catalog`/`inventory`/`ordering`/`payments`/`ticketing`), not a shared one — `EnsureCreatedAsync()` silently skips table creation if the database already exists, which it would if two services pointed at the same one |
 | Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` (already set correctly in `platform/dapr/dapr.yaml`) |

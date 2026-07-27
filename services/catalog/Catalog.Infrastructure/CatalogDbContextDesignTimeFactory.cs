@@ -9,7 +9,7 @@ namespace Catalog.Infrastructure;
 internal sealed class CatalogDbContextDesignTimeFactory : IDesignTimeDbContextFactory<CatalogDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=eventplatform;Username=eventplatform;Password=localdev";
+        "Host=localhost;Port=5432;Database=catalog;Username=eventplatform;Password=localdev";
 
     /// <inheritdoc />
     public CatalogDbContext CreateDbContext(string[] args)

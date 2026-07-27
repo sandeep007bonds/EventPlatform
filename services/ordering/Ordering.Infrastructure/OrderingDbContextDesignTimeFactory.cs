@@ -8,7 +8,7 @@ namespace Ordering.Infrastructure;
 internal sealed class OrderingDbContextDesignTimeFactory : IDesignTimeDbContextFactory<OrderingDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=eventplatform;Username=eventplatform;Password=localdev";
+        "Host=localhost;Port=5432;Database=ordering;Username=eventplatform;Password=localdev";
 
     /// <inheritdoc />
     public OrderingDbContext CreateDbContext(string[] args)

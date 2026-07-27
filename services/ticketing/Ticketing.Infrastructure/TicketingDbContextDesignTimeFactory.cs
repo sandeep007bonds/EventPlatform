@@ -8,7 +8,7 @@ namespace Ticketing.Infrastructure;
 internal sealed class TicketingDbContextDesignTimeFactory : IDesignTimeDbContextFactory<TicketingDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=eventplatform;Username=eventplatform;Password=localdev";
+        "Host=localhost;Port=5432;Database=ticketing;Username=eventplatform;Password=localdev";
 
     /// <inheritdoc />
     public TicketingDbContext CreateDbContext(string[] args)

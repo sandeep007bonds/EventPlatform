@@ -8,7 +8,7 @@ namespace Payments.Infrastructure;
 internal sealed class PaymentDbContextDesignTimeFactory : IDesignTimeDbContextFactory<PaymentDbContext>
 {
     private const string DefaultConnectionString =
-        "Host=localhost;Port=5432;Database=eventplatform;Username=eventplatform;Password=localdev";
+        "Host=localhost;Port=5432;Database=payments;Username=eventplatform;Password=localdev";
 
     /// <inheritdoc />
     public PaymentDbContext CreateDbContext(string[] args)
