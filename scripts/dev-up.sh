@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-click local dev startup: backing services (Docker) + all five EventPlatform
-# services with their Dapr sidecars (Dapr multi-app run) — a single command,
-# a single terminal, Ctrl+C stops everything.
+# services with their Dapr sidecars — a single command, a single terminal,
+# Ctrl+C stops everything.
 #
 # Usage: ./scripts/dev-up.sh
 set -euo pipefail
@@ -55,4 +55,52 @@ echo "    Jaeger UI  http://localhost:16686"
 echo "    Mint a dev auth token in another terminal: ./scripts/dev-token.sh"
 echo
 
-exec dapr run -f "$repo_root/platform/dapr/dapr.yaml"
+# Dapr's multi-app run (`dapr run -f`) has a known Windows issue: spawning multiple
+# dotnet child processes under one console can trip Windows' Ctrl-C/console-signal
+# handling, killing an app before it even starts (exit 0xc000013a — a termination
+# signal, not a real crash). Git Bash/MSYS/Cygwin hit this; WSL (a real Linux
+# kernel) and native Linux/macOS don't. Fall back on Windows to what multi-app run
+# does under the hood anyway — one `dapr run` process per service — which doesn't
+# share that failure mode.
+case "${OSTYPE:-}" in
+  msys*|cygwin*|win32*) is_windows=1 ;;
+  *) is_windows=0 ;;
+esac
+
+if [ "$is_windows" -eq 0 ]; then
+  exec dapr run -f "$repo_root/platform/dapr/dapr.yaml"
+fi
+
+echo "==> Windows shell detected — starting each service as its own dapr run process"
+echo "    (Dapr's multi-app run has a known issue spawning dotnet on Windows)."
+echo
+
+pids=()
+
+start_service() {
+  local app_id="$1" port="$2" project="$3"
+  ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:$port" \
+    dapr run --app-id "$app_id" --app-port "$port" --app-protocol http \
+    --resources-path "$repo_root/platform/dapr/components" \
+    --config "$repo_root/platform/dapr/config.yaml" \
+    -- dotnet run --no-launch-profile --project "$project" &
+  pids+=("$!")
+}
+
+cleanup() {
+  echo
+  echo "==> Stopping all services..."
+  for pid in "${pids[@]}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+  wait 2>/dev/null || true
+}
+trap cleanup EXIT INT TERM
+
+start_service catalog 5080 "$repo_root/services/catalog/Catalog.Api"
+start_service inventory 5081 "$repo_root/services/inventory/Inventory.Api"
+start_service ordering 5082 "$repo_root/services/ordering/Ordering.Api"
+start_service payments 5083 "$repo_root/services/payments/Payments.Api"
+start_service ticketing 5084 "$repo_root/services/ticketing/Ticketing.Api"
+
+wait

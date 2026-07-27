@@ -32,7 +32,10 @@ in `curl` output) and `python3` (to mint the dev JWT, used by
 `scripts/dev-token.sh`). Neither is a platform dependency — you can equally
 paste ids by hand and mint a token at <https://jwt.io>.
 
-These scripts are Bash — on Windows use WSL or Git Bash.
+These scripts are Bash — on Windows use WSL or Git Bash. On Git Bash/MSYS/Cygwin,
+`dev-up.sh` automatically works around a known Dapr Windows issue (see
+Troubleshooting) by starting each service as its own `dapr run` process instead
+of using multi-app run; WSL doesn't need this (it's a real Linux kernel).
 
 ## 1. One-click start
 
@@ -198,6 +201,7 @@ reconciles the payment idempotently. Without a signing secret it returns `503`.
 | `dev-up.sh` exits at "Dapr CLI not found" | Install it, then re-run — <https://docs.dapr.io/getting-started/install-dapr-cli/> |
 | `dev-up.sh` hangs waiting for postgres/redis | Check `docker compose logs postgres` / `docker compose logs redis` |
 | `dapr run -f` errors on the yaml | Your Dapr CLI is too old — multi-app run needs **>= 1.13**; `dapr --version` to check, then upgrade |
+| A service exits immediately with `0xc000013a` (Windows/Git Bash) | Known Dapr issue: multi-app run's console-signal handling can kill a `dotnet` child process on Windows before it starts — not a real crash. `dev-up.sh` detects Git Bash/MSYS/Cygwin automatically and falls back to one `dapr run` process per service, which doesn't hit this; just re-run it |
 | `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (section 2) |
 | `inventory` stays `seatCount: 0` | Check the inventory sidecar's logs in the `dev-up.sh` output for a pub/sub delivery error |
 | Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`, already wired into `platform/dapr/dapr.yaml` |
