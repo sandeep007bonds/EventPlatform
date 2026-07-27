@@ -50,6 +50,10 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Gateway (YARP reverse proxy)">
+    <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Application (in-process mediator)">
     <!-- Pinned to the last Apache/OSS release; do NOT bump to 13.x (commercial). See ADR-0014. -->
     <PackageVersion Include="MediatR" Version="12.5.0" />

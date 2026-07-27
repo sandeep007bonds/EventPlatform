@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-click local dev startup: backing services (Docker) + all five EventPlatform
-# services with their Dapr sidecars — a single command, a single terminal,
-# Ctrl+C stops everything.
+# services with their Dapr sidecars + the gateway (no Dapr) — a single command,
+# a single terminal, Ctrl+C stops everything.
 #
 # Usage: ./scripts/dev-up.sh
 set -euo pipefail
@@ -53,16 +53,18 @@ if [ ! -x "$dapr_home/bin/daprd" ] && [ ! -x "$dapr_home/bin/daprd.exe" ]; then
   dapr init
 fi
 
-# Build once, up front. All five services reference the same building-blocks
-# projects (EventPlatform.Contracts, .Hosting, .Messaging); launching five
-# concurrent `dotnet run`s without this can make two of them try to compile and
-# write the same shared DLL at once, failing with CS2012 ("cannot open ... for
-# writing -- being used by another process"). Pre-building means each `dotnet
-# run` below finds everything already up to date and doesn't race the others.
+# Build once, up front. All five services (and the gateway) reference the same
+# building-blocks projects (EventPlatform.Contracts, .Hosting, .Messaging);
+# launching several concurrent `dotnet run`s without this can make two of them
+# try to compile and write the same shared DLL at once, failing with CS2012
+# ("cannot open ... for writing -- being used by another process"). Pre-building
+# means each `dotnet run` below finds everything already up to date and doesn't
+# race the others.
 echo "==> Building the solution once (avoids a concurrent-build race on shared projects)..."
 dotnet build "$repo_root/EventPlatform.slnx"
 
-echo "==> Starting all five services with their Dapr sidecars (Ctrl+C stops everything)..."
+echo "==> Starting the gateway, all five services and their Dapr sidecars (Ctrl+C stops everything)..."
+echo "    Gateway    http://localhost:5090/scalar/v1"
 echo "    Catalog    http://localhost:5080/scalar/v1"
 echo "    Inventory  http://localhost:5081/scalar/v1"
 echo "    Ordering   http://localhost:5082/scalar/v1"
@@ -70,22 +72,38 @@ echo "    Payments   http://localhost:5083/scalar/v1"
 echo "    Ticketing  http://localhost:5084/scalar/v1"
 echo "    Jaeger UI  http://localhost:16686"
 echo "    Mint a dev auth token in another terminal: ./scripts/dev-token.sh"
+echo "    Or call the gateway's dev-login: POST http://localhost:5090/api/auth/dev-login"
 echo
 
-# Dapr's multi-app run (`dapr run -f`) has a known Windows issue: spawning multiple
-# dotnet child processes under one console can trip Windows' Ctrl-C/console-signal
-# handling, killing an app before it even starts (exit 0xc000013a — a termination
-# signal, not a real crash). Git Bash/MSYS/Cygwin hit this; WSL (a real Linux
-# kernel) and native Linux/macOS don't. Fall back on Windows to what multi-app run
-# does under the hood anyway — one `dapr run` process per service — which doesn't
-# share that failure mode.
+# The gateway is a plain HTTP proxy, not a Dapr participant — it never runs with
+# a sidecar. Start it in the background here, and make sure it's cleaned up
+# alongside everything else on exit (both branches below rely on this).
+gateway_pid=""
+start_gateway() {
+  ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:5090" \
+    dotnet run --no-launch-profile --project "$repo_root/gateways/EventPlatform.Gateway" &
+  gateway_pid="$!"
+}
+
 case "${OSTYPE:-}" in
   msys*|cygwin*|win32*) is_windows=1 ;;
   *) is_windows=0 ;;
 esac
 
 if [ "$is_windows" -eq 0 ]; then
-  exec dapr run -f "$repo_root/platform/dapr/dapr.yaml"
+  start_gateway
+
+  cleanup_non_windows() {
+    echo
+    echo "==> Stopping the gateway..."
+    kill "$gateway_pid" 2>/dev/null || true
+  }
+  trap cleanup_non_windows EXIT INT TERM
+
+  # Not exec'd (unlike earlier versions of this script) so the trap above still
+  # runs to stop the gateway when this is interrupted.
+  dapr run -f "$repo_root/platform/dapr/dapr.yaml"
+  exit $?
 fi
 
 echo "==> Windows shell detected — starting each service as its own dapr run process"
@@ -107,12 +125,16 @@ start_service() {
 cleanup() {
   echo
   echo "==> Stopping all services..."
+  kill "$gateway_pid" 2>/dev/null || true
   for pid in "${pids[@]}"; do
     kill "$pid" 2>/dev/null || true
   done
   wait 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM
+
+start_gateway
+sleep 3
 
 # Staggered: launching several dapr/dotnet processes at once on Windows can trip a
 # separate, intermittent Windows job-object assignment race ("failed to assign

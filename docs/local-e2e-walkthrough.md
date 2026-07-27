@@ -72,12 +72,20 @@ When it's up you have:
 
 | Service | Scalar API docs |
 |---------|------------------|
+| Gateway (BFF) | http://localhost:5090/scalar/v1 |
 | Catalog | http://localhost:5080/scalar/v1 |
 | Inventory | http://localhost:5081/scalar/v1 |
 | Ordering | http://localhost:5082/scalar/v1 |
 | Payments | http://localhost:5083/scalar/v1 |
 | Ticketing | http://localhost:5084/scalar/v1 |
 | Jaeger UI | http://localhost:16686 |
+
+A frontend calls only the gateway (`/api/<service>/v1/...`) — it's the one
+place CORS is configured and the only origin a browser ever talks to. The
+`curl` flow below still calls the services directly on their own ports,
+which remains fine for scripting; see
+[gateways/EventPlatform.Gateway/README.md](../gateways/EventPlatform.Gateway/README.md)
+for the gateway's exact route list.
 
 **Payments gateway:** with no Stripe secret configured, Payments uses the
 `SimulatedPaymentGateway` (captures synchronously, always succeeds) — perfect

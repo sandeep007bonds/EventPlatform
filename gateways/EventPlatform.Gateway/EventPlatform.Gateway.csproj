@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- The browser-facing BFF/gateway: a YARP reverse proxy fronting the backend services
+       (explicit route allowlist, never a blanket proxy — see ReverseProxy config), plus a
+       Development-only token-mint endpoint standing in for real login until Identity (OTP)
+       and Entra External ID (organizer OIDC) exist. -->
+
+  <PropertyGroup>
+    <RootNamespace>EventPlatform.Gateway</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Yarp.ReverseProxy" />
+  </ItemGroup>
+
+</Project>
