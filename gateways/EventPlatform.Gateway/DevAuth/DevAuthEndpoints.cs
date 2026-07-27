@@ -21,7 +21,7 @@ public static class DevAuthEndpoints
         return app;
     }
 
-    private static IResult DevLogin(DevLoginRequest request, IConfiguration configuration, DevTokenIssuer issuer)
+    private static IResult DevLogin(DevLoginRequest request, IConfiguration configuration)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
         {
@@ -37,7 +37,7 @@ public static class DevAuthEndpoints
             return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
-        var result = issuer.Issue(request, signingKey, jwt["Issuer"], jwt["Audience"]);
+        var result = DevTokenIssuer.Issue(request, signingKey, jwt["Issuer"], jwt["Audience"]);
         var response = new DevLoginResponse(
             result.AccessToken,
             (int)(result.ExpiresAt - DateTimeOffset.UtcNow).TotalSeconds,

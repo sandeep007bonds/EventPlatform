@@ -6,7 +6,7 @@ namespace EventPlatform.Gateway.DevAuth;
 /// safe, server-side stand-in for <c>scripts/dev-token.sh</c>'s client-side minting, which a
 /// browser cannot replicate without shipping the shared signing secret to the client.
 /// </summary>
-public sealed class DevTokenIssuer
+public static class DevTokenIssuer
 {
     private const string DefaultIssuer = "eventplatform-dev";
     private const string DefaultAudience = "eventplatform";
@@ -19,7 +19,7 @@ public sealed class DevTokenIssuer
     /// <param name="issuer">The token issuer; defaults to <c>eventplatform-dev</c>.</param>
     /// <param name="audience">The token audience; defaults to <c>eventplatform</c>.</param>
     /// <returns>The issued token, its expiry, and the resolved user.</returns>
-    public DevTokenResult Issue(DevLoginRequest request, string signingKey, string? issuer, string? audience)
+    public static DevTokenResult Issue(DevLoginRequest request, string signingKey, string? issuer, string? audience)
     {
         ArgumentNullException.ThrowIfNull(request);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.Email);

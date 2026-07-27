@@ -12,7 +12,6 @@ builder.Services.AddProblemDetails();
 
 builder.Services.AddGatewayCors(builder.Configuration);
 builder.Services.AddReverseProxy().LoadFromConfig(builder.Configuration.GetSection("ReverseProxy"));
-builder.Services.AddSingleton<DevTokenIssuer>();
 
 var app = builder.Build();
 
