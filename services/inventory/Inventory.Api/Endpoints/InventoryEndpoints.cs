@@ -20,6 +20,16 @@ public static class InventoryEndpoints
             .WithName("GetInventoryCount")
             .WithTags("Inventory");
 
+        // Organizer seat blocking (e.g. a kill or a restricted view) — separate from the buyer-facing
+        // hold path. No RBAC yet (tracked separately): any authenticated caller in the tenant can
+        // block/unblock their own tenant's seats, same as other organizer-facing endpoints today.
+        app.MapPost("/v1/events/{eventId:guid}/inventory/block", BlockSeatsAsync)
+            .WithName("BlockSeats")
+            .WithTags("Inventory");
+        app.MapPost("/v1/events/{eventId:guid}/inventory/unblock", UnblockSeatsAsync)
+            .WithName("UnblockSeats")
+            .WithTags("Inventory");
+
         var holds = app.MapGroup("/v1/holds").WithTags("Holds");
         holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold");
         holds.MapGet("/{holdId:guid}", GetHoldAsync).WithName("GetHold");
@@ -140,6 +150,64 @@ public static class InventoryEndpoints
             ReleaseHoldOutcome.Conflict =>
                 Results.Conflict(new { message = "The hold could not be released due to a concurrent change." }),
             _ => Results.Problem("Unexpected release outcome."),
+        };
+    }
+
+    private static async Task<IResult> BlockSeatsAsync(
+        Guid eventId,
+        BlockSeatsRequest request,
+        ITenantContext tenant,
+        SeatBlockingService blocking,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.SeatIds is null || request.SeatIds.Count == 0)
+        {
+            return Results.BadRequest(new { message = "At least one seat is required." });
+        }
+
+        var result = await blocking.BlockAsync(tenant.TenantId.Value, eventId, request.SeatIds, request.Reason, cancellationToken);
+        return result.Outcome switch
+        {
+            BlockSeatsOutcome.Blocked => Results.Ok(new { eventId, seatIds = request.SeatIds, status = "Blocked" }),
+            BlockSeatsOutcome.SeatNotFound =>
+                Results.NotFound(new { message = "One or more seats do not exist for this event." }),
+            BlockSeatsOutcome.Conflict =>
+                Results.Conflict(new { message = "One or more seats are not available.", seatId = result.ConflictSeatId }),
+            _ => Results.Problem("Unexpected block outcome."),
+        };
+    }
+
+    private static async Task<IResult> UnblockSeatsAsync(
+        Guid eventId,
+        UnblockSeatsRequest request,
+        ITenantContext tenant,
+        SeatBlockingService blocking,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (request.SeatIds is null || request.SeatIds.Count == 0)
+        {
+            return Results.BadRequest(new { message = "At least one seat is required." });
+        }
+
+        var outcome = await blocking.UnblockAsync(tenant.TenantId.Value, eventId, request.SeatIds, cancellationToken);
+        return outcome switch
+        {
+            UnblockSeatsOutcome.Unblocked => Results.Ok(new { eventId, seatIds = request.SeatIds, status = "Available" }),
+            UnblockSeatsOutcome.SeatNotFound =>
+                Results.NotFound(new { message = "One or more seats do not exist for this event." }),
+            UnblockSeatsOutcome.Conflict =>
+                Results.Conflict(new { message = "One or more seats are not currently blocked." }),
+            _ => Results.Problem("Unexpected unblock outcome."),
         };
     }
 

@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddSingleton(new InventoryReconcilerOptions());
         services.AddScoped<InventoryProvisioningService>();
         services.AddScoped<HoldService>();
+        services.AddScoped<SeatBlockingService>();
 
         return services;
     }

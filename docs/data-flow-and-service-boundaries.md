@@ -14,7 +14,7 @@ the lowercase names below.
 | Service (app-id) | Owns (DB `catalog` etc.) | Public API | Publishes | Consumes |
 |---|---|---|---|---|
 | `catalog` | `Event`, `SeatMap`, `Seat` | `POST /v1/events` · `GET /v1/events/{id}` · `POST /v1/events/{id}/seatmap` · `GET /v1/events/{id}/seatmap` · `POST /v1/events/{id}/publish` | `EventPublished` | — |
-| `inventory` | `InventoryItem`, `Hold`, `HoldItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `POST /v1/holds/` · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold` | `EventPublished` |
+| `inventory` | `InventoryItem`, `Hold`, `HoldItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `POST /v1/events/{id}/inventory/block` · `POST /v1/events/{id}/inventory/unblock` · `POST /v1/holds/` · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventPublished` |
 | `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders/{id}` | `OrderConfirmed` | — |
 | `payments` | `Payment`, `ProcessedWebhookEvent` | `POST /v1/payments/webhooks/stripe` (public, signature-verified) | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
 | `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` | `OrderConfirmed` |
@@ -23,7 +23,7 @@ the lowercase names below.
 `POST /v1/payments/charge` and `/refund`, are also HTTP endpoints but internal —
 called only by `ordering`'s checkout saga, not exposed to buyers.
 
-**Not yet consumed:** `SeatHeld`, `SeatReleased`, `SeatSold`, `PaymentCaptured`,
+**Not yet consumed:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked`, `PaymentCaptured`,
 `PaymentFailed`, `PaymentRefunded`, and `TicketIssued` are published today with
 no subscriber wired up — they're there for future consumers (notifications,
 read models, analytics) without any code change on the publishing side.

@@ -83,6 +83,24 @@ public sealed class InventoryItem
         Transition(InventoryStatus.Held, InventoryStatus.Sold);
     }
 
+    /// <summary>
+    /// Blocks an available seat so it can't be held or sold (e.g. a kill or a restricted view).
+    /// Only available seats can be blocked — a seat already in a buyer's hold isn't yanked out
+    /// from under them.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The seat is not available.</exception>
+    public void Block()
+    {
+        Transition(InventoryStatus.Available, InventoryStatus.Blocked);
+    }
+
+    /// <summary>Unblocks a seat, returning it to available.</summary>
+    /// <exception cref="InvalidOperationException">The seat is not blocked.</exception>
+    public void Unblock()
+    {
+        Transition(InventoryStatus.Blocked, InventoryStatus.Available);
+    }
+
     private void Transition(InventoryStatus from, InventoryStatus to)
     {
         if (Status != from)

@@ -7,7 +7,8 @@ namespace Inventory.Infrastructure;
 /// </summary>
 /// <remarks>
 /// Sparse model: a missing seat key (or <c>A</c>) means available; <c>H:{holdId}</c> means held;
-/// <c>S</c> means sold. Not seeding a key per seat keeps large venues cheap.
+/// <c>S</c> means sold; <c>B</c> means blocked by the organizer. Not seeding a key per seat keeps
+/// large venues cheap.
 /// </remarks>
 /// <param name="redis">The Redis connection.</param>
 internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
@@ -123,6 +124,30 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     }
 
     /// <inheritdoc />
+    public async Task BlockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var db = redis.GetDatabase();
+        foreach (var seatId in seatIds)
+        {
+            await db.StringSetAsync(SeatKey(eventId, seatId), "B");
+        }
+    }
+
+    /// <inheritdoc />
+    public async Task UnblockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var db = redis.GetDatabase();
+        foreach (var seatId in seatIds)
+        {
+            await db.KeyDeleteAsync(SeatKey(eventId, seatId));
+        }
+    }
+
+    /// <inheritdoc />
     public async Task<bool> IsInitializedAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -145,6 +170,12 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
             if (state.Condition == SeatCondition.Sold)
             {
                 await db.StringSetAsync(seatKey, "S");
+                continue;
+            }
+
+            if (state.Condition == SeatCondition.Blocked)
+            {
+                await db.StringSetAsync(seatKey, "B");
                 continue;
             }
 

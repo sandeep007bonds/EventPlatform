@@ -9,7 +9,10 @@ The no-oversell system of record for the platform. Owns seat availability, holds
   Postgres optimistic concurrency (`InventoryItem.Version`).
 - **Self-healing cache:** if Redis is restarted or flushed, the `InventoryReconciler`
   rebuilds the fast gate from Postgres (the authority). It only ever re-applies
-  held/sold restrictions — never frees a seat — so it cannot itself cause oversell.
+  held/sold/blocked restrictions — never frees a seat — so it cannot itself cause oversell.
+- **Organizer seat blocking:** a seat can be blocked (e.g. a kill or a restricted
+  view) and later unblocked — a separate path from the buyer-facing hold, using
+  the same authority model (Postgres commits, then the Redis marker follows).
 - **Lean** on the hot path: Minimal API, no MediatR (ADR-0009).
 
 ## Endpoints
@@ -18,14 +21,16 @@ The no-oversell system of record for the platform. Owns seat availability, holds
 |--------|-------|---------|
 | POST | `/integration/catalog/event-published` | Dapr pub/sub topic `EventPublished` → provision inventory |
 | GET | `/v1/events/{eventId}/inventory` | Provisioned seat count for an event |
+| POST | `/v1/events/{eventId}/inventory/block` | Block available seats (organizer) |
+| POST | `/v1/events/{eventId}/inventory/unblock` | Unblock previously blocked seats (organizer) |
 | POST | `/v1/holds` | Place an atomic seat hold (Redis fast gate + Postgres authority) |
 | DELETE | `/v1/holds/{holdId}` | Release a hold |
 
 ## Layers
 
-`Inventory.Api` · `Inventory.Application` (ports + provisioning) ·
-`Inventory.Domain` · `Inventory.Infrastructure` (EF Core + Postgres, Catalog
-client, outbox).
+`Inventory.Api` · `Inventory.Application` (ports + provisioning + blocking + reconciliation) ·
+`Inventory.Domain` · `Inventory.Infrastructure` (EF Core + Postgres, Redis hold
+store, Catalog client, outbox).
 
 See [service CLAUDE.md](CLAUDE.md) and the [LLD](../../docs/design/lld-phase1-seated.md).
 

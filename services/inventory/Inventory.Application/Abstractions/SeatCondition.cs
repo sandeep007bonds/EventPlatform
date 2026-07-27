@@ -11,4 +11,7 @@ public enum SeatCondition
 
     /// <summary>Sold; permanently unavailable.</summary>
     Sold,
+
+    /// <summary>Blocked by the organizer; not sellable until unblocked.</summary>
+    Blocked,
 }

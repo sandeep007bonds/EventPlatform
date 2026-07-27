@@ -36,6 +36,20 @@ public interface IHoldStore
     /// <returns>A task that completes when the seats are marked sold.</returns>
     Task MarkSoldAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
 
+    /// <summary>Marks the given seats blocked (organizer-initiated; not tied to a hold).</summary>
+    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="seatIds">The seats to block.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the seats are marked blocked.</returns>
+    Task BlockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
+
+    /// <summary>Clears the blocked marker for the given seats, returning them to available.</summary>
+    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="seatIds">The seats to unblock.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the seats are unblocked.</returns>
+    Task UnblockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
+
     /// <summary>
     /// Returns whether the store has been initialized since its last (re)start. A store that returns
     /// <see langword="false"/> was just started or flushed and must be rebuilt from Postgres.

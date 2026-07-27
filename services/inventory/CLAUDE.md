@@ -12,8 +12,10 @@ an event.
 ## Owns
 
 - **Data store:** PostgreSQL `inventory` DB (this service only) + Redis (hot path)
-- **Public API:** REST `/v1/holds` (Stage B), `/v1/events/{id}/inventory`
-- **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold` (via outbox)
+- **Public API:** REST `/v1/holds` (Stage B), `/v1/events/{id}/inventory`,
+  `/v1/events/{id}/inventory/block`, `/v1/events/{id}/inventory/unblock`
+- **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`,
+  `SeatUnblocked` (via outbox)
 - **Events consumed:** `EventPublished` (Catalog) → provision seat inventory
 
 ## Design notes (ADR-0009)
@@ -26,17 +28,26 @@ an event.
   event has inventory.
 - **Drift reconciliation:** Redis holds only a sparse cache; a restart/flush loses
   it. `InventoryReconciler` (a background service) detects this via a sentinel key
-  and rebuilds the fast gate from Postgres — writing back held (with remaining TTL)
-  and sold seats. **Safety invariant:** the rebuild only adds restrictions, never
-  frees a seat, so it can never cause oversell even if it races a live hold.
+  and rebuilds the fast gate from Postgres — writing back held (with remaining TTL),
+  sold, and blocked seats. **Safety invariant:** the rebuild only adds restrictions,
+  never frees a seat, so it can never cause oversell even if it races a live hold.
+- **Organizer seat blocking:** `SeatBlockingService` moves a seat `Available` ↔
+  `Blocked` (`InventoryItem.Block()`/`Unblock()`), all-or-nothing across the
+  requested seats. Follows the same authority order as release/convert — Postgres
+  commits first (optimistic concurrency), then the Redis marker (`B`) follows —
+  because blocking is an admin action, not the flash-sale hot path, so there's no
+  need for Redis-first speed. A seat already held by a buyer can't be blocked out
+  from under them (only `Available` seats are eligible). No RBAC yet (tracked
+  separately) — any authenticated caller in the tenant can block/unblock, same as
+  other organizer-facing endpoints today.
 
 ## Structure
 
 Layers directly under this folder (no `src/`): `Inventory.Api` (host + endpoints +
-Dapr subscription), `Inventory.Application` (ports + provisioning + reconciliation),
-`Inventory.Domain` (`InventoryItem`, `Hold`, `LedgerEntry` + invariants),
-`Inventory.Infrastructure` (EF Core + Postgres, Redis hold store, the Catalog
-seat-map client, the expiry reaper, the drift reconciler, outbox). `tests/` to follow.
+Dapr subscription), `Inventory.Application` (ports + provisioning + blocking +
+reconciliation), `Inventory.Domain` (`InventoryItem`, `Hold`, `LedgerEntry` +
+invariants), `Inventory.Infrastructure` (EF Core + Postgres, Redis hold store, the
+Catalog seat-map client, the expiry reaper, the drift reconciler, outbox). `tests/` to follow.
 
 ## Local run
 
