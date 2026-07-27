@@ -11,7 +11,10 @@ storefront (cached). Bounded context: **Catalog** (ADR-0008).
 ## Owns
 
 - **Data store:** PostgreSQL `catalog` DB (this service only)
-- **Public API:** REST `/v1/events`, `/v1/events/{id}/seatmap`
+- **Public API:** REST `/v1/events`, `/v1/events/{id}/seatmap`. `GET /v1/events`
+  (list) and `GET /v1/events/{id}` and `/seatmap` are `.AllowAnonymous()` —
+  anonymous and cross-tenant callers only ever see non-draft events; a caller's
+  own tenant additionally sees its drafts (`Event.IsVisibleTo`).
 - **Events published:** `EventPublished`, `EventUpdated`
 - **Events consumed:** —
 

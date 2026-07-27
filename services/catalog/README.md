@@ -18,7 +18,11 @@ Catalog.Infrastructure/  # EF Core + PostgreSQL persistence
 | Method | Path | Notes |
 |--------|------|-------|
 | POST | `/v1/events` | Create a draft event (tenant from JWT) |
-| GET | `/v1/events/{id}` | Fetch an event |
+| GET | `/v1/events` | Anonymous; paginated, optional `status` filter. Published events only, plus the caller's own tenant's drafts if authenticated |
+| GET | `/v1/events/{id}` | Anonymous; same visibility rule as the list endpoint — a non-published event 404s for anyone but its owning tenant |
+| POST | `/v1/events/{id}/seatmap` | Define the seat map (tenant from JWT) |
+| GET | `/v1/events/{id}/seatmap` | Anonymous; same visibility rule as `GET /v1/events/{id}` |
+| POST | `/v1/events/{id}/publish` | Publish a draft event |
 | GET | `/health/live` · `/health/ready` | Health (from ServiceDefaults) |
 | GET | `/openapi/v1.json` · `/scalar/v1` | OpenAPI doc + Scalar UI (non-prod) |
 

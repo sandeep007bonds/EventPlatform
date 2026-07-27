@@ -10,7 +10,7 @@ internal sealed class GetEventHandler(IEventRepository repository)
     {
         var @event = await repository.GetByIdAsync(request.Id, cancellationToken);
 
-        return @event is null
+        return @event is null || !@event.IsVisibleTo(request.CallerTenantId)
             ? null
             : new EventResponse(
                 @event.Id,

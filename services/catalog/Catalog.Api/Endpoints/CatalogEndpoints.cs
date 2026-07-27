@@ -13,10 +13,11 @@ public static class CatalogEndpoints
         var group = app.MapGroup("/v1/events").WithTags("Events");
 
         group.MapPost("/", CreateEventAsync).WithName("CreateEvent");
-        group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent");
+        group.MapGet("/", ListEventsAsync).WithName("ListEvents").AllowAnonymous();
+        group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent").AllowAnonymous();
         group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
         group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
-        group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap");
+        group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
 
         return app;
     }
@@ -43,12 +44,25 @@ public static class CatalogEndpoints
         return Results.Created($"/v1/events/{id}", new { id });
     }
 
+    private static async Task<IResult> ListEventsAsync(
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken,
+        EventStatus? status = null,
+        int page = 1,
+        int pageSize = 20)
+    {
+        var result = await sender.Send(new ListEventsQuery(tenant.TenantId, status, page, pageSize), cancellationToken);
+        return Results.Ok(result);
+    }
+
     private static async Task<IResult> GetEventAsync(
         Guid id,
+        ITenantContext tenant,
         ISender sender,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new GetEventQuery(id), cancellationToken);
+        var result = await sender.Send(new GetEventQuery(id, tenant.TenantId), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
@@ -102,10 +116,11 @@ public static class CatalogEndpoints
 
     private static async Task<IResult> GetSeatMapAsync(
         Guid id,
+        ITenantContext tenant,
         ISender sender,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new GetSeatMapQuery(id), cancellationToken);
+        var result = await sender.Send(new GetSeatMapQuery(id, tenant.TenantId), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 }

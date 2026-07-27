@@ -71,4 +71,13 @@ public sealed class Event
 
         Status = EventStatus.Published;
     }
+
+    /// <summary>
+    /// Whether this event is visible to the given caller: everyone can see a
+    /// <see cref="EventStatus.Published"/> event (and beyond); only the owning tenant can see a
+    /// <see cref="EventStatus.Draft"/> event, never an anonymous caller or another tenant.
+    /// </summary>
+    /// <param name="callerTenantId">The caller's tenant id, or <see langword="null"/> for an anonymous caller.</param>
+    public bool IsVisibleTo(Guid? callerTenantId) =>
+        Status != EventStatus.Draft || (callerTenantId is not null && callerTenantId == TenantId);
 }
