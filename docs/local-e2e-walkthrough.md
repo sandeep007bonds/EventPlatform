@@ -148,7 +148,9 @@ echo "hold=$HOLD_ID"
 
 # 7) Checkout — Idempotency-Key header required; runs the Dapr Workflow saga
 #    (validate hold → create order → charge → convert-to-sold → confirm)
-ORDER_ID=$(curl -s "${AUTH[@]}" -H "Idempotency-Key: $(uuidgen)" \
+#    (uuidgen isn't on Git Bash by default — python3 works everywhere)
+IDEMPOTENCY_KEY=$(python3 -c "import uuid; print(uuid.uuid4())")
+ORDER_ID=$(curl -s "${AUTH[@]}" -H "Idempotency-Key: $IDEMPOTENCY_KEY" \
   "$ORDERING/v1/checkout" -d "{\"holdId\":\"$HOLD_ID\"}" | jq -r .orderId)
 echo "order=$ORDER_ID"
 
