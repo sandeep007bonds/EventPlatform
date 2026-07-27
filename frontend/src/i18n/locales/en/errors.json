@@ -1,0 +1,14 @@
+{
+  "unauthorized": {
+    "title": "Please log in",
+    "subtitle": "You need to be logged in to view this page."
+  },
+  "notFound": {
+    "title": "Page not found",
+    "subtitle": "The page you're looking for doesn't exist or was moved."
+  },
+  "serverError": {
+    "title": "Something went wrong",
+    "subtitle": "An unexpected error occurred. Please try again."
+  }
+}

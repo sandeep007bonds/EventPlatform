@@ -1,0 +1,10 @@
+{
+  "appName": "EventPlatform",
+  "loading": "Loading…",
+  "actions": {
+    "retry": "Try again",
+    "goHome": "Go to homepage",
+    "logIn": "Log in",
+    "logOut": "Log out"
+  }
+}

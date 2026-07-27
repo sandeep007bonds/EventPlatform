@@ -91,12 +91,18 @@ dotnet format --verify-no-changes   # style check
 services/         # one independently-deployed service per bounded context
 building-blocks/  # shared libs; contracts/ is the ONLY cross-service dependency
 gateways/         # YARP gateway + BFFs
+frontend/         # React + Vite SPA (buyer + admin) — own conventions, see frontend/CLAUDE.md
 platform/         # Dapr components, KEDA scalers, K8s/Helm (portable)
 infra/            # Terraform (Azure)
 deploy/           # GitOps manifests reconciled by Argo CD
 templates/        # dotnet new service template (carries the golden rules)
 docs/             # architecture, ADRs, design, guidelines
 ```
+
+The C# golden rules and coding conventions above apply to `services/`,
+`building-blocks/`, `gateways/`, and `templates/`. `frontend/` is a
+TypeScript/React project with its own conventions — see
+[frontend/CLAUDE.md](frontend/CLAUDE.md) — not these C# rules.
 
 ## Per-service structure (Clean + Vertical Slices)
 
