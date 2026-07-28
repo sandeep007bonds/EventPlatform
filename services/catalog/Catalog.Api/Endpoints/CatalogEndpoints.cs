@@ -50,9 +50,15 @@ public static class CatalogEndpoints
         CancellationToken cancellationToken,
         EventStatus? status = null,
         int page = 1,
-        int pageSize = 20)
+        int pageSize = 20,
+        bool mine = false)
     {
-        var result = await sender.Send(new ListEventsQuery(tenant.TenantId, status, page, pageSize), cancellationToken);
+        if (mine && tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var result = await sender.Send(new ListEventsQuery(tenant.TenantId, status, page, pageSize, mine), cancellationToken);
         return Results.Ok(result);
     }
 
@@ -68,10 +74,16 @@ public static class CatalogEndpoints
 
     private static async Task<IResult> PublishEventAsync(
         Guid id,
+        ITenantContext tenant,
         ISender sender,
         CancellationToken cancellationToken)
     {
-        var outcome = await sender.Send(new PublishEventCommand(id), cancellationToken);
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var outcome = await sender.Send(new PublishEventCommand(id, tenant.TenantId.Value), cancellationToken);
         return outcome switch
         {
             PublishEventOutcome.Published => Results.NoContent(),

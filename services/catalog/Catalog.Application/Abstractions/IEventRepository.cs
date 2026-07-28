@@ -33,6 +33,23 @@ public interface IEventRepository
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Lists a single tenant's own events at any status (an organizer dashboard) — bypasses the
+    /// public visibility rule entirely, since it's the tenant's own data.
+    /// </summary>
+    /// <param name="tenantId">The owning tenant.</param>
+    /// <param name="status">An optional status filter.</param>
+    /// <param name="page">1-based page number.</param>
+    /// <param name="pageSize">Page size.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The page of events and the total count of the tenant's events matching the filter.</returns>
+    Task<(IReadOnlyList<Event> Items, int TotalCount)> ListForTenantAsync(
+        Guid tenantId,
+        EventStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>

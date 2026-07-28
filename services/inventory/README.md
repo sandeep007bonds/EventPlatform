@@ -21,6 +21,7 @@ The no-oversell system of record for the platform. Owns seat availability, holds
 |--------|-------|---------|
 | POST | `/integration/catalog/event-published` | Dapr pub/sub topic `EventPublished` → provision inventory |
 | GET | `/v1/events/{eventId}/inventory` | Provisioned seat count for an event |
+| GET | `/v1/events/{eventId}/inventory/seats` | Anonymous; every seat's current status (buyer seat picker, admin block/unblock UI) |
 | POST | `/v1/events/{eventId}/inventory/block` | Block available seats (organizer) |
 | POST | `/v1/events/{eventId}/inventory/unblock` | Unblock previously blocked seats (organizer) |
 | POST | `/v1/holds` | Place an atomic seat hold (Redis fast gate + Postgres authority) |

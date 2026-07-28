@@ -18,7 +18,7 @@ internal sealed class PublishEventHandler(
     public async Task<PublishEventOutcome> Handle(PublishEventCommand request, CancellationToken cancellationToken)
     {
         var @event = await repository.GetByIdAsync(request.Id, cancellationToken);
-        if (@event is null)
+        if (@event is null || @event.TenantId != request.TenantId)
         {
             return PublishEventOutcome.NotFound;
         }

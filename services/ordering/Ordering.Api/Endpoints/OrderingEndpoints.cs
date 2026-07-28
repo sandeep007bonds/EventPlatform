@@ -11,6 +11,7 @@ public static class OrderingEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         app.MapPost("/v1/checkout", CheckoutAsync).WithName("Checkout").WithTags("Checkout");
+        app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders");
         app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
 
         return app;
@@ -89,6 +90,49 @@ public static class OrderingEndpoints
                 Results.Conflict(new { message = "A concurrent checkout for this key is being processed; retry the key or fetch the order.", orderId = result.OrderId }),
             _ => Results.Problem("Unexpected checkout outcome."),
         };
+    }
+
+    private static async Task<IResult> ListOrdersAsync(
+        ITenantContext tenant,
+        ClaimsPrincipal principal,
+        IOrderRepository orders,
+        CancellationToken cancellationToken,
+        bool mine = false,
+        bool forTenant = false,
+        int page = 1,
+        int pageSize = 20)
+    {
+        Guid? tenantId = null;
+        Guid? userId = null;
+
+        if (mine)
+        {
+            userId = GetUserId(principal);
+            if (userId is null)
+            {
+                return Results.Unauthorized();
+            }
+        }
+        else if (forTenant)
+        {
+            if (tenant.TenantId is null)
+            {
+                return Results.Unauthorized();
+            }
+
+            tenantId = tenant.TenantId;
+        }
+        else
+        {
+            return Results.BadRequest(new { message = "Specify mine=true or forTenant=true." });
+        }
+
+        var (items, totalCount) = await orders.ListAsync(tenantId, userId, page, pageSize, cancellationToken);
+        var summaries = items
+            .Select(o => new OrderSummaryResponse(o.Id, o.Status.ToString(), o.TotalMinor, o.Currency, o.CatalogEventId, o.CreatedAt))
+            .ToList();
+
+        return Results.Ok(new OrderListResponse(summaries, page, pageSize, totalCount));
     }
 
     private static async Task<IResult> GetOrderAsync(

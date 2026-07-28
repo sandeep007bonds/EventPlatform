@@ -16,6 +16,13 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
         dbContext.InventoryItems.CountAsync(i => i.EventId == eventId, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<InventoryItem>> ListForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
+        await dbContext.InventoryItems
+            .AsNoTracking()
+            .Where(i => i.EventId == eventId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async Task<IReadOnlyList<InventoryItem>> GetItemsBySeatsAsync(
         Guid eventId,
         IReadOnlyCollection<Guid> seatIds,

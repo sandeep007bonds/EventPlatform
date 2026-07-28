@@ -20,6 +20,13 @@ public static class InventoryEndpoints
             .WithName("GetInventoryCount")
             .WithTags("Inventory");
 
+        // Anonymous, same visibility posture as Catalog's public seatmap: buyers need to see which
+        // seats are taken before picking one, and organizers need it to render the block/unblock UI.
+        app.MapGet("/v1/events/{eventId:guid}/inventory/seats", GetInventorySeatsAsync)
+            .WithName("GetInventorySeats")
+            .WithTags("Inventory")
+            .AllowAnonymous();
+
         // Organizer seat blocking (e.g. a kill or a restricted view) — separate from the buyer-facing
         // hold path. No RBAC yet (tracked separately): any authenticated caller in the tenant can
         // block/unblock their own tenant's seats, same as other organizer-facing endpoints today.
@@ -249,5 +256,15 @@ public static class InventoryEndpoints
     {
         var count = await repository.CountForEventAsync(eventId, cancellationToken);
         return Results.Ok(new { eventId, seatCount = count });
+    }
+
+    private static async Task<IResult> GetInventorySeatsAsync(
+        Guid eventId,
+        IInventoryRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var items = await repository.ListForEventAsync(eventId, cancellationToken);
+        var seats = items.Select(i => new InventorySeatResponse(i.SeatId, i.Status.ToString())).ToList();
+        return Results.Ok(seats);
     }
 }

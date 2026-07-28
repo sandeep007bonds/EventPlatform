@@ -13,6 +13,7 @@ an event.
 
 - **Data store:** PostgreSQL `inventory` DB (this service only) + Redis (hot path)
 - **Public API:** REST `/v1/holds` (Stage B), `/v1/events/{id}/inventory`,
+  `/v1/events/{id}/inventory/seats` (`.AllowAnonymous()` — every seat's status),
   `/v1/events/{id}/inventory/block`, `/v1/events/{id}/inventory/unblock`
 - **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`,
   `SeatUnblocked` (via outbox)

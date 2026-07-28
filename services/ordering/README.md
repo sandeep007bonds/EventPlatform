@@ -24,6 +24,8 @@ compensation on failure (release hold, refund). Idempotent on
 | Method | Route | Purpose |
 |--------|-------|---------|
 | POST | `/v1/checkout` | Check out a hold. Requires an `Idempotency-Key` header |
+| GET | `/v1/orders?mine=true` | The caller's own orders (buyer), paginated |
+| GET | `/v1/orders?forTenant=true` | The caller's tenant's orders (organizer), paginated |
 | GET | `/v1/orders/{id}` | Fetch an order |
 
 ## Layers

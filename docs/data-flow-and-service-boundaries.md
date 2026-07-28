@@ -13,9 +13,9 @@ the lowercase names below.
 
 | Service (app-id) | Owns (DB `catalog` etc.) | Public API | Publishes | Consumes |
 |---|---|---|---|---|
-| `catalog` | `Event`, `SeatMap`, `Seat` | `POST /v1/events` · `GET /v1/events` (anonymous; published-only unless the caller's tenant owns the event) · `GET /v1/events/{id}` (anonymous, same visibility rule) · `POST /v1/events/{id}/seatmap` · `GET /v1/events/{id}/seatmap` (anonymous, same visibility rule) · `POST /v1/events/{id}/publish` | `EventPublished` | — |
-| `inventory` | `InventoryItem`, `Hold`, `HoldItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `POST /v1/events/{id}/inventory/block` · `POST /v1/events/{id}/inventory/unblock` · `POST /v1/holds/` · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventPublished` |
-| `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders/{id}` | `OrderConfirmed` | — |
+| `catalog` | `Event`, `SeatMap`, `Seat` | `POST /v1/events` · `GET /v1/events` (anonymous; published-only unless the caller's tenant owns the event) · `GET /v1/events?mine=true` (caller's own tenant, any status) · `GET /v1/events/{id}` (anonymous, same visibility rule as the list) · `POST /v1/events/{id}/seatmap` · `GET /v1/events/{id}/seatmap` (anonymous, same visibility rule) · `POST /v1/events/{id}/publish` (tenant-checked) | `EventPublished` | — |
+| `inventory` | `InventoryItem`, `Hold`, `HoldItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `GET /v1/events/{id}/inventory/seats` (anonymous; every seat's status) · `POST /v1/events/{id}/inventory/block` · `POST /v1/events/{id}/inventory/unblock` · `POST /v1/holds/` · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventPublished` |
+| `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders` (`?mine=true` or `?forTenant=true`) · `GET /v1/orders/{id}` | `OrderConfirmed` | — |
 | `payments` | `Payment`, `ProcessedWebhookEvent` | `POST /v1/payments/webhooks/stripe` (public, signature-verified) | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
 | `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` | `OrderConfirmed` |
 

@@ -40,6 +40,36 @@ internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepos
                 cancellationToken);
 
     /// <inheritdoc />
+    public async Task<(IReadOnlyList<Order> Items, int TotalCount)> ListAsync(
+        Guid? tenantId,
+        Guid? userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Orders.AsNoTracking().AsQueryable();
+
+        if (tenantId is not null)
+        {
+            query = query.Where(o => o.TenantId == tenantId);
+        }
+
+        if (userId is not null)
+        {
+            query = query.Where(o => o.UserId == userId);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderByDescending(o => o.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

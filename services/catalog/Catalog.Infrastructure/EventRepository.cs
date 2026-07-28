@@ -38,6 +38,31 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
     }
 
     /// <inheritdoc />
+    public async Task<(IReadOnlyList<Event> Items, int TotalCount)> ListForTenantAsync(
+        Guid tenantId,
+        EventStatus? status,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken)
+    {
+        var query = dbContext.Events.AsNoTracking().Where(e => e.TenantId == tenantId);
+
+        if (status is not null)
+        {
+            query = query.Where(e => e.Status == status);
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .OrderBy(e => e.StartsAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

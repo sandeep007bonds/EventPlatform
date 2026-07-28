@@ -8,5 +8,6 @@ public sealed class ListEventsValidator : AbstractValidator<ListEventsQuery>
     {
         RuleFor(query => query.Page).GreaterThanOrEqualTo(1);
         RuleFor(query => query.PageSize).InclusiveBetween(1, 100);
+        RuleFor(query => query.CallerTenantId).NotNull().When(query => query.Mine);
     }
 }

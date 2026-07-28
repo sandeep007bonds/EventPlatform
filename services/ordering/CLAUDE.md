@@ -12,7 +12,9 @@ is named `Ordering` so the type never clashes with its namespace.
 ## Owns
 
 - **Data store:** PostgreSQL `ordering` DB (this service only)
-- **Public API:** `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders/{id}`
+- **Public API:** `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders`
+  (`?mine=true` — buyer's own; `?forTenant=true` — organizer's tenant; exactly
+  one is required), `GET /v1/orders/{id}`
 - **Events published:** `OrderConfirmed` (via outbox)
 - **Events consumed:** — (calls Inventory + Payment synchronously in the saga)
 

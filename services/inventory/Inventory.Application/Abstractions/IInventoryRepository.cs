@@ -22,6 +22,12 @@ public interface IInventoryRepository
     /// <returns>The number of inventory items.</returns>
     Task<int> CountForEventAsync(Guid eventId, CancellationToken cancellationToken);
 
+    /// <summary>Lists all inventory items for an event, with their current status.</summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The event's inventory items.</returns>
+    Task<IReadOnlyList<InventoryItem>> ListForEventAsync(Guid eventId, CancellationToken cancellationToken);
+
     /// <summary>Loads the tracked inventory items for the given seats of an event.</summary>
     /// <param name="eventId">The event id.</param>
     /// <param name="seatIds">The seat ids.</param>

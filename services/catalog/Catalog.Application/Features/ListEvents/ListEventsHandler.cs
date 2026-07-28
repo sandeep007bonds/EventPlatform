@@ -8,12 +8,19 @@ internal sealed class ListEventsHandler(IEventRepository repository)
     /// <inheritdoc />
     public async Task<ListEventsResponse> Handle(ListEventsQuery request, CancellationToken cancellationToken)
     {
-        var (items, totalCount) = await repository.ListAsync(
-            request.CallerTenantId,
-            request.Status,
-            request.Page,
-            request.PageSize,
-            cancellationToken);
+        var (items, totalCount) = request.Mine
+            ? await repository.ListForTenantAsync(
+                request.CallerTenantId!.Value,
+                request.Status,
+                request.Page,
+                request.PageSize,
+                cancellationToken)
+            : await repository.ListAsync(
+                request.CallerTenantId,
+                request.Status,
+                request.Page,
+                request.PageSize,
+                cancellationToken);
 
         var events = items
             .Select(e => new EventResponse(e.Id, e.Title, e.StartsAt, e.Status.ToString(), e.Currency))

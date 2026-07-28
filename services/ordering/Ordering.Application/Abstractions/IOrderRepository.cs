@@ -31,6 +31,24 @@ public interface IOrderRepository
     /// <returns>The matching order, or <see langword="null"/>.</returns>
     Task<Order?> GetByIdempotencyKeyAsync(Guid tenantId, string idempotencyKey, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Lists orders, filtered by tenant and/or buyer. At least one filter is expected to be
+    /// non-null — the caller (endpoint layer) enforces that a caller cannot list every order
+    /// platform-wide.
+    /// </summary>
+    /// <param name="tenantId">Restrict to this tenant's orders, or <see langword="null"/> to skip the filter.</param>
+    /// <param name="userId">Restrict to this buyer's orders, or <see langword="null"/> to skip the filter.</param>
+    /// <param name="page">1-based page number.</param>
+    /// <param name="pageSize">Page size.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The page of orders (without lines) and the total count matching the filter.</returns>
+    Task<(IReadOnlyList<Order> Items, int TotalCount)> ListAsync(
+        Guid? tenantId,
+        Guid? userId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>
