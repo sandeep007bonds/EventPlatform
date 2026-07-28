@@ -3,6 +3,7 @@ import { Table, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import {
   listTenantOrders,
+  type OrderStatus,
   type OrderSummaryResponse,
 } from '../../../services/ordering/orderingApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
@@ -10,6 +11,13 @@ import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 
 const PAGE_SIZE = 20;
+const STATUS_OPTIONS: OrderStatus[] = [
+  'Pending',
+  'AwaitingPayment',
+  'Confirmed',
+  'Failed',
+  'Refunded',
+];
 
 /** All orders for the organizer's tenant. */
 export function AdminOrdersPage() {
@@ -63,6 +71,9 @@ export function AdminOrdersPage() {
           {
             title: 'Status',
             dataIndex: 'status',
+            // Client-side, current page only — Ordering has no server-side status filter yet.
+            filters: STATUS_OPTIONS.map((option) => ({ text: option, value: option })),
+            onFilter: (value, record) => record.status === value,
             render: (status: OrderSummaryResponse['status']) => (
               <Tag color={status === 'Confirmed' ? 'green' : 'default'}>{status}</Tag>
             ),
@@ -70,11 +81,14 @@ export function AdminOrdersPage() {
           {
             title: 'Total',
             key: 'total',
+            sorter: (a, b) => a.totalMinor - b.totalMinor,
             render: (_, order) => formatMoney(order.totalMinor, order.currency),
           },
           {
             title: 'Created',
             dataIndex: 'createdAt',
+            sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
+            defaultSortOrder: 'descend',
             render: (createdAt: string) => dayjs(createdAt).format('MMM D, YYYY · h:mm A'),
           },
         ]}

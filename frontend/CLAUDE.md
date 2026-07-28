@@ -72,7 +72,7 @@ src/
   is a plain module so the axios interceptor (outside React) can call it;
   `ToastHolder` mounts once near the root and stashes Ant's instances into it.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
-  list and the admin events list call the *same* Catalog endpoint with
+  list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft
   events" to "only my tenant's events, any status." Don't try to reuse one
   fetch for both; the visibility semantics are genuinely different.
