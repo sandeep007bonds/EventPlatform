@@ -27,6 +27,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0013](0013-phase1-seated.md) | Phase 1 scope: seated events first | Accepted |
 | [0014](0014-mediator-mediatr-v12.md) | In-process mediator: MediatR pinned to v12.5.0 | Accepted |
 | [0015](0015-frontend-react-vite-antd-and-bff-gateway.md) | Frontend: React + Vite + Ant Design, fronted by a YARP BFF gateway | Accepted |
+| [0017](0017-dev-environment-cost-topology.md) | Dev environment: minimal-cost topology, diverging from production | Accepted |
 
 ## Format
 

@@ -93,7 +93,7 @@ building-blocks/  # shared libs; contracts/ is the ONLY cross-service dependency
 gateways/         # YARP gateway + BFFs
 frontend/         # React + Vite SPA (buyer + admin) — own conventions, see frontend/CLAUDE.md
 platform/         # Dapr components, KEDA scalers, K8s/Helm (portable)
-infra/            # Terraform (Azure)
+infra/            # Terraform (Azure) — dev topology diverges from production ADRs, see ADR-0017
 deploy/           # GitOps manifests reconciled by Argo CD
 templates/        # dotnet new service template (carries the golden rules)
 docs/             # architecture, ADRs, design, guidelines
