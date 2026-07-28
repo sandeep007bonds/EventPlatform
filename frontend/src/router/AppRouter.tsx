@@ -3,8 +3,17 @@ import { BuyerLayout } from '../layouts/BuyerLayout';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/auth/LoginPage';
 import { LogoutPage } from '../pages/auth/LogoutPage';
-import { PlaceholderPage } from '../components/common/PlaceholderPage';
 import { NotFoundPage } from '../components/common/errors/NotFoundPage';
+import { EventsListPage } from '../features/buyer/events/EventsListPage';
+import { EventDetailPage } from '../features/buyer/events/EventDetailPage';
+import { SeatSelectionPage } from '../features/buyer/seatmap/SeatSelectionPage';
+import { CheckoutPage } from '../features/buyer/checkout/CheckoutPage';
+import { OrderPage } from '../features/buyer/orders/OrderPage';
+import { MyOrdersPage } from '../features/buyer/orders/MyOrdersPage';
+import { AdminEventsPage } from '../features/admin/events/AdminEventsPage';
+import { CreateEventPage } from '../features/admin/events/CreateEventPage';
+import { AdminEventDetailPage } from '../features/admin/events/AdminEventDetailPage';
+import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 /**
@@ -20,20 +29,46 @@ export function AppRouter() {
 
       <Route element={<BuyerLayout />}>
         {/* Public: no ProtectedRoute — anonymous browsing of published events (ADR-0015). */}
-        <Route index element={<PlaceholderPage title="Events" />} />
+        <Route index element={<EventsListPage />} />
+        <Route path="/events/:id" element={<EventDetailPage />} />
         <Route
-          path="/orders"
+          path="/events/:id/seats"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="My orders" />
+              <SeatSelectionPage />
             </ProtectedRoute>
           }
         />
         <Route
+          path="/checkout/:holdId"
+          element={
+            <ProtectedRoute>
+              <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders"
+          element={
+            <ProtectedRoute>
+              <MyOrdersPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orders/:orderId"
+          element={
+            <ProtectedRoute>
+              <OrderPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* No standalone ticket index exists — tickets are only ever reached via their order. */}
+        <Route
           path="/tickets"
           element={
             <ProtectedRoute>
-              <PlaceholderPage title="My tickets" />
+              <MyOrdersPage />
             </ProtectedRoute>
           }
         />
@@ -47,8 +82,10 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<PlaceholderPage title="Events" />} />
-        <Route path="orders" element={<PlaceholderPage title="Orders" />} />
+        <Route index element={<AdminEventsPage />} />
+        <Route path="events/new" element={<CreateEventPage />} />
+        <Route path="events/:id" element={<AdminEventDetailPage />} />
+        <Route path="orders" element={<AdminOrdersPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

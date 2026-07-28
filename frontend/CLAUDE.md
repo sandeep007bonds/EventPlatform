@@ -29,6 +29,8 @@ src/
   services/
     http/        the ONE axios instance + interceptors + tokenStore
     auth/        dev-login API client
+    catalog/ inventory/ ordering/ ticketing/   typed API client per bounded
+                 context, hand-written types mirroring the backend DTOs
   components/common/
     skeletons/   ListSkeleton, TableSkeleton, CardSkeleton, DetailSkeleton
     errors/      UnauthorizedPage (401→403 visual), NotFoundPage (404),
@@ -37,10 +39,13 @@ src/
                  instances so non-React code can call toast.*)
   layouts/       BuyerLayout, AdminLayout — each wraps its own <ConfigProvider>
   pages/auth/    LoginPage (dev-login form), LogoutPage
+  features/
+    buyer/  events/ (list + detail) seatmap/ (interactive picker) checkout/
+            (hold summary + countdown) orders/ (order+tickets, order history)
+    admin/  events/ (list, create, detail with seat-map form + publish)
+            inventory/ (SeatBlockPanel) orders/ (tenant order list)
+  utils/         formatMoney, eventStatusColor — small, shared across features
 ```
-
-Buyer/admin features (`features/buyer/...`, `features/admin/...`) land in a
-later phase on top of this infrastructure.
 
 ## Design notes
 
@@ -66,6 +71,15 @@ later phase on top of this infrastructure.
 - **Toast without a React context.** `toast.*` (in `components/common/feedback`)
   is a plain module so the axios interceptor (outside React) can call it;
   `ToastHolder` mounts once near the root and stashes Ant's instances into it.
+- **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
+  list and the admin events list call the *same* Catalog endpoint with
+  different query params — `mine=true` switches from "everyone's non-draft
+  events" to "only my tenant's events, any status." Don't try to reuse one
+  fetch for both; the visibility semantics are genuinely different.
+- **Order lists need `mine=true` or `forTenant=true`, never neither.** Ordering
+  has no "list everything" mode — the endpoint 400s without one of these.
+  `orderingApi.listMyOrders`/`listTenantOrders` set the right one; don't call
+  the raw endpoint without going through them.
 
 ## Local run
 
