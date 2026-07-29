@@ -16,9 +16,16 @@ variable "node_count" {
 }
 
 variable "node_vm_size" {
+  # Standard_B2ms (burstable, cheapest) is unavailable on some subscriptions —
+  # this one's allowed-SKU list has no B-series at all, only D/E-series v7.
+  # Standard_D2s_v7 is the smallest general-purpose size on that list (2 vCPU,
+  # 8 GiB). If B-series ever becomes available on your subscription, switch
+  # back — it's meaningfully cheaper. Verify current pricing for whichever SKU
+  # you use via the Azure Pricing Calculator; the cost table in infra/README.md
+  # was written against B2ms and may not reflect D2s_v7's actual rate.
   description = "AKS default node pool VM size."
   type        = string
-  default     = "Standard_B2ms"
+  default     = "Standard_D2s_v7"
 }
 
 variable "postgres_administrator_password" {

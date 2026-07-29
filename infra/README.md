@@ -34,13 +34,23 @@ Full steps are in each directory's own README:
 | Item | Est. monthly |
 |---|---|
 | AKS control plane (Free tier) | $0 |
-| Node pool (1× `Standard_B2ms`, default; `node_count`/`node_vm_size` are tfvars) | ~$60 |
+| Node pool (1× `Standard_D2s_v7`, default; `node_count`/`node_vm_size` are tfvars) | **verify — see note below** |
 | Postgres Flexible B1ms + storage | ~$15-20 (possibly $0 under a new subscription's free allowance) |
 | Redis Basic C0 | ~$16 |
 | ACR Basic | ~$5 |
 | AKS default Standard Load Balancer + egress IP (provisioned even with zero `LoadBalancer` Services) | ~$15-20 |
 | Key Vault + tfstate Storage Account | <$2 |
-| **Total (1 node, default)** | **~$115-125/mo** |
+| **Total (1 node, default)** | **~$55-65/mo + node pool (verify)** |
+
+**Note on node pool cost:** `Standard_B2ms` (burstable, ~$60/mo) was the
+original recommendation, but some subscriptions' allowed-SKU lists don't
+include B-series at all — `terraform apply` fails with a 400 naming the
+allowed sizes for yours. `Standard_D2s_v7` (this repo's current default) is
+the smallest general-purpose size on such lists, but general-purpose pricing
+is typically higher than burstable for the same vCPU/RAM — check the Azure
+Pricing Calculator for your subscription's actual rate before relying on the
+total below. If B-series becomes available on your subscription, switch back
+via the `node_vm_size` tfvar.
 
 Two nodes (headroom for Dapr sidecars across 6 services/gateway) roughly
 adds the node-pool line again (~$175-185/mo total). `az aks stop`

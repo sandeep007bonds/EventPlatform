@@ -30,9 +30,12 @@ variable "node_count" {
 }
 
 variable "node_vm_size" {
+  # Kept in sync with environments/dev/variables.tf's default — see that
+  # file's comment for why this isn't Standard_B2ms (burstable/cheapest)
+  # despite the plan's original recommendation.
   description = "VM size for the default node pool."
   type        = string
-  default     = "Standard_B2ms"
+  default     = "Standard_D2s_v7"
 }
 
 variable "kubernetes_version" {

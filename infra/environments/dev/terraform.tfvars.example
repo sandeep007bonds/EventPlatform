@@ -5,7 +5,11 @@ subscription_id = "00000000-0000-0000-0000-000000000000"
 location        = "eastus"
 
 node_count   = 1
-node_vm_size = "Standard_B2ms"
+# Standard_B2ms (burstable, cheapest) isn't available on every subscription's
+# allowed-SKU list. If yours rejects it (a 400 on `terraform apply` naming the
+# SKU), check the error's list of allowed sizes and pick the smallest
+# general-purpose one — Standard_D2s_v7 is this repo's current default.
+node_vm_size = "Standard_D2s_v7"
 
 postgres_administrator_password = "replace-with-a-strong-password"
 

@@ -65,10 +65,18 @@ terraform validate
 ## Cost
 
 See the cost table in [infra/README.md](../../README.md). `node_count`
-defaults to 1; run `az aks stop --resource-group <rg> --name <cluster>` to
-deallocate node VMs overnight/when idle (no Terraform change needed — cluster
-config is preserved, only node billing stops). Start it again with
-`az aks start`.
+defaults to 1. Run `./stop.sh` to deallocate the AKS node VMs and stop the
+Postgres server overnight/when idle (no Terraform change needed — cluster and
+server config are preserved, only their compute billing stops); `./start.sh`
+resumes both. These are bash scripts — on Windows, run them from Git Bash or
+WSL, or call the underlying `az aks stop`/`az postgres flexible-server stop`
+commands directly from PowerShell.
+
+Redis, the AKS Load Balancer + public IP, ACR, and Key Vault have no
+stop/pause capability and keep billing regardless (~$35-40/mo baseline) — for
+a longer pause, `terraform destroy` then `terraform apply` again later gets
+you to zero cost while idle, since this is a disposable dev environment with
+no data worth preserving across a teardown.
 
 ## Do not
 
