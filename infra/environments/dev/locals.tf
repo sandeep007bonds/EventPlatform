@@ -1,7 +1,7 @@
 locals {
   name_prefix = "eventplatform-dev"
 
-  db_names = ["catalog", "inventory", "ordering", "payments", "ticketing"]
+  db_names = ["catalog", "inventory", "ordering", "payments", "ticketing", "communication"]
 
   tags = var.tags
 

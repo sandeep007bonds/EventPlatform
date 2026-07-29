@@ -1,0 +1,11 @@
+global using Communication.Api.Endpoints;
+global using Communication.Application;
+global using Communication.Application.Abstractions;
+global using Communication.Application.Sending;
+global using Communication.Application.Subscribing;
+global using Communication.Domain;
+global using Communication.Infrastructure;
+global using EventPlatform.Contracts.Ordering;
+global using EventPlatform.Contracts.Ticketing;
+global using EventPlatform.Hosting;
+global using Microsoft.EntityFrameworkCore;

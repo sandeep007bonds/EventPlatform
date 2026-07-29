@@ -50,6 +50,15 @@
     <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="11.10.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Communication (Email/SMS/WhatsApp providers)">
+    <!-- All MIT/BSD — no licensing conflict (unlike MediatR/AutoMapper/MassTransit above). -->
+    <PackageVersion Include="Azure.Communication.Email" Version="1.1.0" />
+    <PackageVersion Include="Azure.Communication.Sms" Version="1.0.2" />
+    <PackageVersion Include="Azure.Communication.Messages" Version="1.1.0" />
+    <PackageVersion Include="Twilio" Version="7.14.9" />
+    <PackageVersion Include="Scriban" Version="6.2.1" />
+  </ItemGroup>
+
   <ItemGroup Label="Gateway (YARP reverse proxy)">
     <PackageVersion Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
@@ -76,6 +85,9 @@
   </ItemGroup>
 
   <ItemGroup Label="Testing">
+    <!-- Concrete config package (ConfigurationBuilder/AddInMemoryCollection) — services only ever
+         depend on Microsoft.Extensions.Configuration.Abstractions; this is test-only. -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration" Version="10.0.0" />
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />

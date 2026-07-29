@@ -1,9 +1,15 @@
 # Data Flow & Service Boundaries
 
-Reference for how the five EventPlatform services divide responsibility and talk
+Reference for how the six EventPlatform services divide responsibility and talk
 to each other — grounded in the actual code, not the original design docs (see
 [docs/design/](design/) for the pre-implementation architecture). Updated
-2026‑07‑26, branch `claude/enterprise-ticket-platform-w3opb0`.
+2026‑07‑28, branch `claude/enterprise-ticket-platform-w3opb0`.
+
+`docs/design/hld.md`'s pre-implementation sketch calls the `communication`
+service below "Notification" — `communication` is the as-built name (see
+[ADR-0016](adr/0016-buyer-identity-and-notifications.md)). `hld.md` itself is
+left as-is, consistent with how none of the other five services' entries
+there were retroactively renamed either.
 
 ## Service boundaries
 
@@ -18,23 +24,31 @@ the lowercase names below.
 | `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders` (`?mine=true` or `?forTenant=true`) · `GET /v1/orders/{id}` | `OrderConfirmed` | — |
 | `payments` | `Payment`, `ProcessedWebhookEvent` | `POST /v1/payments/webhooks/stripe` (public, signature-verified) | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
 | `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` | `OrderConfirmed` |
+| `communication` | `DeliveryLogEntry`, `ProcessedNotificationEvent` | `POST /v1/notifications/send` (internal only, Dapr service invocation — not gateway-routed) | — | `OrderConfirmed`, `TicketIssued` (dedup-safe; delivery deferred, see below) |
 
-`inventory`'s `POST /v1/holds/{id}/convert` and `/release`, and `payments`'s
-`POST /v1/payments/charge` and `/refund`, are also HTTP endpoints but internal —
-called only by `ordering`'s checkout saga, not exposed to buyers.
+`inventory`'s `POST /v1/holds/{id}/convert` and `/release`, `payments`'s
+`POST /v1/payments/charge` and `/refund`, and `communication`'s
+`POST /v1/notifications/send` are also HTTP endpoints but internal — called
+only by `ordering`'s checkout saga (the first two) or another service via
+Dapr service invocation (the third), not exposed to buyers.
 
 **Not yet consumed:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked`, `PaymentCaptured`,
-`PaymentFailed`, `PaymentRefunded`, and `TicketIssued` are published today with
-no subscriber wired up — they're there for future consumers (notifications,
-read models, analytics) without any code change on the publishing side.
+`PaymentFailed`, and `PaymentRefunded` are published today with no subscriber
+wired up — they're there for future consumers (read models, analytics)
+without any code change on the publishing side. `OrderConfirmed` and
+`TicketIssued` are different: `communication` subscribes to both for
+redelivery-safety (a dedup ledger keyed on the event id), but cannot yet
+resolve a recipient's contact info from the bare `UserId` either event
+carries, so every delivery is currently recorded `Skipped` rather than
+attempted — see [ADR-0016](adr/0016-buyer-identity-and-notifications.md).
 
 ## How services talk — the communication matrix
 
 | Mechanism | Protocol (actual hops) | Used for | Guarantee |
 |---|---|---|---|
 | **Sync, buyer/organizer-facing** | Plain HTTP/JSON (Minimal APIs, Scalar-documented) | Every `/v1/...` endpoint above | Request/response |
-| **Sync, service-to-service** (Dapr *service invocation*) | App → local sidecar (HTTP or gRPC depending on client) → **gRPC** sidecar-to-sidecar (fixed Dapr internal) → remote sidecar → remote app (HTTP) | `inventory`→`catalog` (read seat map while provisioning); `ordering`→`inventory` (validate/convert/release hold); `ordering`→`payments` (charge/refund) | Synchronous; caller decides success/failure per response |
-| **Async, event-driven** (Dapr *pub/sub*, outbox-backed) | Outbox row → `OutboxRelay` polls (2s) → Dapr pub/sub (Redis locally, Service Bus in Azure — same component name, zero code change) → subscriber's topic endpoint | `catalog`→`EventPublished`→`inventory`; `ordering`→`OrderConfirmed`→`ticketing` | At-least-once; outbox row id = CloudEvent id, so subscribers dedupe |
+| **Sync, service-to-service** (Dapr *service invocation*) | App → local sidecar (HTTP or gRPC depending on client) → **gRPC** sidecar-to-sidecar (fixed Dapr internal) → remote sidecar → remote app (HTTP) | `inventory`→`catalog` (read seat map while provisioning); `ordering`→`inventory` (validate/convert/release hold); `ordering`→`payments` (charge/refund); *future:* a not-yet-built Identity service→`communication` (OTP sends) | Synchronous; caller decides success/failure per response |
+| **Async, event-driven** (Dapr *pub/sub*, outbox-backed) | Outbox row → `OutboxRelay` polls (2s) → Dapr pub/sub (Redis locally, Service Bus in Azure — same component name, zero code change) → subscriber's topic endpoint | `catalog`→`EventPublished`→`inventory`; `ordering`→`OrderConfirmed`→`ticketing`; `ordering`→`OrderConfirmed`→`communication` and `ticketing`→`TicketIssued`→`communication` (dedup-safe; delivery deferred) | At-least-once; outbox row id = CloudEvent id, so subscribers dedupe |
 | **Direct** (bypasses Dapr entirely) | `StackExchange.Redis` straight to Redis | `inventory`'s Lua atomic hold check-and-set — the actual flash-sale hot path | Sub-millisecond; this is *why* it skips the sidecar |
 | **External** | HTTPS, direct SDK / signed webhook | `payments`→Stripe (Stripe.net, outbound charge/refund); Stripe→`payments` (inbound webhook, `Stripe-Signature` verified) | Stripe's own idempotency (charge) + our dedupe ledger (webhook) |
 | **Workflow durability** | Dapr Workflow (Durable Task Framework) — state in Dapr's actor store (Redis-backed locally) | `ordering`'s `CheckoutWorkflow` | Survives a crash mid-saga; resumes exactly where it left off |

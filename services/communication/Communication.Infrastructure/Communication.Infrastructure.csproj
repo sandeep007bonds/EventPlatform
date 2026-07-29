@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Infrastructure: EF Core (PostgreSQL) persistence, template rendering, and the Email/SMS/
+       WhatsApp vendor adapters. No EventPlatform.Messaging reference: this service never publishes
+       an integration event, so it has no transactional outbox (see services/communication/CLAUDE.md). -->
+
+  <PropertyGroup>
+    <RootNamespace>Communication.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Communication.Domain/Communication.Domain.csproj" />
+    <ProjectReference Include="../Communication.Application/Communication.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- PrivateAssets=all keeps the Design tooling tree out of the API host. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="Azure.Communication.Email" />
+    <PackageReference Include="Azure.Communication.Sms" />
+    <PackageReference Include="Azure.Communication.Messages" />
+    <PackageReference Include="Twilio" />
+    <PackageReference Include="Scriban" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Templates/Resources/*.txt" />
+  </ItemGroup>
+
+  <!-- Lets Communication.Tests exercise the internal senders/template classes directly. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Communication.Tests" />
+  </ItemGroup>
+
+</Project>

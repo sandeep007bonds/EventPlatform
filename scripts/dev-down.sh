@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Stops the local backing services. Ctrl+C on ./scripts/dev-up.sh already stops all five
+# Stops the local backing services. Ctrl+C on ./scripts/dev-up.sh already stops all six
 # services and their Dapr sidecars — this just tears down Docker (Postgres, Redis, Jaeger).
 #
 # Usage:

@@ -43,4 +43,11 @@
     <Project Path="services/ticketing/Ticketing.Infrastructure/Ticketing.Infrastructure.csproj" />
     <Project Path="services/ticketing/Ticketing.Api/Ticketing.Api.csproj" />
   </Folder>
+  <Folder Name="/services/communication/">
+    <Project Path="services/communication/Communication.Domain/Communication.Domain.csproj" />
+    <Project Path="services/communication/Communication.Application/Communication.Application.csproj" />
+    <Project Path="services/communication/Communication.Infrastructure/Communication.Infrastructure.csproj" />
+    <Project Path="services/communication/Communication.Api/Communication.Api.csproj" />
+    <Project Path="services/communication/tests/Communication.Tests/Communication.Tests.csproj" />
+  </Folder>
 </Solution>

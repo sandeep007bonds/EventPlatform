@@ -1,4 +1,4 @@
-# Dapr multi-app run template — starts all five services with their sidecars using ONE command:
+# Dapr multi-app run template — starts all six services with their sidecars using ONE command:
 #
 #   dapr run -f platform/dapr/dapr.yaml
 #
@@ -59,3 +59,12 @@ apps:
     env:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://localhost:5084
+
+  - appID: communication
+    appDirPath: ../../services/communication/Communication.Api
+    appProtocol: http
+    appPort: 5085
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5085

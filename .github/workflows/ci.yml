@@ -27,6 +27,9 @@ jobs:
       - name: Build
         run: dotnet build EventPlatform.slnx --no-restore -c Release
 
+      - name: Test
+        run: dotnet test EventPlatform.slnx --no-build -c Release
+
   frontend:
     name: frontend
     runs-on: ubuntu-latest

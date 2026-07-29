@@ -11,7 +11,7 @@ runs locally and in the cloud — only the Dapr component config differs.
 ./scripts/dev-up.sh
 ```
 
-Starts Postgres, Redis, Jaeger, and all five services (each with a Dapr
+Starts Postgres, Redis, Jaeger, and all six services (each with a Dapr
 sidecar). Ctrl+C stops everything. See
 **[local-e2e-walkthrough.md](local-e2e-walkthrough.md)** for the full runbook —
 prerequisites, minting a dev auth token, and a copy-paste script that drives a
@@ -47,7 +47,7 @@ Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 ## Database schema — automatic in Development
 
 Nothing to run. Each service has its own Postgres **database** (`catalog`,
-`inventory`, `ordering`, `payments`, `ticketing` — true database-per-service)
+`inventory`, `ordering`, `payments`, `ticketing`, `communication` — true database-per-service)
 and creates it from its current EF Core model the first time it starts in
 Development (`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef`
 command, no `Migrations/` folder to generate or commit. Each service must have
@@ -75,7 +75,7 @@ is to drop and recreate the disposable Postgres volume:
 
 `scripts/dev-up.sh` runs `dapr run -f platform/dapr/dapr.yaml` — a
 [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
-template that starts all five services with their sidecars in one process
+template that starts all six services with their sidecars in one process
 tree. It's equivalent to running, for each service, its own:
 
 ```bash
