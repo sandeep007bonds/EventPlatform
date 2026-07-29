@@ -1,0 +1,20 @@
+# Build context is the repo root (every service's Dockerfile build needs
+# building-blocks/ + Directory.Build.props/Directory.Packages.props as project
+# references reach outside the service's own folder). Excluded here to keep
+# the context small and the build cache stable across services.
+.git/
+.github/
+frontend/
+docs/
+infra/
+deploy/
+platform/loadtest/
+
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/.idea/
+
+*.md
+!README.md

@@ -1,0 +1,24 @@
+# AKS pub/sub component. Same Azure Cache for Redis instance as statestore.yaml
+# serves both roles in this dev topology — the deliberate divergence from the
+# production plan's Service Bus, see ADR-0017. redisHost is a placeholder
+# substituted by platform/cluster-bootstrap.sh; the password comes from the
+# eventplatform-secrets K8s Secret via the "secretstore" component, never
+# written here in plaintext.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "__REDIS_HOSTNAME__:6380"
+    - name: redisPassword
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-password
+    - name: enableTLS
+      value: "true"
+  auth:
+    secretStore: secretstore

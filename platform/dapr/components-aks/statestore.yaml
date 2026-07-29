@@ -1,0 +1,27 @@
+# AKS state store (Redis-backed, real Azure Cache for Redis this time, not the
+# local Docker container). actorStateStore=true so Dapr Workflow (the checkout
+# saga) can persist its state. redisHost is a placeholder — the cluster
+# bootstrap script (platform/cluster-bootstrap.sh) substitutes it from
+# `terraform output redis_hostname` before applying. The password comes from
+# the eventplatform-secrets K8s Secret via the "secretstore" Dapr component
+# (see secretstore.yaml) — never written here in plaintext.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      value: "__REDIS_HOSTNAME__:6380"
+    - name: redisPassword
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-password
+    - name: enableTLS
+      value: "true"
+    - name: actorStateStore
+      value: "true"
+  auth:
+    secretStore: secretstore
