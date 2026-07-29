@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: communication
+  labels:
+    app.kubernetes.io/name: communication
+    app.kubernetes.io/part-of: eventplatform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: communication
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: communication
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "communication"
+        dapr.io/app-port: "8080"
+        dapr.io/app-protocol: "http"
+    spec:
+      containers:
+        - name: communication
+          image: communication-placeholder
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: eventplatform-config
+          env:
+            - name: ConnectionStrings__communication
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: communication-connection-string
+            - name: Jwt__DevSigningKey
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: jwt-dev-signing-key
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi

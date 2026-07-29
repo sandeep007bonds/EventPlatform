@@ -1,0 +1,46 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+namespace: eventplatform-dev
+
+commonLabels:
+  app.kubernetes.io/environment: dev
+
+# Non-secret shared config, mounted via envFrom in every backend service's
+# Deployment (see deploy/base/*/deployment.yaml). The gateway sets its own
+# ASPNETCORE_ENVIRONMENT directly instead — see deploy/base/gateway/deployment.yaml
+# for why it can't share this value.
+configMapGenerator:
+  - name: eventplatform-config
+    literals:
+      - ASPNETCORE_ENVIRONMENT=Development
+
+# CI overwrites every entry here on each push (`kustomize edit set image
+# <placeholder>=<acr-login-server>/<service>:<tag>`) — the values below are
+# just placeholders for the first-ever commit, before CI has run once.
+images:
+  - name: catalog-placeholder
+    newName: REPLACE_ME.azurecr.io/catalog
+    newTag: REPLACE_ME
+  - name: inventory-placeholder
+    newName: REPLACE_ME.azurecr.io/inventory
+    newTag: REPLACE_ME
+  - name: ordering-placeholder
+    newName: REPLACE_ME.azurecr.io/ordering
+    newTag: REPLACE_ME
+  - name: payments-placeholder
+    newName: REPLACE_ME.azurecr.io/payments
+    newTag: REPLACE_ME
+  - name: ticketing-placeholder
+    newName: REPLACE_ME.azurecr.io/ticketing
+    newTag: REPLACE_ME
+  - name: communication-placeholder
+    newName: REPLACE_ME.azurecr.io/communication
+    newTag: REPLACE_ME
+  - name: gateway-placeholder
+    newName: REPLACE_ME.azurecr.io/gateway
+    newTag: REPLACE_ME
