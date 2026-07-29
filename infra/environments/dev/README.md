@@ -86,3 +86,8 @@ no data worth preserving across a teardown.
 - Do not remove a name from `db_names` in `locals.tf` expecting a clean
   apply — each database has `prevent_destroy = true`; you must deliberately
   remove the lifecycle block first if you really intend to drop a database.
+- Do not assume `location` alone determines every region: Postgres Flexible
+  Server has its own per-subscription offer restrictions and can reject a
+  region that AKS/VNet/Key Vault/Redis accept fine. Use the separate
+  `postgres_location` variable to target Postgres at a different region
+  without moving (and replacing) everything else.

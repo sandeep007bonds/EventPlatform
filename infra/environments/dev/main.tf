@@ -41,7 +41,7 @@ module "postgres" {
 
   name                   = "psql-${local.name_prefix}"
   resource_group_name    = module.resource_group.name
-  location               = var.location
+  location               = var.postgres_location
   administrator_password = var.postgres_administrator_password
   database_names         = local.db_names
   dev_ip_cidr            = var.dev_ip_cidr

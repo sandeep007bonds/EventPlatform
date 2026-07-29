@@ -4,6 +4,16 @@
 subscription_id = "00000000-0000-0000-0000-000000000000"
 location        = "eastus"
 
+# Postgres Flexible Server has its own per-subscription region allow-list,
+# separate from every other resource here. If `location` gets rejected with
+# LocationIsOfferRestricted for Postgres specifically, override just this —
+# no need to move AKS/VNet/Key Vault/Redis too. There's no way to know in
+# advance which regions your subscription's offer allows; the Azure Portal's
+# "Create PostgreSQL Flexible Server" region dropdown greys out restricted
+# regions for the logged-in subscription, which is faster than trial-and-error
+# via `apply`.
+postgres_location = "eastus"
+
 node_count   = 1
 # Standard_B2ms (burstable, cheapest) isn't available on every subscription's
 # allowed-SKU list. If yours rejects it (a 400 on `terraform apply` naming the

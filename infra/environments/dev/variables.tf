@@ -9,6 +9,17 @@ variable "location" {
   default     = "eastus"
 }
 
+variable "postgres_location" {
+  # Postgres Flexible Server has its own per-subscription region allow-list,
+  # separate from every other resource type here — a region that works for
+  # AKS/VNet/Key Vault/Redis can still be offer-restricted for Postgres.
+  # Kept independent of `location` so a Postgres restriction doesn't force
+  # moving (and replacing) every other resource in the environment.
+  description = "Azure region for the Postgres Flexible Server. Defaults to `location` but can be overridden if Postgres Flexible Server is offer-restricted there for your subscription."
+  type        = string
+  default     = "eastus"
+}
+
 variable "node_count" {
   description = "AKS default node pool count. Defaults to 1 to keep dev cost minimal."
   type        = number
