@@ -65,6 +65,7 @@ a robust anti-bot layer.
   [HLD](docs/design/hld.md) · [DFD](docs/design/dfd.md) · [LLD — Phase 1 seated](docs/design/lld-phase1-seated.md)
 - [Engineering Guidelines (golden rules)](docs/engineering-guidelines.md) · [root CLAUDE.md](CLAUDE.md)
 - [Local Development (Docker, no Azure needed)](docs/local-development.md)
+- [SOP — Onboarding a new service](docs/onboarding-new-service.md)
 
 ## Guiding principles
 
