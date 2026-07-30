@@ -44,6 +44,11 @@ output "aks_key_vault_secrets_provider_client_id" {
 }
 
 output "aks_tenant_id" {
-  description = "Azure AD tenant ID — needed by the tenantId field in every SecretProviderClass in deploy/."
+  description = "Azure AD tenant ID — needed by the tenantId field in every SecretProviderClass in deploy/, and by the AZURE_TENANT_ID GitHub Actions secret."
   value       = data.azurerm_client_config.current.tenant_id
+}
+
+output "github_actions_client_id" {
+  description = "Client ID of the GitHub Actions OIDC application — set this as the AZURE_CLIENT_ID GitHub Actions secret (or repo variable) for the CD workflow's azure/login step."
+  value       = azuread_application.github_actions.client_id
 }

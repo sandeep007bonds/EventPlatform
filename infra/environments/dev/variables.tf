@@ -65,6 +65,20 @@ variable "dev_ip_cidr" {
   default     = null
 }
 
+variable "github_repository" {
+  description = "GitHub \"owner/repo\" that the CD workflow's OIDC federated identity trusts. Must match the repo that runs .github/workflows/cd.yaml exactly, or the federated credential's subject claim won't match and Azure login in CI will fail."
+  type        = string
+  default     = "sandeep007bonds/EventPlatform"
+}
+
+variable "github_oidc_branches" {
+  # "main" is included pre-emptively for when this work merges - an unused
+  # federated credential is harmless, unlike missing one when you need it.
+  description = "Branches allowed to assume the GitHub Actions OIDC identity (each becomes one federated credential, subject repo:<github_repository>:ref:refs/heads/<branch>)."
+  type        = list(string)
+  default     = ["main", "claude/enterprise-ticket-platform-w3opb0"]
+}
+
 variable "tags" {
   description = "Tags applied to every resource in this environment."
   type        = map(string)

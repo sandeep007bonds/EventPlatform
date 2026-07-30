@@ -51,6 +51,20 @@ az acr login --name "$(terraform output -raw acr_login_server | cut -d. -f1)"
 # terraform output, other than the Postgres FQDN/database names.
 ```
 
+## GitHub Actions CD secrets
+
+This apply also creates a GitHub Actions OIDC identity (see
+`github-oidc.tf`) with `AcrPush` on this environment's registry — no client
+secret involved, GitHub proves its identity with a short-lived token per
+workflow run. After apply, set these as repository secrets (Settings →
+Secrets and variables → Actions) so `.github/workflows/cd.yaml` can log in:
+
+```bash
+terraform output -raw github_actions_client_id   # -> AZURE_CLIENT_ID
+terraform output -raw aks_tenant_id               # -> AZURE_TENANT_ID
+# AZURE_SUBSCRIPTION_ID is whatever you set `subscription_id` to in your tfvars
+```
+
 ## Validating without Azure credentials
 
 This environment's real backend needs Azure reachability that a plain
