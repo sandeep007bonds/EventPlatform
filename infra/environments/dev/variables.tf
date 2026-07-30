@@ -20,6 +20,20 @@ variable "postgres_location" {
   default     = "eastus"
 }
 
+variable "aks_location" {
+  # AKS cluster creation can fail with AKSCapacityHeavyUsage in a region that
+  # otherwise works fine for every other resource here — a transient
+  # Azure-side capacity throttle, not an offer restriction, so it can hit
+  # (and clear) unpredictably. Kept independent of `location` so you can move
+  # just AKS (and its VNet/subnet, which must share AKS's region) to a region
+  # with available capacity without forcing Key Vault, Postgres, or Redis to
+  # move too. The networking module also takes this value, since an AKS
+  # cluster's VNet must be in the same region as the cluster itself.
+  description = "Azure region for the AKS cluster and its VNet/subnet. Defaults to `location` but can be overridden if AKS cluster creation is capacity-restricted there."
+  type        = string
+  default     = "eastus"
+}
+
 variable "node_count" {
   description = "AKS default node pool count. Defaults to 1 to keep dev cost minimal."
   type        = number

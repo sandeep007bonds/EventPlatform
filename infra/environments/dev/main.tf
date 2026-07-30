@@ -11,7 +11,7 @@ module "networking" {
 
   name_prefix         = local.name_prefix
   resource_group_name = module.resource_group.name
-  location            = var.location
+  location            = var.aks_location
   tags                = local.tags
 }
 
@@ -62,7 +62,7 @@ module "aks" {
 
   name                = "aks-${local.name_prefix}"
   resource_group_name = module.resource_group.name
-  location            = var.location
+  location            = var.aks_location
   dns_prefix          = local.name_prefix
   subnet_id           = module.networking.aks_subnet_id
   node_count          = var.node_count

@@ -91,3 +91,10 @@ no data worth preserving across a teardown.
   region that AKS/VNet/Key Vault/Redis accept fine. Use the separate
   `postgres_location` variable to target Postgres at a different region
   without moving (and replacing) everything else.
+- If `terraform apply` fails creating the AKS cluster with
+  `AKSCapacityHeavyUsage`, that's a transient Azure-side capacity throttle on
+  new cluster creation in that region, not a config problem — it clears
+  unpredictably. Retry `apply` first; if it persists, override `aks_location`
+  (which also moves the VNet/subnet, since AKS requires them in the same
+  region) to a region with available capacity, leaving Key Vault/Postgres/
+  Redis where they already are.

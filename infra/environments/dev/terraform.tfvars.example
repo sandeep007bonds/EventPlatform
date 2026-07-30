@@ -14,6 +14,15 @@ location        = "eastus"
 # via `apply`.
 postgres_location = "eastus"
 
+# AKS cluster creation can fail with AKSCapacityHeavyUsage ("Creating a new
+# cluster is unavailable at this time in region <x>") — a transient Azure
+# capacity throttle on new cluster creation, unrelated to your subscription's
+# offer or this config. It clears unpredictably; if retrying `apply` a few
+# times doesn't help, override just this to a region with available
+# capacity. The networking module (VNet/subnet) follows this value too,
+# since AKS requires its VNet to be in the same region as the cluster.
+aks_location = "eastus"
+
 node_count   = 1
 # Standard_B2ms (burstable, cheapest) isn't available on every subscription's
 # allowed-SKU list. If yours rejects it (a 400 on `terraform apply` naming the
