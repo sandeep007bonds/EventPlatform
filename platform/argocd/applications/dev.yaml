@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: eventplatform-dev
+  namespace: argocd
+  finalizers:
+    # Ensures deleting this Application also prunes everything it deployed,
+    # rather than orphaning resources in the cluster.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/sandeep007bonds/EventPlatform.git
+    # Points at the feature branch because deploy/ doesn't exist on main yet.
+    # Switch this to the default branch once this work merges - see
+    # platform/argocd/README.md.
+    targetRevision: claude/enterprise-ticket-platform-w3opb0
+    path: deploy/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: eventplatform-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      # namespace.yaml in the overlay creates eventplatform-dev explicitly -
+      # Argo CD doesn't need to (and its own CreateNamespace pass would race
+      # the overlay's own Namespace object otherwise).
+      - CreateNamespace=false

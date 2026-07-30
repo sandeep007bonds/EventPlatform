@@ -28,6 +28,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Argo CD
+platform/argocd/repo-credentials.yaml
+
 # Terraform
 .terraform/
 *.tfstate
