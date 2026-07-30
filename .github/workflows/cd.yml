@@ -1,0 +1,129 @@
+name: CD
+
+# Runs after CI succeeds on a trusted branch — never on the workflow_run
+# event's own trigger conditions alone, always gated by `conclusion ==
+# 'success'` below, so a red CI run can never reach ACR or the deploy repo.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main, claude/enterprise-ticket-platform-w3opb0]
+  workflow_dispatch:
+
+permissions:
+  contents: write # to commit the updated image tags back to deploy/
+  id-token: write # to mint the OIDC token azure/login federates with
+
+jobs:
+  build-and-push:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - service: catalog
+            project_path: services/catalog/Catalog.Api/Catalog.Api.csproj
+            assembly_name: Catalog.Api
+          - service: inventory
+            project_path: services/inventory/Inventory.Api/Inventory.Api.csproj
+            assembly_name: Inventory.Api
+          - service: ordering
+            project_path: services/ordering/Ordering.Api/Ordering.Api.csproj
+            assembly_name: Ordering.Api
+          - service: payments
+            project_path: services/payments/Payments.Api/Payments.Api.csproj
+            assembly_name: Payments.Api
+          - service: ticketing
+            project_path: services/ticketing/Ticketing.Api/Ticketing.Api.csproj
+            assembly_name: Ticketing.Api
+          - service: communication
+            project_path: services/communication/Communication.Api/Communication.Api.csproj
+            assembly_name: Communication.Api
+          - service: gateway
+            project_path: gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj
+            assembly_name: EventPlatform.Gateway
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: ACR login
+        run: az acr login --name "${ACR_LOGIN_SERVER%%.*}"
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          IMAGE="${ACR_LOGIN_SERVER}/${SERVICE}:${SHA}"
+          docker build -f Dockerfile \
+            --build-arg PROJECT_PATH="${PROJECT_PATH}" \
+            --build-arg ASSEMBLY_NAME="${ASSEMBLY_NAME}" \
+            -t "${IMAGE}" .
+          docker push "${IMAGE}"
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          SERVICE: ${{ matrix.service }}
+          PROJECT_PATH: ${{ matrix.project_path }}
+          ASSEMBLY_NAME: ${{ matrix.assembly_name }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+  update-manifests:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_branch || github.ref_name }}
+
+      - name: Install kustomize
+        run: |
+          curl -sL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.5.0/kustomize_v5.5.0_linux_amd64.tar.gz" \
+            | tar xz
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Set image tags to this run's images
+        working-directory: deploy/overlays/dev
+        run: |
+          set -euo pipefail
+          kustomize edit set image \
+            "catalog-placeholder=${ACR_LOGIN_SERVER}/catalog:${SHA}" \
+            "inventory-placeholder=${ACR_LOGIN_SERVER}/inventory:${SHA}" \
+            "ordering-placeholder=${ACR_LOGIN_SERVER}/ordering:${SHA}" \
+            "payments-placeholder=${ACR_LOGIN_SERVER}/payments:${SHA}" \
+            "ticketing-placeholder=${ACR_LOGIN_SERVER}/ticketing:${SHA}" \
+            "communication-placeholder=${ACR_LOGIN_SERVER}/communication:${SHA}" \
+            "gateway-placeholder=${ACR_LOGIN_SERVER}/gateway:${SHA}"
+        env:
+          ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      # Deliberate, narrow exception to "no direct commits to main": this bot
+      # only ever changes one generated field (image tags) in one file, never
+      # application code — the same class of exception as Argo CD's own
+      # bootstrap. Argo CD picks the change up and reconciles it; nothing here
+      # touches the cluster directly.
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add deploy/overlays/dev/kustomization.yaml
+          if git diff --cached --quiet; then
+            echo "No image tag changes to commit."
+            exit 0
+          fi
+          # [skip ci] belt-and-suspenders alongside ci.yml's paths-ignore:
+          # either one alone stops the CI -> CD -> commit -> CI loop
+          # ADR-0004 warns about; both together survive either file drifting.
+          git commit -m "chore(deploy): bump dev image tags to ${SHA}" -m "[skip ci]"
+          git push
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}

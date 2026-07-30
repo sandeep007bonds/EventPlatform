@@ -3,6 +3,12 @@ name: CI
 on:
   push:
     branches: ["**"]
+    # cd.yml's tag-bump commits only ever touch this path - excluding it here
+    # (on top of that commit's own [skip ci] trailer) stops the CI-retrigger
+    # loop ADR-0004 calls out: bot commit -> CI -> CD workflow_run -> bot
+    # commit -> ...
+    paths-ignore:
+      - "deploy/**"
   pull_request:
   workflow_dispatch:
 
