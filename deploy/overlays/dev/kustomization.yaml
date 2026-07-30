@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
+  - keyvault-secretproviderclass.yaml
   - ../../base
 
 namespace: eventplatform-dev

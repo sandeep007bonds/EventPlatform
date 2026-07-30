@@ -27,6 +27,17 @@ resource "azurerm_kubernetes_cluster" "this" {
     type = "SystemAssigned"
   }
 
+  # Managed add-on: installs the Secrets Store CSI Driver + Azure Key Vault
+  # provider and provisions a dedicated identity for pods to authenticate to
+  # Key Vault with (via a SecretProviderClass), distinct from both the
+  # cluster's own identity and the kubelet identity used for ACR pulls.
+  # secret_rotation_enabled polls Key Vault periodically so a rotated secret
+  # reaches mounted volumes without a pod restart.
+  key_vault_secrets_provider {
+    secret_rotation_enabled  = true
+    secret_rotation_interval = "2m"
+  }
+
   # No network_policy: Azure Network Policy Manager isn't supported in CNI
   # Overlay mode (only Calico/Cilium are), and this dev topology has no
   # policy-enforcement requirement to justify adding one.
