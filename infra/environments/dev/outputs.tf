@@ -1,3 +1,8 @@
+output "subscription_id" {
+  description = "The Azure subscription this environment was applied into — same value as var.subscription_id, exposed here so scripts/finish-dev-bootstrap.sh doesn't need to parse tfvars separately."
+  value       = var.subscription_id
+}
+
 output "resource_group_name" {
   description = "Resource group holding every dev resource."
   value       = module.resource_group.name
@@ -39,7 +44,7 @@ output "key_vault_name" {
 }
 
 output "aks_key_vault_secrets_provider_client_id" {
-  description = "Client ID of the AKS Key Vault Secrets Provider add-on identity — paste this into userAssignedIdentityID in every SecretProviderClass in deploy/overlays/dev/keyvault-secretproviderclass.yaml. Not wired automatically: no CD step reads Terraform output back into deploy/ yet."
+  description = "Client ID of the AKS Key Vault Secrets Provider add-on identity — belongs in userAssignedIdentityID in deploy/overlays/dev/keyvault-secretproviderclass.yaml. Run scripts/finish-dev-bootstrap.sh instead of copying this by hand."
   value       = module.aks.key_vault_secrets_provider_client_id
 }
 

@@ -23,18 +23,19 @@ not committed anywhere, not templated by Kustomize. The actual secret
 *values* live in Key Vault, created by `infra/environments/dev`.
 
 `overlays/dev/keyvault-secretproviderclass.yaml` has three placeholders that
-must be filled in once per environment, after `terraform apply`:
+must be filled in once per environment, after `terraform apply`. Run
+[`scripts/finish-dev-bootstrap.sh`](../scripts/finish-dev-bootstrap.sh)
+rather than copying values by hand — it reads them from `terraform output`,
+fills in and commits this file, and offers to set the matching GitHub
+Actions secrets too. These values change only if the AKS cluster or Key
+Vault is destroyed and recreated — not on every deploy.
 
-```bash
-cd infra/environments/dev
-terraform output aks_key_vault_secrets_provider_client_id
-terraform output key_vault_name
-terraform output aks_tenant_id
-```
-
-Paste those into `userAssignedIdentityID`, `keyvaultName`, and `tenantId`
-respectively, then commit. These change only if the AKS cluster or Key Vault
-is destroyed and recreated — not on every deploy.
+This is a script, not a Terraform resource, on purpose: this file lives in
+`deploy/`, which is GitOps-owned so a future service's secrets can be added
+here without ever touching Terraform (see `docs/onboarding-new-service.md`).
+Having Terraform write into `deploy/` would blur that boundary — only its
+three bootstrap values (identity/vault/tenant) come from `terraform output`;
+everything else in this file is maintained by hand as services are added.
 
 **Why every Deployment mounts a CSI volume it never reads directly:** the
 driver only materializes the synced `eventplatform-secrets` Kubernetes

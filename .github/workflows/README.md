@@ -15,14 +15,16 @@
 
 ## Required repository secrets
 
-Set these once, after `terraform apply` in `infra/environments/dev` (see that
-directory's README for the exact `terraform output` commands):
+Set these once, after `terraform apply` in `infra/environments/dev`, by
+running [`scripts/finish-dev-bootstrap.sh`](../../scripts/finish-dev-bootstrap.sh)
+(it can set them for you via the `gh` CLI, or print them to paste in by
+hand):
 
 | Secret                    | Source                                            |
 | ------------------------- | -------------------------------------------------- |
 | `AZURE_CLIENT_ID`         | `terraform output -raw github_actions_client_id`   |
 | `AZURE_TENANT_ID`         | `terraform output -raw aks_tenant_id`              |
-| `AZURE_SUBSCRIPTION_ID`   | whatever `subscription_id` is in your tfvars       |
+| `AZURE_SUBSCRIPTION_ID`   | `terraform output -raw subscription_id`            |
 | `ACR_LOGIN_SERVER`        | `terraform output -raw acr_login_server`           |
 
 No client secret or password is stored anywhere — `AZURE_CLIENT_ID` +

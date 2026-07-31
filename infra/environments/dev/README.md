@@ -56,39 +56,26 @@ az acr login --name "$(terraform output -raw acr_login_server | cut -d. -f1)"
 
 Argo CD is already installed and watching `deploy/overlays/dev` at this
 point — see `platform/argocd/README.md` for the admin password and UI
-access. The two things left before a push actually deploys anything:
-filling in `deploy/overlays/dev/keyvault-secretproviderclass.yaml`'s three
-placeholders (below), and the GitHub Actions secrets (next section).
+access.
 
-## Key Vault secrets for the cluster
+## Finishing the bootstrap
 
-`deploy/overlays/dev/keyvault-secretproviderclass.yaml` has three
-placeholders that must be filled in once per environment, after apply:
-
-```bash
-terraform output aks_key_vault_secrets_provider_client_id
-terraform output key_vault_name
-terraform output aks_tenant_id
-```
-
-Paste those into `userAssignedIdentityID`, `keyvaultName`, and `tenantId`
-respectively, then commit and push (see `deploy/README.md` for why this one
-file can't be filled in by Terraform automatically — it's deliberately
-GitOps-owned, not infra-owned).
-
-## GitHub Actions CD secrets
-
-This apply also creates a GitHub Actions OIDC identity (see
-`github-oidc.tf`) with `AcrPush` on this environment's registry — no client
-secret involved, GitHub proves its identity with a short-lived token per
-workflow run. After apply, set these as repository secrets (Settings →
-Secrets and variables → Actions) so `.github/workflows/cd.yaml` can log in:
+Two things still need real values that only exist after this apply: the
+Key Vault SecretProviderClass in `deploy/` (identity/vault/tenant IDs), and
+the GitHub Actions secrets `.github/workflows/cd.yml` needs to log in to
+Azure (`AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID`,
+`ACR_LOGIN_SERVER`). One script does both:
 
 ```bash
-terraform output -raw github_actions_client_id   # -> AZURE_CLIENT_ID
-terraform output -raw aks_tenant_id               # -> AZURE_TENANT_ID
-# AZURE_SUBSCRIPTION_ID is whatever you set `subscription_id` to in your tfvars
+./scripts/finish-dev-bootstrap.sh
 ```
+
+It reads everything from `terraform output`, fills in and commits
+`deploy/overlays/dev/keyvault-secretproviderclass.yaml`, and — if the `gh`
+CLI is installed and authenticated — offers to set the 4 GitHub secrets
+directly; otherwise it prints them for you to paste into Settings → Secrets
+and variables → Actions. See `deploy/README.md` for why this one file is a
+script instead of a Terraform resource, unlike Argo CD's own install above.
 
 ## Validating without Azure credentials
 
