@@ -1,28 +1,28 @@
 namespace Catalog.Infrastructure;
 
-/// <summary>EF Core implementation of <see cref="IVenueRepository"/>.</summary>
+/// <summary>EF Core implementation of <see cref="IEventGroupRepository"/>.</summary>
 /// <param name="dbContext">The Catalog database context.</param>
-internal sealed class VenueRepository(CatalogDbContext dbContext) : IVenueRepository
+internal sealed class EventGroupRepository(CatalogDbContext dbContext) : IEventGroupRepository
 {
     /// <inheritdoc />
-    public void Add(Venue venue) => dbContext.Venues.Add(venue);
+    public void Add(EventGroup eventGroup) => dbContext.EventGroups.Add(eventGroup);
 
     /// <inheritdoc />
-    public Task<Venue?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Venues.FirstOrDefaultAsync(v => v.Id == id, cancellationToken);
+    public Task<EventGroup?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.EventGroups.FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<(IReadOnlyList<Venue> Items, int TotalCount)> ListForTenantAsync(
+    public async Task<(IReadOnlyList<EventGroup> Items, int TotalCount)> ListForTenantAsync(
         Guid tenantId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var query = dbContext.Venues.AsNoTracking().Where(v => v.TenantId == tenantId);
+        var query = dbContext.EventGroups.AsNoTracking().Where(g => g.TenantId == tenantId);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(v => v.Name)
+            .OrderBy(g => g.Title)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);

@@ -20,8 +20,8 @@ export function AdminLayout() {
 
   const selectedKey = location.pathname.startsWith('/admin/orders')
     ? 'orders'
-    : location.pathname.startsWith('/admin/venues')
-      ? 'venues'
+    : location.pathname.startsWith('/admin/tours')
+      ? 'tours'
       : 'events';
 
   return (
@@ -44,7 +44,7 @@ export function AdminLayout() {
             selectedKeys={[selectedKey]}
             items={[
               { key: 'events', label: <Link to="/admin">{t('nav.events')}</Link> },
-              { key: 'venues', label: <Link to="/admin/venues">{t('nav.venues')}</Link> },
+              { key: 'tours', label: <Link to="/admin/tours">{t('nav.tours')}</Link> },
               { key: 'orders', label: <Link to="/admin/orders">{t('nav.orders')}</Link> },
             ]}
           />

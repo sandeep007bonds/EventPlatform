@@ -10,10 +10,19 @@ internal sealed class CreateEventHandler(IEventRepository repository)
     {
         var @event = Event.Create(
             request.TenantId,
-            request.VenueId,
             request.Title,
             request.StartsAt,
-            request.Currency);
+            request.Currency,
+            request.LocationName,
+            request.AddressLine1,
+            request.AddressLine2,
+            request.City,
+            request.Region,
+            request.PostalCode,
+            request.Country,
+            request.Latitude,
+            request.Longitude,
+            request.EventGroupId);
 
         repository.Add(@event);
         await repository.SaveChangesAsync(cancellationToken);

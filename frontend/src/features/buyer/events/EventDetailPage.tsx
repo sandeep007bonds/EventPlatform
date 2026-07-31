@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Descriptions, Tag, Typography } from 'antd';
+import { Button, Card, Descriptions, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getEvent,
+  getEventGroup,
   getSeatMap,
-  getVenue,
+  listEvents,
+  type EventGroupResponse,
   type EventResponse,
   type SeatMapResponse,
-  type VenueResponse,
 } from '../../../services/catalog/catalogApi';
 import { getInventoryCount } from '../../../services/inventory/inventoryApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
@@ -26,7 +27,8 @@ export function EventDetailPage() {
 
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
-  const [venue, setVenue] = useState<VenueResponse | null>(null);
+  const [eventGroup, setEventGroup] = useState<EventGroupResponse | null>(null);
+  const [otherLegs, setOtherLegs] = useState<EventResponse[]>([]);
   const [availableCount, setAvailableCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -51,18 +53,32 @@ export function EventDetailPage() {
         setSeatMap(seatMapResult);
         setAvailableCount(inventoryResult?.seatCount ?? null);
 
-        // Sequenced after the event resolves, since it needs event.venueId — kept out of the
-        // Promise.all above (seat map/inventory only need the route param, venue doesn't).
-        if (eventResult.venueId) {
-          getVenue(eventResult.venueId)
-            .then((venueResult) => {
+        // Sequenced after the event resolves, since it needs event.eventGroupId — kept out of
+        // the Promise.all above (seat map/inventory only need the route param, the tour doesn't).
+        if (eventResult.eventGroupId) {
+          const groupId = eventResult.eventGroupId;
+
+          getEventGroup(groupId)
+            .then((groupResult) => {
               if (!cancelled) {
-                setVenue(venueResult);
+                setEventGroup(groupResult);
               }
             })
             .catch(() => {
               if (!cancelled) {
-                setVenue(null);
+                setEventGroup(null);
+              }
+            });
+
+          listEvents({ eventGroupId: groupId, pageSize: 50 })
+            .then((result) => {
+              if (!cancelled) {
+                setOtherLegs(result.events.filter((leg) => leg.id !== eventResult.id));
+              }
+            })
+            .catch(() => {
+              if (!cancelled) {
+                setOtherLegs([]);
               }
             });
         }
@@ -116,6 +132,11 @@ export function EventDetailPage() {
           }}
         />
       )}
+      {eventGroup && (
+        <Typography.Text type="secondary" style={{ display: 'block' }}>
+          Part of: {eventGroup.title}
+        </Typography.Text>
+      )}
       <Typography.Title level={2}>{event.title}</Typography.Title>
       <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
       {event.category && <Tag>{event.category}</Tag>}
@@ -131,11 +152,9 @@ export function EventDetailPage() {
         {event.endsAt && (
           <Descriptions.Item label="Ends">{dayjs(event.endsAt).format('h:mm A')}</Descriptions.Item>
         )}
-        {venue && (
-          <Descriptions.Item label="Venue">
-            {venue.name} — {venue.city}
-          </Descriptions.Item>
-        )}
+        <Descriptions.Item label="Venue">
+          {event.locationName} — {event.city}
+        </Descriptions.Item>
         <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
         {event.ageRestriction && (
           <Descriptions.Item label="Age restriction">{event.ageRestriction}</Descriptions.Item>
@@ -181,6 +200,18 @@ export function EventDetailPage() {
         <Typography.Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
           Seats aren't on sale yet.
         </Typography.Text>
+      )}
+      {otherLegs.length > 0 && (
+        <div style={{ marginTop: 24 }}>
+          <Typography.Title level={4}>Other dates on this tour</Typography.Title>
+          <Space direction="vertical">
+            {otherLegs.map((leg) => (
+              <Link key={leg.id} to={`/events/${leg.id}`}>
+                {dayjs(leg.startsAt).format('MMM D, YYYY')} — {leg.city}
+              </Link>
+            ))}
+          </Space>
+        </div>
       )}
       <Link to="/" style={{ display: 'block', marginTop: 16 }}>
         ← Back to events

@@ -11,7 +11,7 @@ var app = builder.Build();
 
 app.UseServiceDefaults();
 app.MapCatalogEndpoints();
-app.MapVenueEndpoints();
+app.MapEventGroupEndpoints();
 
 // DEV ONLY: create the schema from the current model on startup, so the service runs against local
 // Postgres with zero setup — no `dotnet ef` command, no committed Migrations/ folder. This is

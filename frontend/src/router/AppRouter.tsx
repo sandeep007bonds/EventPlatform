@@ -14,9 +14,8 @@ import { AdminEventsPage } from '../features/admin/events/AdminEventsPage';
 import { CreateEventPage } from '../features/admin/events/CreateEventPage';
 import { AdminEventDetailPage } from '../features/admin/events/AdminEventDetailPage';
 import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
-import { VenuesPage } from '../features/admin/venues/VenuesPage';
-import { CreateVenuePage } from '../features/admin/venues/CreateVenuePage';
-import { VenueDetailPage } from '../features/admin/venues/VenueDetailPage';
+import { EventGroupsPage } from '../features/admin/eventGroups/EventGroupsPage';
+import { CreateEventGroupPage } from '../features/admin/eventGroups/CreateEventGroupPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 /**
@@ -88,9 +87,8 @@ export function AppRouter() {
         <Route index element={<AdminEventsPage />} />
         <Route path="events/new" element={<CreateEventPage />} />
         <Route path="events/:id" element={<AdminEventDetailPage />} />
-        <Route path="venues" element={<VenuesPage />} />
-        <Route path="venues/new" element={<CreateVenuePage />} />
-        <Route path="venues/:id" element={<VenueDetailPage />} />
+        <Route path="tours" element={<EventGroupsPage />} />
+        <Route path="tours/new" element={<CreateEventGroupPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
       </Route>
 

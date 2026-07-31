@@ -11,5 +11,14 @@ namespace Catalog.Application.Features.ListEvents;
 /// browsing). The caller must guarantee <see cref="CallerTenantId"/> is non-null when this is set —
 /// the endpoint layer enforces that before dispatching.
 /// </param>
-public sealed record ListEventsQuery(Guid? CallerTenantId, EventStatus? Status, int Page, int PageSize, bool Mine = false)
-    : IRequest<ListEventsResponse>;
+/// <param name="EventGroupId">
+/// An optional filter to only the legs of a given tour/series — used both by a tour's public page
+/// ("other dates on this tour") and by the admin dashboard.
+/// </param>
+public sealed record ListEventsQuery(
+    Guid? CallerTenantId,
+    EventStatus? Status,
+    int Page,
+    int PageSize,
+    bool Mine = false,
+    Guid? EventGroupId = null) : IRequest<ListEventsResponse>;

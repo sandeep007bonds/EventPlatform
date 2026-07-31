@@ -127,8 +127,9 @@ AUTH=(-H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json")
 
 # 1) Create a draft event
 EVENT_ID=$(curl -s "${AUTH[@]}" "$CATALOG/v1/events" -d '{
-  "venueId":"22222222-2222-2222-2222-222222222222",
-  "title":"Coldplay — Wembley","startsAt":"2026-09-01T19:00:00Z","currency":"GBP"
+  "title":"Coldplay — Wembley","startsAt":"2026-09-01T19:00:00Z","currency":"GBP",
+  "locationName":"Wembley Stadium","addressLine1":"Wembley Stadium, Wembley Park",
+  "city":"London","country":"GB"
 }' | jq -r .id)
 echo "event=$EVENT_ID"
 

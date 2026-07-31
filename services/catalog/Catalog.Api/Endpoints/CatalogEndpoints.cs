@@ -36,10 +36,19 @@ public static class CatalogEndpoints
 
         var command = new CreateEventCommand(
             tenant.TenantId.Value,
-            request.VenueId,
             request.Title,
             request.StartsAt,
-            request.Currency);
+            request.Currency,
+            request.LocationName,
+            request.AddressLine1,
+            request.AddressLine2,
+            request.City,
+            request.Region,
+            request.PostalCode,
+            request.Country,
+            request.Latitude,
+            request.Longitude,
+            request.EventGroupId);
 
         var id = await sender.Send(command, cancellationToken);
         return Results.Created($"/v1/events/{id}", new { id });
@@ -52,14 +61,16 @@ public static class CatalogEndpoints
         EventStatus? status = null,
         int page = 1,
         int pageSize = 20,
-        bool mine = false)
+        bool mine = false,
+        Guid? eventGroupId = null)
     {
         if (mine && tenant.TenantId is null)
         {
             return Results.Unauthorized();
         }
 
-        var result = await sender.Send(new ListEventsQuery(tenant.TenantId, status, page, pageSize, mine), cancellationToken);
+        var query = new ListEventsQuery(tenant.TenantId, status, page, pageSize, mine, eventGroupId);
+        var result = await sender.Send(query, cancellationToken);
         return Results.Ok(result);
     }
 

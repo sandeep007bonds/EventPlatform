@@ -10,7 +10,7 @@ export interface EventResponse {
   startsAt: string;
   status: EventStatus;
   currency: string;
-  venueId: string;
+  eventGroupId: string | null;
   description: string | null;
   category: string | null;
   endsAt: string | null;
@@ -20,6 +20,15 @@ export interface EventResponse {
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
+  locationName: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  region: string | null;
+  postalCode: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 /** Fields settable via {@link updateEventDetails} — all optional, Draft-only. */
@@ -35,41 +44,23 @@ export interface UpdateEventDetailsRequest {
   videoUrl?: string | null;
 }
 
-/** Read model for a single venue. */
-export interface VenueResponse {
+/** Read model for a single event group (tour). */
+export interface EventGroupResponse {
   id: string;
-  name: string;
-  addressLine1: string;
-  addressLine2: string | null;
-  city: string;
-  region: string | null;
-  postalCode: string | null;
-  country: string;
-  latitude: number | null;
-  longitude: number | null;
-  capacity: number | null;
+  title: string;
 }
 
-/** Paginated read model for a page of venues. */
-export interface ListVenuesResponse {
-  venues: VenueResponse[];
+/** Paginated read model for a page of event groups. */
+export interface ListEventGroupsResponse {
+  eventGroups: EventGroupResponse[];
   page: number;
   pageSize: number;
   totalCount: number;
 }
 
-/** Fields for creating or updating a venue. */
-export interface VenueRequest {
-  name: string;
-  addressLine1: string;
-  addressLine2?: string | null;
-  city: string;
-  region?: string | null;
-  postalCode?: string | null;
-  country: string;
-  latitude?: number | null;
-  longitude?: number | null;
-  capacity?: number | null;
+/** Fields for creating an event group (tour). */
+export interface EventGroupRequest {
+  title: string;
 }
 
 /** Paginated read model for a page of events. */
@@ -99,12 +90,16 @@ export interface SeatMapResponse {
   seats: SeatResponse[];
 }
 
-/** Lists events. Public browsing (default) or `mine: true` for the caller's own tenant dashboard. */
+/**
+ * Lists events. Public browsing (default) or `mine: true` for the caller's own tenant dashboard.
+ * `eventGroupId` filters to the legs of a given tour, in either mode.
+ */
 export async function listEvents(params: {
   status?: EventStatus;
   page?: number;
   pageSize?: number;
   mine?: boolean;
+  eventGroupId?: string;
 }): Promise<ListEventsResponse> {
   const response = await httpClient.get<ListEventsResponse>('/api/catalog/v1/events', { params });
   return response.data;
@@ -124,13 +119,25 @@ export async function getSeatMap(eventId: string): Promise<SeatMapResponse> {
   return response.data;
 }
 
-/** Creates a new draft event for the caller's tenant. */
-export async function createEvent(request: {
-  venueId: string;
+/** Fields for creating a new draft event. */
+export interface CreateEventRequest {
   title: string;
   startsAt: string;
   currency: string;
-}): Promise<{ id: string }> {
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  region?: string | null;
+  postalCode?: string | null;
+  country: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  eventGroupId?: string | null;
+}
+
+/** Creates a new draft event for the caller's tenant. */
+export async function createEvent(request: CreateEventRequest): Promise<{ id: string }> {
   const response = await httpClient.post<{ id: string }>('/api/catalog/v1/events', request);
   return response.data;
 }
@@ -169,28 +176,25 @@ export async function updateEventDetails(
   await httpClient.put(`/api/catalog/v1/events/${eventId}/details`, request);
 }
 
-/** Fetches a single venue. 404s if it doesn't exist. Public — no login required. */
-export async function getVenue(id: string): Promise<VenueResponse> {
-  const response = await httpClient.get<VenueResponse>(`/api/catalog/v1/venues/${id}`);
+/** Fetches a single event group (tour). 404s if it doesn't exist. Public — no login required. */
+export async function getEventGroup(id: string): Promise<EventGroupResponse> {
+  const response = await httpClient.get<EventGroupResponse>(`/api/catalog/v1/event-groups/${id}`);
   return response.data;
 }
 
-/** Lists the caller's own venues — an organizer's reusable-venue picker, not public browsing. */
-export async function listVenues(params: {
+/** Lists the caller's own event groups (tours) — an organizer's "pick or create a tour" picker. */
+export async function listEventGroups(params: {
   page?: number;
   pageSize?: number;
-}): Promise<ListVenuesResponse> {
-  const response = await httpClient.get<ListVenuesResponse>('/api/catalog/v1/venues', { params });
+}): Promise<ListEventGroupsResponse> {
+  const response = await httpClient.get<ListEventGroupsResponse>('/api/catalog/v1/event-groups', {
+    params,
+  });
   return response.data;
 }
 
-/** Creates a new venue for the caller's tenant. */
-export async function createVenue(request: VenueRequest): Promise<{ id: string }> {
-  const response = await httpClient.post<{ id: string }>('/api/catalog/v1/venues', request);
+/** Creates a new event group (tour) for the caller's tenant. */
+export async function createEventGroup(request: EventGroupRequest): Promise<{ id: string }> {
+  const response = await httpClient.post<{ id: string }>('/api/catalog/v1/event-groups', request);
   return response.data;
-}
-
-/** Updates an existing venue the caller's tenant owns. */
-export async function updateVenue(id: string, request: VenueRequest): Promise<void> {
-  await httpClient.put(`/api/catalog/v1/venues/${id}`, request);
 }

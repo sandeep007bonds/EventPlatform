@@ -18,7 +18,7 @@ internal sealed class GetEventHandler(IEventRepository repository)
                 @event.StartsAt,
                 @event.Status.ToString(),
                 @event.Currency,
-                @event.VenueId,
+                @event.EventGroupId,
                 @event.Description,
                 @event.Category,
                 @event.EndsAt,
@@ -27,6 +27,15 @@ internal sealed class GetEventHandler(IEventRepository repository)
                 @event.OffSaleAt,
                 @event.AgeRestriction,
                 @event.BannerImageUrl,
-                @event.VideoUrl);
+                @event.VideoUrl,
+                @event.LocationName,
+                @event.AddressLine1,
+                @event.AddressLine2,
+                @event.City,
+                @event.Region,
+                @event.PostalCode,
+                @event.Country,
+                @event.Latitude,
+                @event.Longitude);
     }
 }

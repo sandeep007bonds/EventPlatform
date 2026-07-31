@@ -21,8 +21,17 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.Property(e => e.BannerImageUrl).HasMaxLength(2000);
         builder.Property(e => e.VideoUrl).HasMaxLength(2000);
 
-        builder.HasOne<Venue>().WithMany().HasForeignKey(e => e.VenueId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(e => e.LocationName).HasMaxLength(200).IsRequired();
+        builder.Property(e => e.AddressLine1).HasMaxLength(200).IsRequired();
+        builder.Property(e => e.AddressLine2).HasMaxLength(200);
+        builder.Property(e => e.City).HasMaxLength(100).IsRequired();
+        builder.Property(e => e.Region).HasMaxLength(100);
+        builder.Property(e => e.PostalCode).HasMaxLength(20);
+        builder.Property(e => e.Country).HasMaxLength(2).IsRequired();
+
+        builder.HasOne<EventGroup>().WithMany().HasForeignKey(e => e.EventGroupId).OnDelete(DeleteBehavior.Restrict);
 
         builder.HasIndex(e => new { e.TenantId, e.Id });
+        builder.HasIndex(e => e.EventGroupId);
     }
 }

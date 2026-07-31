@@ -1,6 +1,6 @@
 # Catalog service
 
-Owns events, venues, seat maps, ticket types and pricing; publishes seated events
+Owns events, event groups (tours), seat maps, ticket types and pricing; publishes seated events
 and their generated inventory. See the [LLD](../../docs/design/lld-phase1-seated.md)
 and issue #6.
 

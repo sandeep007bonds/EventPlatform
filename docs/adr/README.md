@@ -29,6 +29,8 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0015](0015-frontend-react-vite-antd-and-bff-gateway.md) | Frontend: React + Vite + Ant Design, fronted by a YARP BFF gateway | Accepted |
 | [0016](0016-buyer-identity-and-notifications.md) | Buyer identity & notifications: Communication service (notifications scope); Identity deferred | Accepted |
 | [0017](0017-dev-environment-cost-topology.md) | Dev environment: minimal-cost topology, diverging from production | Accepted |
+| [0018](0018-media-service-and-blob-storage.md) | Media service and Azure Blob Storage for event media | Accepted |
+| [0019](0019-event-tours-and-inline-location.md) | Event tours (`EventGroup`) and inline event location, replacing Venue | Accepted |
 
 ## Format
 

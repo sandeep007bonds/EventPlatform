@@ -2,7 +2,7 @@ global using System.Reflection;
 global using Catalog.Application.Abstractions;
 global using Catalog.Application.Behaviors;
 global using Catalog.Application.Features.GetEvent;
-global using Catalog.Application.Features.GetVenue;
+global using Catalog.Application.Features.GetEventGroup;
 global using Catalog.Domain;
 global using EventPlatform.Contracts;
 global using EventPlatform.Contracts.Catalog;

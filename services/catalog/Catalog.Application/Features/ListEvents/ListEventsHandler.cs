@@ -12,12 +12,14 @@ internal sealed class ListEventsHandler(IEventRepository repository)
             ? await repository.ListForTenantAsync(
                 request.CallerTenantId!.Value,
                 request.Status,
+                request.EventGroupId,
                 request.Page,
                 request.PageSize,
                 cancellationToken)
             : await repository.ListAsync(
                 request.CallerTenantId,
                 request.Status,
+                request.EventGroupId,
                 request.Page,
                 request.PageSize,
                 cancellationToken);
@@ -29,7 +31,7 @@ internal sealed class ListEventsHandler(IEventRepository repository)
                 e.StartsAt,
                 e.Status.ToString(),
                 e.Currency,
-                e.VenueId,
+                e.EventGroupId,
                 e.Description,
                 e.Category,
                 e.EndsAt,
@@ -38,7 +40,16 @@ internal sealed class ListEventsHandler(IEventRepository repository)
                 e.OffSaleAt,
                 e.AgeRestriction,
                 e.BannerImageUrl,
-                e.VideoUrl))
+                e.VideoUrl,
+                e.LocationName,
+                e.AddressLine1,
+                e.AddressLine2,
+                e.City,
+                e.Region,
+                e.PostalCode,
+                e.Country,
+                e.Latitude,
+                e.Longitude))
             .ToList();
 
         return new ListEventsResponse(events, request.Page, request.PageSize, totalCount);

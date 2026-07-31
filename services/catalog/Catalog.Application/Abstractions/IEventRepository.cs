@@ -22,6 +22,7 @@ public interface IEventRepository
     /// </summary>
     /// <param name="callerTenantId">The caller's tenant id, or <see langword="null"/> for an anonymous caller.</param>
     /// <param name="status">An optional status filter, applied within the caller's visible set.</param>
+    /// <param name="eventGroupId">An optional filter to only the legs of a given tour/series.</param>
     /// <param name="page">1-based page number.</param>
     /// <param name="pageSize">Page size.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -29,6 +30,7 @@ public interface IEventRepository
     Task<(IReadOnlyList<Event> Items, int TotalCount)> ListAsync(
         Guid? callerTenantId,
         EventStatus? status,
+        Guid? eventGroupId,
         int page,
         int pageSize,
         CancellationToken cancellationToken);
@@ -39,6 +41,7 @@ public interface IEventRepository
     /// </summary>
     /// <param name="tenantId">The owning tenant.</param>
     /// <param name="status">An optional status filter.</param>
+    /// <param name="eventGroupId">An optional filter to only the legs of a given tour/series.</param>
     /// <param name="page">1-based page number.</param>
     /// <param name="pageSize">Page size.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -46,6 +49,7 @@ public interface IEventRepository
     Task<(IReadOnlyList<Event> Items, int TotalCount)> ListForTenantAsync(
         Guid tenantId,
         EventStatus? status,
+        Guid? eventGroupId,
         int page,
         int pageSize,
         CancellationToken cancellationToken);

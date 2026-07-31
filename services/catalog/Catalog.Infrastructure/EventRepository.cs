@@ -15,6 +15,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
     public async Task<(IReadOnlyList<Event> Items, int TotalCount)> ListAsync(
         Guid? callerTenantId,
         EventStatus? status,
+        Guid? eventGroupId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -25,6 +26,11 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         if (status is not null)
         {
             visible = visible.Where(e => e.Status == status);
+        }
+
+        if (eventGroupId is not null)
+        {
+            visible = visible.Where(e => e.EventGroupId == eventGroupId);
         }
 
         var totalCount = await visible.CountAsync(cancellationToken);
@@ -41,6 +47,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
     public async Task<(IReadOnlyList<Event> Items, int TotalCount)> ListForTenantAsync(
         Guid tenantId,
         EventStatus? status,
+        Guid? eventGroupId,
         int page,
         int pageSize,
         CancellationToken cancellationToken)
@@ -50,6 +57,11 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         if (status is not null)
         {
             query = query.Where(e => e.Status == status);
+        }
+
+        if (eventGroupId is not null)
+        {
+            query = query.Where(e => e.EventGroupId == eventGroupId);
         }
 
         var totalCount = await query.CountAsync(cancellationToken);

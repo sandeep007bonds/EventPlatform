@@ -1,7 +1,7 @@
 namespace Catalog.Domain;
 
 /// <summary>
-/// The Catalog aggregate root: a sellable event held at a venue. Enforces its own
+/// The Catalog aggregate root: a sellable event at a specific place and time. Enforces its own
 /// lifecycle invariants (a draft becomes published, etc.).
 /// </summary>
 public sealed class Event
@@ -11,14 +11,38 @@ public sealed class Event
     {
     }
 
-    private Event(Guid id, Guid tenantId, Guid venueId, string title, DateTimeOffset startsAt, string currency)
+    private Event(
+        Guid id,
+        Guid tenantId,
+        string title,
+        DateTimeOffset startsAt,
+        string currency,
+        string locationName,
+        string addressLine1,
+        string? addressLine2,
+        string city,
+        string? region,
+        string? postalCode,
+        string country,
+        double? latitude,
+        double? longitude,
+        Guid? eventGroupId)
     {
         Id = id;
         TenantId = tenantId;
-        VenueId = venueId;
         Title = title;
         StartsAt = startsAt;
         Currency = currency;
+        LocationName = locationName;
+        AddressLine1 = addressLine1;
+        AddressLine2 = addressLine2;
+        City = city;
+        Region = region;
+        PostalCode = postalCode;
+        Country = country;
+        Latitude = latitude;
+        Longitude = longitude;
+        EventGroupId = eventGroupId;
         Status = EventStatus.Draft;
     }
 
@@ -28,8 +52,11 @@ public sealed class Event
     /// <summary>Owning tenant (organizer).</summary>
     public Guid TenantId { get; private set; }
 
-    /// <summary>Venue at which the event is held.</summary>
-    public Guid VenueId { get; private set; }
+    /// <summary>
+    /// The tour/series this event is one leg of, if any. <see langword="null"/> for a standalone
+    /// one-off event — the common case. See <see cref="EventGroup"/>.
+    /// </summary>
+    public Guid? EventGroupId { get; private set; }
 
     /// <summary>Event title.</summary>
     public string Title { get; private set; } = default!;
@@ -76,19 +103,90 @@ public sealed class Event
     /// <summary>Video embed URL (e.g. YouTube/Vimeo link) — not a hosted/uploaded video file.</summary>
     public string? VideoUrl { get; private set; }
 
-    /// <summary>Creates a new draft event for the given tenant.</summary>
+    /// <summary>Location/venue name (e.g. "Wankhede Stadium").</summary>
+    public string LocationName { get; private set; } = default!;
+
+    /// <summary>Street address, line 1.</summary>
+    public string AddressLine1 { get; private set; } = default!;
+
+    /// <summary>Street address, line 2 (suite/unit/etc.), if any.</summary>
+    public string? AddressLine2 { get; private set; }
+
+    /// <summary>City.</summary>
+    public string City { get; private set; } = default!;
+
+    /// <summary>State/province/region, if applicable.</summary>
+    public string? Region { get; private set; }
+
+    /// <summary>Postal/ZIP code, if applicable.</summary>
+    public string? PostalCode { get; private set; }
+
+    /// <summary>ISO 3166-1 alpha-2 country code (e.g. <c>US</c>).</summary>
+    public string Country { get; private set; } = default!;
+
+    /// <summary>Latitude, for a map pin — not full geocoding integration.</summary>
+    public double? Latitude { get; private set; }
+
+    /// <summary>Longitude, for a map pin.</summary>
+    public double? Longitude { get; private set; }
+
+    /// <summary>Creates a new draft event for the given tenant, at a specific place and time.</summary>
     /// <param name="tenantId">Owning tenant (organizer).</param>
-    /// <param name="venueId">Venue the event is held at.</param>
     /// <param name="title">Event title.</param>
     /// <param name="startsAt">Scheduled start (UTC).</param>
     /// <param name="currency">ISO 4217 currency code.</param>
+    /// <param name="locationName">Location/venue name.</param>
+    /// <param name="addressLine1">Street address, line 1.</param>
+    /// <param name="addressLine2">Street address, line 2, if any.</param>
+    /// <param name="city">City.</param>
+    /// <param name="region">State/province/region, if applicable.</param>
+    /// <param name="postalCode">Postal/ZIP code, if applicable.</param>
+    /// <param name="country">ISO 3166-1 alpha-2 country code.</param>
+    /// <param name="latitude">Latitude, if known.</param>
+    /// <param name="longitude">Longitude, if known.</param>
+    /// <param name="eventGroupId">
+    /// The tour/series this event is one leg of, if any (see <see cref="EventGroup"/>).
+    /// </param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
-    public static Event Create(Guid tenantId, Guid venueId, string title, DateTimeOffset startsAt, string currency)
+    public static Event Create(
+        Guid tenantId,
+        string title,
+        DateTimeOffset startsAt,
+        string currency,
+        string locationName,
+        string addressLine1,
+        string? addressLine2,
+        string city,
+        string? region,
+        string? postalCode,
+        string country,
+        double? latitude,
+        double? longitude,
+        Guid? eventGroupId)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+        ArgumentException.ThrowIfNullOrWhiteSpace(locationName);
+        ArgumentException.ThrowIfNullOrWhiteSpace(addressLine1);
+        ArgumentException.ThrowIfNullOrWhiteSpace(city);
+        ArgumentException.ThrowIfNullOrWhiteSpace(country);
 
-        return new Event(Guid.CreateVersion7(), tenantId, venueId, title, startsAt, currency);
+        return new Event(
+            Guid.CreateVersion7(),
+            tenantId,
+            title,
+            startsAt,
+            currency,
+            locationName,
+            addressLine1,
+            addressLine2,
+            city,
+            region,
+            postalCode,
+            country,
+            latitude,
+            longitude,
+            eventGroupId);
     }
 
     /// <summary>
