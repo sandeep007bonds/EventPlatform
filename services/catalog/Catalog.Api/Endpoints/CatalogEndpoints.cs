@@ -18,6 +18,7 @@ public static class CatalogEndpoints
         group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
         group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
+        group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails");
 
         return app;
     }
@@ -134,5 +135,41 @@ public static class CatalogEndpoints
     {
         var result = await sender.Send(new GetSeatMapQuery(id, tenant.TenantId), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
+    }
+
+    private static async Task<IResult> UpdateEventDetailsAsync(
+        Guid id,
+        UpdateEventDetailsRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var command = new UpdateEventDetailsCommand(
+            id,
+            tenant.TenantId.Value,
+            request.Description,
+            request.Category,
+            request.EndsAt,
+            request.DoorsOpenAt,
+            request.OnSaleAt,
+            request.OffSaleAt,
+            request.AgeRestriction,
+            request.BannerImageUrl,
+            request.VideoUrl);
+
+        var outcome = await sender.Send(command, cancellationToken);
+        return outcome switch
+        {
+            UpdateEventDetailsOutcome.Updated => Results.NoContent(),
+            UpdateEventDetailsOutcome.NotFound => Results.NotFound(),
+            UpdateEventDetailsOutcome.NotDraft =>
+                Results.Conflict(new { message = "Only a draft event's details can be changed." }),
+            _ => Results.Problem("Unexpected update-details outcome."),
+        };
     }
 }

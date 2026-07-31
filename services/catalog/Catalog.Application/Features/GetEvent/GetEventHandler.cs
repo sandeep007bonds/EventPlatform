@@ -17,6 +17,16 @@ internal sealed class GetEventHandler(IEventRepository repository)
                 @event.Title,
                 @event.StartsAt,
                 @event.Status.ToString(),
-                @event.Currency);
+                @event.Currency,
+                @event.VenueId,
+                @event.Description,
+                @event.Category,
+                @event.EndsAt,
+                @event.DoorsOpenAt,
+                @event.OnSaleAt,
+                @event.OffSaleAt,
+                @event.AgeRestriction,
+                @event.BannerImageUrl,
+                @event.VideoUrl);
     }
 }

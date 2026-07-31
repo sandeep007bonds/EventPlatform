@@ -23,7 +23,22 @@ internal sealed class ListEventsHandler(IEventRepository repository)
                 cancellationToken);
 
         var events = items
-            .Select(e => new EventResponse(e.Id, e.Title, e.StartsAt, e.Status.ToString(), e.Currency))
+            .Select(e => new EventResponse(
+                e.Id,
+                e.Title,
+                e.StartsAt,
+                e.Status.ToString(),
+                e.Currency,
+                e.VenueId,
+                e.Description,
+                e.Category,
+                e.EndsAt,
+                e.DoorsOpenAt,
+                e.OnSaleAt,
+                e.OffSaleAt,
+                e.AgeRestriction,
+                e.BannerImageUrl,
+                e.VideoUrl))
             .ToList();
 
         return new ListEventsResponse(events, request.Page, request.PageSize, totalCount);

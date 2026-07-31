@@ -1,11 +1,16 @@
 global using Catalog.Api.Endpoints;
 global using Catalog.Application;
 global using Catalog.Application.Features.CreateEvent;
+global using Catalog.Application.Features.CreateVenue;
 global using Catalog.Application.Features.DefineSeatMap;
 global using Catalog.Application.Features.GetEvent;
 global using Catalog.Application.Features.GetSeatMap;
+global using Catalog.Application.Features.GetVenue;
 global using Catalog.Application.Features.ListEvents;
+global using Catalog.Application.Features.ListVenues;
 global using Catalog.Application.Features.PublishEvent;
+global using Catalog.Application.Features.UpdateEventDetails;
+global using Catalog.Application.Features.UpdateVenue;
 global using Catalog.Domain;
 global using Catalog.Infrastructure;
 global using EventPlatform.Hosting;
