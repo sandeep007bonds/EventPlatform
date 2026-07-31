@@ -50,4 +50,8 @@
     <Project Path="services/communication/Communication.Api/Communication.Api.csproj" />
     <Project Path="services/communication/tests/Communication.Tests/Communication.Tests.csproj" />
   </Folder>
+  <Folder Name="/services/media/">
+    <Project Path="services/media/Media.Api/Media.Api.csproj" />
+    <Project Path="services/media/tests/Media.Tests/Media.Tests.csproj" />
+  </Folder>
 </Solution>

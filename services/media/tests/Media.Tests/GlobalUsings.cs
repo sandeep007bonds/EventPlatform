@@ -1,0 +1,13 @@
+global using System.IdentityModel.Tokens.Jwt;
+global using System.Net;
+global using System.Net.Http.Headers;
+global using System.Net.Http.Json;
+global using System.Security.Claims;
+global using System.Text;
+global using Microsoft.AspNetCore.Hosting;
+global using Microsoft.AspNetCore.Mvc.Testing;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.IdentityModel.Tokens;
+global using Shouldly;
+global using Testcontainers.Azurite;
+global using Xunit;

@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Deliberately flat: no Media.Domain/Media.Application/Media.Infrastructure split, no
+       MediatR/CQRS. One endpoint, direct Azure Blob SDK calls — a conscious, scoped exception
+       to this repo's usual per-service Clean Architecture shape (see ADR-0018 and CLAUDE.md). -->
+
+  <PropertyGroup>
+    <RootNamespace>Media.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Storage.Blobs" />
+  </ItemGroup>
+
+  <!-- Lets Media.Tests boot the app in-process via WebApplicationFactory<Program> — the
+       top-level-statements Program class is internal by default. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Media.Tests" />
+  </ItemGroup>
+
+</Project>
