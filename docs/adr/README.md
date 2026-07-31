@@ -31,6 +31,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0017](0017-dev-environment-cost-topology.md) | Dev environment: minimal-cost topology, diverging from production | Accepted |
 | [0018](0018-media-service-and-blob-storage.md) | Media service and Azure Blob Storage for event media | Accepted |
 | [0019](0019-event-tours-and-inline-location.md) | Event tours (`EventGroup`) and inline event location, replacing Venue | Accepted |
+| [0020](0020-tour-dates-contact-social-and-ga-tickets.md) | Tour dates, enforced booking cutoff, contact/social, and Reserved-vs-General-Admission tickets | Accepted |
 
 ## Format
 

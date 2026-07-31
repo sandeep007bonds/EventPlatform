@@ -19,11 +19,11 @@ the lowercase names below.
 
 | Service (app-id) | Owns (DB `catalog` etc.) | Public API | Publishes | Consumes |
 |---|---|---|---|---|
-| `catalog` | `Event`, `SeatMap`, `Seat` | `POST /v1/events` · `GET /v1/events` (anonymous; published-only unless the caller's tenant owns the event) · `GET /v1/events?mine=true` (caller's own tenant, any status) · `GET /v1/events/{id}` (anonymous, same visibility rule as the list) · `POST /v1/events/{id}/seatmap` · `GET /v1/events/{id}/seatmap` (anonymous, same visibility rule) · `POST /v1/events/{id}/publish` (tenant-checked) | `EventPublished` | — |
-| `inventory` | `InventoryItem`, `Hold`, `HoldItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `GET /v1/events/{id}/inventory/seats` (anonymous; every seat's status) · `POST /v1/events/{id}/inventory/block` · `POST /v1/events/{id}/inventory/unblock` · `POST /v1/holds/` · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventPublished` |
-| `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders` (`?mine=true` or `?forTenant=true`) · `GET /v1/orders/{id}` | `OrderConfirmed` | — |
+| `catalog` | `Event` (+ `EventSocialLink`), `EventGroup` (+ `EventGroupSocialLink`), `SeatMap`, `Seat`, `GeneralAdmissionSection` | `POST /v1/events` · `GET /v1/events` (anonymous; published-only unless the caller's tenant owns the event; `?eventGroupId=` filters to a tour's legs) · `GET /v1/events?mine=true` (caller's own tenant, any status) · `GET /v1/events/{id}` (anonymous, same visibility rule as the list) · `POST /v1/events/{id}/seatmap` (Reserved and/or GeneralAdmission sections) · `GET /v1/events/{id}/seatmap` (anonymous, same visibility rule) · `POST /v1/events/{id}/publish` (tenant-checked) · `POST`/`GET /v1/event-groups` · `GET /v1/event-groups/{id}` (anonymous) · `PUT /v1/event-groups/{id}` | `EventPublished` (carries `BookingEndsAt`) | — |
+| `inventory` | `InventoryItem`, `GeneralAdmissionAllocation`, `EventInventorySettings`, `Hold`, `HoldItem`, `HoldGeneralAdmissionItem`, `LedgerEntry` (+ Redis fast gate) | `GET /v1/events/{id}/inventory` · `GET /v1/events/{id}/inventory/seats` (anonymous; every seat's status) · `POST /v1/events/{id}/inventory/block` · `POST /v1/events/{id}/inventory/unblock` · `POST /v1/holds/` (seats and/or general-admission quantities) · `GET`/`DELETE /v1/holds/{id}` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` (seat-only — no GA consumer yet) | `EventPublished` |
+| `ordering` | `Order`, `OrderLine` (+ Dapr Workflow state) | `POST /v1/checkout` · `GET /v1/orders` (`?mine=true` or `?forTenant=true`) · `GET /v1/orders/{id}` | `OrderConfirmed` (`Lines`: seat or general-admission-quantity summaries) | — |
 | `payments` | `Payment`, `ProcessedWebhookEvent` | `POST /v1/payments/webhooks/stripe` (public, signature-verified) | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
-| `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` | `OrderConfirmed` |
+| `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` (nullable `SeatId`/`GeneralAdmissionAllocationId`) | `OrderConfirmed` |
 | `communication` | `DeliveryLogEntry`, `ProcessedNotificationEvent` | `POST /v1/notifications/send` (internal only, Dapr service invocation — not gateway-routed) | — | `OrderConfirmed`, `TicketIssued` (dedup-safe; delivery deferred, see below) |
 
 `inventory`'s `POST /v1/holds/{id}/convert` and `/release`, `payments`'s
@@ -107,21 +107,21 @@ sequenceDiagram
 
 Step by step, with the exact mechanism at each hop:
 
-1. **Create event** — `POST /v1/events` (Catalog). New `Event` in `Draft`.
-2. **Define seat map** — `POST /v1/events/{id}/seatmap` (Catalog). Generates `Seat` rows.
-3. **Publish** — `POST /v1/events/{id}/publish` (Catalog). `Draft` → `Published`, writes `EventPublished` to the outbox **in the same DB transaction** — no dual-write.
+1. **Create event** — `POST /v1/events` (Catalog). New `Event` in `Draft`, `EndsAt` required alongside `StartsAt`, optionally linked to an `EventGroup` (tour).
+2. **Define seat map** — `POST /v1/events/{id}/seatmap` (Catalog). Per section, generates `Seat` rows (`Reserved`) or a capacity-only `GeneralAdmissionSection` (no individual seats) — a seat map may mix both.
+3. **Publish** — `POST /v1/events/{id}/publish` (Catalog). `Draft` → `Published`, writes `EventPublished` (carrying `BookingEndsAt`) to the outbox **in the same DB transaction** — no dual-write.
 4. **Relay** — Catalog's `OutboxRelay` (2s poll) publishes `EventPublished` to the `pubsub` component.
-5. **Provision** — Inventory's subscription (`POST /integration/catalog/event-published`) receives it (idempotency-checked), calls Catalog's seat map **synchronously** via Dapr service invocation, and creates one `InventoryItem` per seat (`Available`).
-6. **Hold** — `POST /v1/holds/` (Inventory). Redis Lua atomic check-and-set (**direct**, the fast gate) → Postgres optimistic-concurrency write (the authority) marks seats `Held` with a TTL → `SeatHeld` to the outbox.
+5. **Provision** — Inventory's subscription (`POST /integration/catalog/event-published`) receives it (idempotency-checked via the new `EventInventorySettings` row), calls Catalog's seat map **synchronously** via Dapr service invocation, and creates one `InventoryItem` per seat plus one `GeneralAdmissionAllocation` per GA section (both `Available`/uncommitted), and upserts `EventInventorySettings.BookingEndsAt`.
+6. **Hold** — `POST /v1/holds/` (Inventory), covering seats and/or general-admission quantities in one request. Rejected up front with `BookingWindowClosed` if the event's `BookingEndsAt` has passed. Otherwise: Redis Lua atomic check-and-set (**direct**, the fast gate — per-seat key or per-allocation remaining-capacity counter) → Postgres optimistic-concurrency write (the authority) marks seats `Held`/decrements GA capacity with a TTL → `SeatHeld` to the outbox (seat lines only).
 7. **Checkout** — `POST /v1/checkout` (Ordering) with an `Idempotency-Key` header schedules a `CheckoutWorkflow` instance (Dapr Workflow):
    - `FetchHoldActivity` — `GET /v1/holds/{id}` on Inventory (sync), validates owner/active/not-expired.
-   - `CreateOrderActivity` — creates the `Order` (idempotent: tolerates a concurrent duplicate via `TrySaveChangesAsync`).
+   - `CreateOrderActivity` — creates the `Order` (idempotent: tolerates a concurrent duplicate via `TrySaveChangesAsync`), one `OrderLine` per seat or GA quantity.
    - `ChargeActivity` — `POST /v1/payments/charge` on Payments (sync); Payments calls Stripe (or the dev simulator), records the `Payment`, emits `PaymentCaptured`/`PaymentFailed`.
-   - `ConvertActivity` — `POST /v1/holds/{id}/convert` on Inventory (sync); seats → `Sold` (Postgres authority + Redis marker), emits `SeatSold`.
-   - `ConfirmOrderActivity` — `Order` → `Confirmed`, emits `OrderConfirmed`.
+   - `ConvertActivity` — `POST /v1/holds/{id}/convert` on Inventory (sync, unchanged shape — resolves seats/GA lines server-side); seats → `Sold`, GA `HeldCount` → `SoldCount` (Postgres authority + Redis marker), emits `SeatSold`.
+   - `ConfirmOrderActivity` — `Order` → `Confirmed`, emits `OrderConfirmed` with the order's seat/GA line summaries.
    - **On failure at any step:** compensations run — `FailOrderActivity`, `RefundActivity`, `ReleaseHoldActivity` — and the workflow returns the matching outcome (`PaymentFailed`, `ConvertFailed`, …) instead of `Confirmed`.
 8. **Relay** — Ordering's `OutboxRelay` publishes `OrderConfirmed`.
-9. **Issue tickets** — Ticketing's subscription (`POST /integration/ordering/order-confirmed`) issues one `Ticket` per sold seat (idempotent — unique index on `(order, seat)`), emits `TicketIssued`.
+9. **Issue tickets** — Ticketing's subscription (`POST /integration/ordering/order-confirmed`) issues one `Ticket` per sold seat and per general-admission quantity unit (idempotent — unique index on `(order, seat)`, which Postgres treats as distinct across multiple `NULL` seat ids for GA tickets), emits `TicketIssued`.
 10. **Fetch** — `GET /v1/orders/{id}/tickets` (Ticketing).
 
 ## Background processes (every service where relevant)
