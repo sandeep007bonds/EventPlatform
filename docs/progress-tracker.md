@@ -104,6 +104,14 @@ Intentionally paused while we build locally. Revisit before first deploy.
 
 ---
 
+## ⏸️ Deferred — Product features
+
+| # | Feature | Notes |
+|---|---------|-------|
+| P1 | **Virtual waiting room / queue system** for high-demand on-sales (Ticketmaster/AXS/Queue-it-style) | **Opt-in per event, not global** — most events never need it; a per-event flag (e.g. `RequiresQueue`) gates whether the waiting-room/admission-token check applies at all. Design sketch: a new, separate **Queue service** — Redis-backed queue per event (sorted set, atomic, horizontally scalable, mirrors the hot-path pattern Inventory already uses for holds); a background admission controller (same shape as Inventory's existing hold-expiry reaper) promotes a configurable number of waiting sessions to "Admitted" every N seconds; admission grants a short-lived, signed token scoped to one event + one session, required by the seat-selection/hold endpoints only when the event has queueing enabled; unused admissions expire the same way a `Hold` already does. Frontend gets a new waiting-room page (position/estimated wait, polls status, auto-redirects once admitted) shown only for queue-enabled events. Deliberately **not** in scope with the EventGroup/tour, General-Admission-vs-Reserved dual allocation, or enforced booking-cutoff work — it's an orthogonal traffic-shaping layer in front of the existing purchase flow, not a domain-model change, so it can be added later with zero rework of that work. |
+
+---
+
 ## Tech debt / to verify
 
 | # | Item | Notes |
