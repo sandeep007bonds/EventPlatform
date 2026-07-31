@@ -34,7 +34,7 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     /// <inheritdoc />
     public async Task DisposeAsync()
     {
-        factory.Dispose();
+        await factory.DisposeAsync();
         await azurite.DisposeAsync();
     }
 
