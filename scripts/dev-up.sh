@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One-click local dev startup: backing services (Docker) + all six EventPlatform
-# services with their Dapr sidecars + the gateway (no Dapr) — a single command,
-# a single terminal, Ctrl+C stops everything.
+# services with their Dapr sidecars + the gateway and Media.Api (neither uses
+# Dapr) — a single command, a single terminal, Ctrl+C stops everything.
 #
 # Usage: ./scripts/dev-up.sh
 set -euo pipefail
@@ -63,7 +63,7 @@ fi
 echo "==> Building the solution once (avoids a concurrent-build race on shared projects)..."
 dotnet build "$repo_root/EventPlatform.slnx"
 
-echo "==> Starting the gateway, all six services and their Dapr sidecars (Ctrl+C stops everything)..."
+echo "==> Starting the gateway, Media.Api, all six services and their Dapr sidecars (Ctrl+C stops everything)..."
 echo "    Gateway       http://localhost:5090/scalar/v1"
 echo "    Catalog       http://localhost:5080/scalar/v1"
 echo "    Inventory     http://localhost:5081/scalar/v1"
@@ -71,6 +71,7 @@ echo "    Ordering      http://localhost:5082/scalar/v1"
 echo "    Payments      http://localhost:5083/scalar/v1"
 echo "    Ticketing     http://localhost:5084/scalar/v1"
 echo "    Communication http://localhost:5085/scalar/v1"
+echo "    Media         http://localhost:5086/scalar/v1"
 echo "    Jaeger UI     http://localhost:16686"
 echo "    Mint a dev auth token in another terminal: ./scripts/dev-token.sh"
 echo "    Or call the gateway's dev-login: POST http://localhost:5090/api/auth/dev-login"
@@ -86,6 +87,15 @@ start_gateway() {
   gateway_pid="$!"
 }
 
+# Media.Api has no database and no pub/sub — it never runs with a Dapr sidecar
+# either (see services/media/CLAUDE.md). Started the same way as the gateway.
+media_pid=""
+start_media() {
+  ASPNETCORE_ENVIRONMENT=Development ASPNETCORE_URLS="http://localhost:5086" \
+    dotnet run --no-launch-profile --project "$repo_root/services/media/Media.Api" &
+  media_pid="$!"
+}
+
 case "${OSTYPE:-}" in
   msys*|cygwin*|win32*) is_windows=1 ;;
   *) is_windows=0 ;;
@@ -93,11 +103,13 @@ esac
 
 if [ "$is_windows" -eq 0 ]; then
   start_gateway
+  start_media
 
   cleanup_non_windows() {
     echo
-    echo "==> Stopping the gateway..."
+    echo "==> Stopping the gateway and Media.Api..."
     kill "$gateway_pid" 2>/dev/null || true
+    kill "$media_pid" 2>/dev/null || true
   }
   trap cleanup_non_windows EXIT INT TERM
 
@@ -127,6 +139,7 @@ cleanup() {
   echo
   echo "==> Stopping all services..."
   kill "$gateway_pid" 2>/dev/null || true
+  kill "$media_pid" 2>/dev/null || true
   for pid in "${pids[@]}"; do
     kill "$pid" 2>/dev/null || true
   done
@@ -135,6 +148,8 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 start_gateway
+sleep 3
+start_media
 sleep 3
 
 # Staggered: launching several dapr/dotnet processes at once on Windows can trip a
