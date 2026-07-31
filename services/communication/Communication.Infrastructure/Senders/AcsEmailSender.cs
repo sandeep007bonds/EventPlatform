@@ -30,7 +30,10 @@ internal sealed class AcsEmailSender : IEmailSender
         {
             var operation = await client.SendAsync(WaitUntil.Completed, message, cancellationToken);
             var succeeded = operation.Value.Status == EmailSendStatus.Succeeded;
-            return new SendResult(succeeded, operation.Value.Id, succeeded ? null : operation.Value.Status.ToString());
+
+            // EmailSendResult.Id is internal (SDK-only); EmailSendOperation.Id is the public
+            // equivalent - both surface the same operation UUID, per EmailSendOperation's XML docs.
+            return new SendResult(succeeded, operation.Id, succeeded ? null : operation.Value.Status.ToString());
         }
         catch (RequestFailedException ex)
         {

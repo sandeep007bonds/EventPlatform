@@ -18,7 +18,7 @@ internal sealed class TwilioWhatsAppSender : IWhatsAppSender
     /// <param name="fromNumber">The Twilio WhatsApp-enabled sender phone number.</param>
     public TwilioWhatsAppSender(HttpClient httpClient, string accountSid, string authToken, string fromNumber)
     {
-        client = new TwilioRestClient(accountSid, authToken, httpClient: httpClient);
+        client = new TwilioRestClient(accountSid, authToken, httpClient: new SystemNetHttpClient(httpClient));
         this.fromNumber = fromNumber;
     }
 

@@ -19,7 +19,7 @@ internal sealed class TwilioSmsSender : ISmsSender
     /// <param name="fromNumber">The Twilio-provisioned sender phone number.</param>
     public TwilioSmsSender(HttpClient httpClient, string accountSid, string authToken, string fromNumber)
     {
-        client = new TwilioRestClient(accountSid, authToken, httpClient: httpClient);
+        client = new TwilioRestClient(accountSid, authToken, httpClient: new SystemNetHttpClient(httpClient));
         this.fromNumber = fromNumber;
     }
 

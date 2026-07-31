@@ -74,8 +74,11 @@ public static class DependencyInjection
 
             // Twilio's SDK doesn't integrate with IHttpClientFactory on its own — build the sender
             // from an injected HttpClient instead of the SDK's process-wide TwilioClient.Init(...).
-            services.AddHttpClient<TwilioSmsSender>(httpClient =>
-                new TwilioSmsSender(httpClient, accountSid, authToken, fromNumber));
+            // AddHttpClient<TClient>(Action<HttpClient>) doesn't fit here: TwilioSmsSender's
+            // constructor needs accountSid/authToken/fromNumber too, which DI can't resolve on its
+            // own — AddTypedClient's Func<HttpClient, TClient> factory overload is what supports that.
+            services.AddHttpClient(nameof(TwilioSmsSender))
+                .AddTypedClient<TwilioSmsSender>(httpClient => new TwilioSmsSender(httpClient, accountSid, authToken, fromNumber));
             services.AddTransient<ISmsSender>(sp => sp.GetRequiredService<TwilioSmsSender>());
         }
         else
@@ -100,8 +103,8 @@ public static class DependencyInjection
             var authToken = configuration["Communication:Twilio:AuthToken"]!;
             var fromNumber = configuration["Communication:Twilio:WhatsAppFromNumber"]!;
 
-            services.AddHttpClient<TwilioWhatsAppSender>(httpClient =>
-                new TwilioWhatsAppSender(httpClient, accountSid, authToken, fromNumber));
+            services.AddHttpClient(nameof(TwilioWhatsAppSender))
+                .AddTypedClient<TwilioWhatsAppSender>(httpClient => new TwilioWhatsAppSender(httpClient, accountSid, authToken, fromNumber));
             services.AddTransient<IWhatsAppSender>(sp => sp.GetRequiredService<TwilioWhatsAppSender>());
         }
         else

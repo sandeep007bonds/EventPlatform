@@ -30,7 +30,8 @@ internal sealed class AcsWhatsAppSender : IWhatsAppSender
         try
         {
             var response = await client.SendAsync(content, cancellationToken);
-            var receipt = response.Value.Receipts.FirstOrDefault();
+            var receipts = response.Value.Receipts;
+            var receipt = receipts.Count > 0 ? receipts[0] : null;
             return new SendResult(Succeeded: receipt is not null, ProviderReference: receipt?.MessageId, FailureReason: receipt is null ? "no delivery receipt returned" : null);
         }
         catch (RequestFailedException ex)
