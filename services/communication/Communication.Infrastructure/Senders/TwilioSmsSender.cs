@@ -19,7 +19,10 @@ internal sealed class TwilioSmsSender : ISmsSender
     /// <param name="fromNumber">The Twilio-provisioned sender phone number.</param>
     public TwilioSmsSender(HttpClient httpClient, string accountSid, string authToken, string fromNumber)
     {
-        client = new TwilioRestClient(accountSid, authToken, httpClient: new SystemNetHttpClient(httpClient));
+        // Twilio.Http.SystemNetHttpClient, fully qualified rather than a global using: Twilio.Http
+        // also declares its own HttpClient class, which would make every unqualified HttpClient in
+        // this project (including this constructor's own parameter) ambiguous with System.Net.Http's.
+        client = new TwilioRestClient(accountSid, authToken, httpClient: new Twilio.Http.SystemNetHttpClient(httpClient));
         this.fromNumber = fromNumber;
     }
 
