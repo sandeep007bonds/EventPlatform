@@ -10,7 +10,11 @@ public interface IInventoryRepository
     /// <param name="items">The items to add.</param>
     void AddRange(IEnumerable<InventoryItem> items);
 
-    /// <summary>Returns whether any inventory already exists for the event (provisioning dedupe).</summary>
+    /// <summary>
+    /// Returns whether the event has already been provisioned (dedupe for at-least-once delivery of
+    /// <c>EventPublished</c>). Backed by <see cref="EventInventorySettings"/> rather than seat count,
+    /// since an event made entirely of general-admission sections may provision zero seats.
+    /// </summary>
     /// <param name="eventId">The event id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true"/> if the event already has inventory.</returns>
@@ -98,4 +102,32 @@ public interface IInventoryRepository
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true"/> if saved; <see langword="false"/> on a concurrency conflict.</returns>
     Task<bool> TrySaveChangesAsync(CancellationToken cancellationToken);
+
+    /// <summary>Registers new general-admission allocations to be persisted.</summary>
+    /// <param name="allocations">The allocations to add.</param>
+    void AddGeneralAdmissionAllocations(IEnumerable<GeneralAdmissionAllocation> allocations);
+
+    /// <summary>Counts the general-admission allocations for an event.</summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The number of general-admission allocations.</returns>
+    Task<int> CountGeneralAdmissionAllocationsForEventAsync(Guid eventId, CancellationToken cancellationToken);
+
+    /// <summary>Loads the tracked general-admission allocations with the given ids.</summary>
+    /// <param name="allocationIds">The allocation ids.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The matching allocations (tracked).</returns>
+    Task<IReadOnlyList<GeneralAdmissionAllocation>> GetGeneralAdmissionAllocationsByIdsAsync(
+        IReadOnlyCollection<Guid> allocationIds,
+        CancellationToken cancellationToken);
+
+    /// <summary>Loads the event inventory settings for an event, if provisioned.</summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The settings, or <see langword="null"/> if the event has no settings row yet.</returns>
+    Task<EventInventorySettings?> GetEventInventorySettingsAsync(Guid eventId, CancellationToken cancellationToken);
+
+    /// <summary>Registers a new event inventory settings row to be persisted.</summary>
+    /// <param name="settings">The settings to add.</param>
+    void AddEventInventorySettings(EventInventorySettings settings);
 }

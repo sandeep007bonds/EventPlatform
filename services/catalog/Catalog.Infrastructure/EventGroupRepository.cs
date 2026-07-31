@@ -9,7 +9,7 @@ internal sealed class EventGroupRepository(CatalogDbContext dbContext) : IEventG
 
     /// <inheritdoc />
     public Task<EventGroup?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.EventGroups.FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
+        dbContext.EventGroups.Include(g => g.SocialLinks).FirstOrDefaultAsync(g => g.Id == id, cancellationToken);
 
     /// <inheritdoc />
     public async Task<(IReadOnlyList<EventGroup> Items, int TotalCount)> ListForTenantAsync(
@@ -18,7 +18,7 @@ internal sealed class EventGroupRepository(CatalogDbContext dbContext) : IEventG
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var query = dbContext.EventGroups.AsNoTracking().Where(g => g.TenantId == tenantId);
+        var query = dbContext.EventGroups.AsNoTracking().Include(g => g.SocialLinks).Where(g => g.TenantId == tenantId);
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
@@ -29,6 +29,14 @@ internal sealed class EventGroupRepository(CatalogDbContext dbContext) : IEventG
 
         return (items, totalCount);
     }
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<EventGroup>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken) =>
+        await dbContext.EventGroups
+            .AsNoTracking()
+            .Include(g => g.SocialLinks)
+            .Where(g => ids.Contains(g.Id))
+            .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>

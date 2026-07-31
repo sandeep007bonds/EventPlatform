@@ -9,6 +9,12 @@ public enum PlaceHoldOutcome
     /// <summary>One or more requested seats do not exist for the event.</summary>
     SeatNotFound,
 
-    /// <summary>One or more seats are no longer available (lost the race).</summary>
+    /// <summary>One or more requested general-admission allocations do not exist for the event.</summary>
+    AllocationNotFound,
+
+    /// <summary>One or more seats or general-admission allocations are no longer available (lost the race).</summary>
     Conflict,
+
+    /// <summary>The event's enforced booking cutoff has passed; no new holds are accepted.</summary>
+    BookingWindowClosed,
 }

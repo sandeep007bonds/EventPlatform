@@ -9,6 +9,7 @@ public sealed class CreateEventValidator : AbstractValidator<CreateEventCommand>
         RuleFor(command => command.Title).NotEmpty().MaximumLength(200);
         RuleFor(command => command.Currency).NotEmpty().Length(3);
         RuleFor(command => command.StartsAt).GreaterThan(DateTimeOffset.UtcNow);
+        RuleFor(command => command.EndsAt).GreaterThan(command => command.StartsAt);
 
         RuleFor(command => command.LocationName).NotEmpty().MaximumLength(200);
         RuleFor(command => command.AddressLine1).NotEmpty().MaximumLength(200);

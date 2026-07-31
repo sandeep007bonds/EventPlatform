@@ -8,4 +8,7 @@ public sealed class HoldOptions
 
     /// <summary>Maximum seats a single hold may contain. Defaults to 10.</summary>
     public int MaxSeatsPerHold { get; set; } = 10;
+
+    /// <summary>Maximum total general-admission quantity a single hold may contain. Defaults to 10.</summary>
+    public int MaxGeneralAdmissionQuantityPerHold { get; set; } = 10;
 }

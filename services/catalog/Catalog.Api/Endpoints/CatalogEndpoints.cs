@@ -38,6 +38,7 @@ public static class CatalogEndpoints
             tenant.TenantId.Value,
             request.Title,
             request.StartsAt,
+            request.EndsAt,
             request.Currency,
             request.LocationName,
             request.AddressLine1,
@@ -119,7 +120,7 @@ public static class CatalogEndpoints
         }
 
         var sections = request.Sections
-            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.Rows, s.SeatsPerRow))
+            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.AllocationType, s.Rows, s.SeatsPerRow, s.Capacity))
             .ToList();
 
         var command = new DefineSeatMapCommand(id, tenant.TenantId.Value, request.Name, sections);
@@ -168,10 +169,15 @@ public static class CatalogEndpoints
             request.EndsAt,
             request.DoorsOpenAt,
             request.OnSaleAt,
-            request.OffSaleAt,
+            request.BookingEndsAt,
             request.AgeRestriction,
             request.BannerImageUrl,
-            request.VideoUrl);
+            request.VideoUrl,
+            request.ContactPhone,
+            request.ContactMobile,
+            request.ContactEmail,
+            request.WebsiteUrl,
+            (request.SocialLinks ?? []).Select(l => new SocialLinkInput(l.Platform, l.Url)).ToList());
 
         var outcome = await sender.Send(command, cancellationToken);
         return outcome switch

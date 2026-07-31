@@ -12,10 +12,10 @@ namespace Catalog.Application.Features.GetEvent;
 /// </param>
 /// <param name="Description">Marketing description, if set.</param>
 /// <param name="Category">Free-text category, if set.</param>
-/// <param name="EndsAt">Scheduled end time (UTC), if set.</param>
+/// <param name="EndsAt">Scheduled end time (UTC) — this leg's run at its location ends at this time.</param>
 /// <param name="DoorsOpenAt">Doors-open time (UTC), if set.</param>
 /// <param name="OnSaleAt">Display-only sales-window start (UTC), if set — not enforced.</param>
-/// <param name="OffSaleAt">Display-only sales-window end (UTC), if set — not enforced.</param>
+/// <param name="BookingEndsAt">Enforced booking cutoff (UTC), if set — Inventory rejects new holds after this time.</param>
 /// <param name="AgeRestriction">Free-text age restriction, if set.</param>
 /// <param name="BannerImageUrl">Banner image URL, if set.</param>
 /// <param name="VideoUrl">Video embed URL, if set.</param>
@@ -28,6 +28,13 @@ namespace Catalog.Application.Features.GetEvent;
 /// <param name="Country">ISO 3166-1 alpha-2 country code.</param>
 /// <param name="Latitude">Latitude, if known.</param>
 /// <param name="Longitude">Longitude, if known.</param>
+/// <param name="ContactPhone">Contact phone — this leg's own value, or the tour's default if the leg sets none.</param>
+/// <param name="ContactMobile">Contact mobile number — see <see cref="ContactPhone"/>.</param>
+/// <param name="ContactEmail">Contact email — see <see cref="ContactPhone"/>.</param>
+/// <param name="WebsiteUrl">Website URL — see <see cref="ContactPhone"/>.</param>
+/// <param name="SocialLinks">
+/// Social links — this leg's own list if it set any, otherwise the tour's default list.
+/// </param>
 public sealed record EventResponse(
     Guid Id,
     string Title,
@@ -37,10 +44,10 @@ public sealed record EventResponse(
     Guid? EventGroupId,
     string? Description,
     string? Category,
-    DateTimeOffset? EndsAt,
+    DateTimeOffset EndsAt,
     DateTimeOffset? DoorsOpenAt,
     DateTimeOffset? OnSaleAt,
-    DateTimeOffset? OffSaleAt,
+    DateTimeOffset? BookingEndsAt,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,
@@ -52,4 +59,9 @@ public sealed record EventResponse(
     string? PostalCode,
     string Country,
     double? Latitude,
-    double? Longitude);
+    double? Longitude,
+    string? ContactPhone,
+    string? ContactMobile,
+    string? ContactEmail,
+    string? WebsiteUrl,
+    IReadOnlyList<SocialLinkResponse> SocialLinks);

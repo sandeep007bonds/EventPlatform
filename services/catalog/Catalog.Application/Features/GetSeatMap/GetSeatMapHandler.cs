@@ -26,6 +26,11 @@ internal sealed class GetSeatMapHandler(IEventRepository eventRepository, ISeatM
             .Select(s => new SeatResponse(s.Id, s.Section, s.PriceTier, s.PriceAmount, s.Row, s.Number, s.Label))
             .ToList();
 
-        return new SeatMapResponse(seatMap.EventId, seatMap.Name, seatMap.Capacity, seats);
+        var gaSections = seatMap.GeneralAdmissionSections
+            .OrderBy(s => s.Id)
+            .Select(s => new GeneralAdmissionSectionResponse(s.Id, s.SectionName, s.PriceTier, s.PriceAmount, s.Capacity))
+            .ToList();
+
+        return new SeatMapResponse(seatMap.EventId, seatMap.Name, seatMap.Capacity, seats, gaSections);
     }
 }

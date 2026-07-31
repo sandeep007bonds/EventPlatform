@@ -4,20 +4,51 @@ Inherits the [root CLAUDE.md](../../CLAUDE.md) and [engineering guidelines](../.
 
 ## Responsibility
 
-The no-oversell system of record. Owns seat availability, holds (with TTL), the
+The no-oversell system of record. Owns seat availability, general-admission
+capacity pools, holds (with TTL, covering either or both in one hold), the
 convert-to-sold path, and the immutable inventory ledger. Bounded context:
-**Inventory & Hold** (ADR-0008). Generates seat inventory when Catalog publishes
-an event.
+**Inventory & Hold** (ADR-0008). Generates inventory when Catalog publishes an
+event, and enforces that event's booking cutoff.
 
 ## Owns
 
 - **Data store:** PostgreSQL `inventory` DB (this service only) + Redis (hot path)
-- **Public API:** REST `/v1/holds` (Stage B), `/v1/events/{id}/inventory`,
-  `/v1/events/{id}/inventory/seats` (`.AllowAnonymous()` — every seat's status),
-  `/v1/events/{id}/inventory/block`, `/v1/events/{id}/inventory/unblock`
+- **Public API:** REST `/v1/holds` (seats and/or general-admission quantities,
+  Stage B), `/v1/events/{id}/inventory`, `/v1/events/{id}/inventory/seats`
+  (`.AllowAnonymous()` — every seat's status), `/v1/events/{id}/inventory/block`,
+  `/v1/events/{id}/inventory/unblock`
 - **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`,
-  `SeatUnblocked` (via outbox)
-- **Events consumed:** `EventPublished` (Catalog) → provision seat inventory
+  `SeatUnblocked` (via outbox) — seat-only today; general-admission holds don't
+  yet appear on these events (no external consumer needs them this pass)
+- **Events consumed:** `EventPublished` (Catalog) → provision seat inventory and
+  general-admission allocations, and record the event's `BookingEndsAt`
+
+## General admission and the enforced booking cutoff
+
+- **`GeneralAdmissionAllocation`** is the counter-based analogue of
+  `InventoryItem` for a Catalog section with no individually addressable seats
+  — `TotalCapacity`/`HeldCount`/`SoldCount` plus an optimistic-concurrency
+  `Version`, same authority order as seats: Redis is the fast gate (a
+  remaining-capacity counter per allocation, atomic Lua decrement), Postgres is
+  the final authority. A hold can cover reserved seats and general-admission
+  quantities together (`Hold.Items` + `Hold.GeneralAdmissionItems`).
+- **Fail-closed Redis default for GA capacity** (the deliberate opposite of the
+  sparse seat model's fail-open default): a capacity key that was never
+  initialized, or was lost to a flush, reads as zero remaining rather than
+  available. Safe either way because Postgres stays authoritative; GA capacity
+  must be explicitly initialized at provisioning time, unlike seats.
+- **`EventInventorySettings`** holds the event's enforced `BookingEndsAt`,
+  learned from `EventPublished`. `HoldService.PlaceHoldAsync` rejects new holds
+  once `DateTimeOffset.UtcNow` passes it (`PlaceHoldOutcome.BookingWindowClosed`),
+  checked before touching Redis/Postgres. Changing the cutoff after an event is
+  published is out of scope for this pass (`UpdateEventDetails` on Catalog stays
+  Draft-only).
+- **Not extended for GA in this pass:** `InventoryReconciler` only rebuilds the
+  seat fast gate from Postgres after a flush. A GA capacity counter lost to a
+  flush degrades fast-path availability (Redis under-reports remaining
+  capacity as zero) until the next successful hold/release touches it, but
+  never causes oversell — Postgres's `GeneralAdmissionAllocation.Hold(quantity)`
+  is unconditional regardless of what Redis says.
 
 ## Design notes (ADR-0009)
 

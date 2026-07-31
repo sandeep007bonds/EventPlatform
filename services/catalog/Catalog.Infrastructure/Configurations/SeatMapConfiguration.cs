@@ -26,5 +26,14 @@ internal sealed class SeatMapConfiguration : IEntityTypeConfiguration<SeatMap>
         builder.Metadata
             .FindNavigation(nameof(SeatMap.Seats))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(m => m.GeneralAdmissionSections)
+            .WithOne()
+            .HasForeignKey(s => s.SeatMapId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata
+            .FindNavigation(nameof(SeatMap.GeneralAdmissionSections))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

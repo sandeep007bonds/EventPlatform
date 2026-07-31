@@ -10,6 +10,6 @@ internal sealed class GetEventGroupHandler(IEventGroupRepository repository)
     {
         var group = await repository.GetByIdAsync(request.Id, cancellationToken);
 
-        return group is null ? null : new EventGroupResponse(group.Id, group.Title);
+        return group is null ? null : EventGroupResponseMapper.Map(group);
     }
 }

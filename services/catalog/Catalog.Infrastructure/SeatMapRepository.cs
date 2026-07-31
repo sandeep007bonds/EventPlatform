@@ -12,6 +12,7 @@ internal sealed class SeatMapRepository(CatalogDbContext dbContext) : ISeatMapRe
         dbContext.SeatMaps
             .AsNoTracking()
             .Include(m => m.Seats)
+            .Include(m => m.GeneralAdmissionSections)
             .FirstOrDefaultAsync(m => m.EventId == eventId, cancellationToken);
 
     /// <inheritdoc />

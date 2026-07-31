@@ -7,6 +7,7 @@ namespace Catalog.Application.Features.CreateEvent;
 /// <param name="TenantId">Owning tenant (organizer), taken from the caller's token.</param>
 /// <param name="Title">Event title.</param>
 /// <param name="StartsAt">Scheduled start (UTC).</param>
+/// <param name="EndsAt">Scheduled end (UTC) — must be after <see cref="StartsAt"/>.</param>
 /// <param name="Currency">ISO 4217 currency code.</param>
 /// <param name="LocationName">Location/venue name.</param>
 /// <param name="AddressLine1">Street address, line 1.</param>
@@ -22,6 +23,7 @@ public sealed record CreateEventCommand(
     Guid TenantId,
     string Title,
     DateTimeOffset StartsAt,
+    DateTimeOffset EndsAt,
     string Currency,
     string LocationName,
     string AddressLine1,

@@ -31,6 +31,15 @@ public interface IEventGroupRepository
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Gets multiple event groups by id in one round trip — used to resolve contact/social
+    /// fallbacks for a page of events without one query per event.
+    /// </summary>
+    /// <param name="ids">The event group ids to fetch.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The matching event groups (fewer than requested if some ids don't exist).</returns>
+    Task<IReadOnlyList<EventGroup>> GetByIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>

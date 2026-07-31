@@ -9,7 +9,7 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
 
     /// <inheritdoc />
     public Task<bool> ExistsForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.InventoryItems.AnyAsync(i => i.EventId == eventId, cancellationToken);
+        dbContext.EventInventorySettings.AnyAsync(s => s.EventId == eventId, cancellationToken);
 
     /// <inheritdoc />
     public Task<int> CountForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
@@ -43,6 +43,7 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
     public Task<Hold?> GetHoldAsync(Guid holdId, CancellationToken cancellationToken) =>
         dbContext.Holds
             .Include(h => h.Items)
+            .Include(h => h.GeneralAdmissionItems)
             .FirstOrDefaultAsync(h => h.Id == holdId, cancellationToken);
 
     /// <inheritdoc />
@@ -118,4 +119,28 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             return false;
         }
     }
+
+    /// <inheritdoc />
+    public void AddGeneralAdmissionAllocations(IEnumerable<GeneralAdmissionAllocation> allocations) =>
+        dbContext.GeneralAdmissionAllocations.AddRange(allocations);
+
+    /// <inheritdoc />
+    public Task<int> CountGeneralAdmissionAllocationsForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
+        dbContext.GeneralAdmissionAllocations.CountAsync(a => a.EventId == eventId, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<GeneralAdmissionAllocation>> GetGeneralAdmissionAllocationsByIdsAsync(
+        IReadOnlyCollection<Guid> allocationIds,
+        CancellationToken cancellationToken) =>
+        await dbContext.GeneralAdmissionAllocations
+            .Where(a => allocationIds.Contains(a.Id))
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
+    public Task<EventInventorySettings?> GetEventInventorySettingsAsync(Guid eventId, CancellationToken cancellationToken) =>
+        dbContext.EventInventorySettings.FirstOrDefaultAsync(s => s.EventId == eventId, cancellationToken);
+
+    /// <inheritdoc />
+    public void AddEventInventorySettings(EventInventorySettings settings) =>
+        dbContext.EventInventorySettings.Add(settings);
 }

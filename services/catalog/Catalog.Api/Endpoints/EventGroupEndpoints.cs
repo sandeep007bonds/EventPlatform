@@ -15,6 +15,7 @@ public static class EventGroupEndpoints
         group.MapPost("/", CreateEventGroupAsync).WithName("CreateEventGroup");
         group.MapGet("/", ListEventGroupsAsync).WithName("ListEventGroups");
         group.MapGet("/{id:guid}", GetEventGroupAsync).WithName("GetEventGroup").AllowAnonymous();
+        group.MapPut("/{id:guid}", UpdateEventGroupAsync).WithName("UpdateEventGroup");
 
         return app;
     }
@@ -60,5 +61,38 @@ public static class EventGroupEndpoints
     {
         var result = await sender.Send(new GetEventGroupQuery(id), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
+    }
+
+    private static async Task<IResult> UpdateEventGroupAsync(
+        Guid id,
+        UpdateEventGroupRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var command = new UpdateEventGroupCommand(
+            id,
+            tenant.TenantId.Value,
+            request.Title,
+            request.StartsAt,
+            request.EndsAt,
+            request.ContactPhone,
+            request.ContactMobile,
+            request.ContactEmail,
+            request.WebsiteUrl,
+            (request.SocialLinks ?? []).Select(l => new SocialLinkInput(l.Platform, l.Url)).ToList());
+
+        var outcome = await sender.Send(command, cancellationToken);
+        return outcome switch
+        {
+            UpdateEventGroupOutcome.Updated => Results.NoContent(),
+            UpdateEventGroupOutcome.NotFound => Results.NotFound(),
+            _ => Results.Problem("Unexpected update-event-group outcome."),
+        };
     }
 }

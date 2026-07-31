@@ -29,7 +29,21 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.Property(e => e.PostalCode).HasMaxLength(20);
         builder.Property(e => e.Country).HasMaxLength(2).IsRequired();
 
+        builder.Property(e => e.ContactPhone).HasMaxLength(30);
+        builder.Property(e => e.ContactMobile).HasMaxLength(30);
+        builder.Property(e => e.ContactEmail).HasMaxLength(200);
+        builder.Property(e => e.WebsiteUrl).HasMaxLength(2000);
+
         builder.HasOne<EventGroup>().WithMany().HasForeignKey(e => e.EventGroupId).OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasMany(e => e.SocialLinks)
+            .WithOne()
+            .HasForeignKey(l => l.EventId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata
+            .FindNavigation(nameof(Event.SocialLinks))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(e => new { e.TenantId, e.Id });
         builder.HasIndex(e => e.EventGroupId);

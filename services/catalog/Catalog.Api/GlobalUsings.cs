@@ -10,6 +10,7 @@ global using Catalog.Application.Features.ListEventGroups;
 global using Catalog.Application.Features.ListEvents;
 global using Catalog.Application.Features.PublishEvent;
 global using Catalog.Application.Features.UpdateEventDetails;
+global using Catalog.Application.Features.UpdateEventGroup;
 global using Catalog.Domain;
 global using Catalog.Infrastructure;
 global using EventPlatform.Hosting;

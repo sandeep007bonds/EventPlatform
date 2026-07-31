@@ -73,4 +73,55 @@ public interface IHoldStore
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the store is marked initialized.</returns>
     Task MarkInitializedAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Initializes a general-admission allocation's remaining-capacity counter at provisioning
+    /// time. A counter that was never initialized (or was lost to a Redis flush) reads as zero
+    /// remaining — fail-closed, unlike the sparse seat model's fail-open default — since Postgres
+    /// stays authoritative either way and a real allocation, once initialized, is not expected to
+    /// disappear from Redis outside a flush.
+    /// </summary>
+    /// <param name="eventId">The event the allocation belongs to.</param>
+    /// <param name="allocationId">The allocation id.</param>
+    /// <param name="totalCapacity">The allocation's total capacity.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the counter is initialized.</returns>
+    Task InitializeGeneralAdmissionCapacityAsync(
+        Guid eventId,
+        Guid allocationId,
+        int totalCapacity,
+        CancellationToken cancellationToken);
+
+    /// <summary>Atomically holds a quantity from each allocation, if every one has enough remaining capacity.</summary>
+    /// <param name="eventId">The event the allocations belong to.</param>
+    /// <param name="holdId">The hold id being placed.</param>
+    /// <param name="selections">The (allocation id, quantity) pairs to hold.</param>
+    /// <param name="ttl">How long the hold marker lives.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The hold result (success, or the conflicting allocation).</returns>
+    Task<GeneralAdmissionHoldStoreResult> TryHoldGeneralAdmissionAsync(
+        Guid eventId,
+        Guid holdId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        TimeSpan ttl,
+        CancellationToken cancellationToken);
+
+    /// <summary>Releases a hold's general-admission quantities, returning them to each allocation's remaining capacity.</summary>
+    /// <param name="eventId">The event the allocations belong to.</param>
+    /// <param name="holdId">The hold being released.</param>
+    /// <param name="selections">The (allocation id, quantity) pairs to release.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the quantities are released.</returns>
+    Task ReleaseGeneralAdmissionAsync(
+        Guid eventId,
+        Guid holdId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        CancellationToken cancellationToken);
+
+    /// <summary>Marks a hold's general-admission quantities as sold (permanent — not returned to remaining capacity).</summary>
+    /// <param name="eventId">The event the allocations belong to.</param>
+    /// <param name="holdId">The hold being converted.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the hold's general-admission bookkeeping is cleared.</returns>
+    Task MarkGeneralAdmissionSoldAsync(Guid eventId, Guid holdId, CancellationToken cancellationToken);
 }

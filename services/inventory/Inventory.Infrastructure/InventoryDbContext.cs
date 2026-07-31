@@ -14,6 +14,12 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     /// <summary>The append-only inventory ledger.</summary>
     public DbSet<LedgerEntry> LedgerEntries => Set<LedgerEntry>();
 
+    /// <summary>The general-admission capacity pools table.</summary>
+    public DbSet<GeneralAdmissionAllocation> GeneralAdmissionAllocations => Set<GeneralAdmissionAllocation>();
+
+    /// <summary>The per-event settings table (currently just the enforced booking cutoff).</summary>
+    public DbSet<EventInventorySettings> EventInventorySettings => Set<EventInventorySettings>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

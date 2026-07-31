@@ -9,7 +9,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
 
     /// <inheritdoc />
     public Task<Event?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Events.FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+        dbContext.Events.Include(e => e.SocialLinks).FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
     /// <inheritdoc />
     public async Task<(IReadOnlyList<Event> Items, int TotalCount)> ListAsync(
@@ -20,7 +20,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var visible = dbContext.Events.AsNoTracking().Where(e =>
+        var visible = dbContext.Events.AsNoTracking().Include(e => e.SocialLinks).Where(e =>
             e.Status != EventStatus.Draft || (callerTenantId != null && e.TenantId == callerTenantId));
 
         if (status is not null)
@@ -52,7 +52,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var query = dbContext.Events.AsNoTracking().Where(e => e.TenantId == tenantId);
+        var query = dbContext.Events.AsNoTracking().Include(e => e.SocialLinks).Where(e => e.TenantId == tenantId);
 
         if (status is not null)
         {

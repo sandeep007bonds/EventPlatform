@@ -4,9 +4,10 @@ Inherits the [root CLAUDE.md](../../CLAUDE.md) and [engineering guidelines](../.
 
 ## Responsibility
 
-Owns events, venues, seat maps, ticket types and pricing. Publishes seated
-events and generates their seat inventory. Serves read endpoints for the
-storefront (cached). Bounded context: **Catalog** (ADR-0008).
+Owns events, event groups (tours), seat maps (Reserved and General Admission
+sections), ticket types and pricing. Publishes events and generates their
+inventory. Serves read endpoints for the storefront (cached). Bounded
+context: **Catalog** (ADR-0008).
 
 ## Owns
 
@@ -30,8 +31,25 @@ storefront (cached). Bounded context: **Catalog** (ADR-0008).
   is `.AllowAnonymous()` — a group by itself, unlinked, reveals nothing
   sensitive. Each leg is created/published/seat-mapped/sold exactly like any
   standalone event (see ADR-0019) — Inventory/Ordering/Ticketing have no
-  concept of `EventGroup` at all.
-- **Events published:** `EventPublished`, `EventUpdated`
+  concept of `EventGroup` at all. `EventGroup` also holds tour-wide date-range
+  and contact/social defaults (`StartsAt`/`EndsAt`, `ContactPhone`/`ContactMobile`/
+  `ContactEmail`/`WebsiteUrl`, an open `SocialLinks` list) that a leg's own
+  values (if any) override entirely (see ADR-0020).
+- **`Event.EndsAt` is required** (set at creation, alongside `StartsAt`) — every
+  leg has a real date range, not just a start instant. **`Event.BookingEndsAt`**
+  (renamed from the old, display-only `OffSaleAt`) is a real, **enforced**
+  cutoff: Catalog hands it to Inventory via `EventPublished` so Inventory can
+  reject new holds after that time — unlike `OnSaleAt`, which stays
+  display-only. `BookingEndsAt` cannot change after publish in this pass
+  (`UpdateEventDetails` is Draft-only, same as every other detail field).
+- **Seat maps mix Reserved and General-Admission sections.** `DefineSeatMap`'s
+  section input carries an `AllocationType`: `Reserved` sections generate
+  individual `Seat` rows (rows × seats-per-row) exactly as before;
+  `GeneralAdmission` sections are a capacity-only pool (no individual seats) —
+  a single event can have both kinds side by side. `GetSeatMapResponse`
+  (the hand-off Inventory reads) carries both `Seats` and
+  `GeneralAdmissionSections` lists.
+- **Events published:** `EventPublished` (now also carries `BookingEndsAt`), `EventUpdated`
 - **Events consumed:** —
 
 ## Structure

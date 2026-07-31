@@ -30,10 +30,15 @@ internal sealed class UpdateEventDetailsHandler(IEventRepository repository, IEv
             request.EndsAt,
             request.DoorsOpenAt,
             request.OnSaleAt,
-            request.OffSaleAt,
+            request.BookingEndsAt,
             request.AgeRestriction,
             request.BannerImageUrl,
-            request.VideoUrl);
+            request.VideoUrl,
+            request.ContactPhone,
+            request.ContactMobile,
+            request.ContactEmail,
+            request.WebsiteUrl,
+            request.SocialLinks.Select(link => (link.Platform, link.Url)));
 
         events.Enqueue(new EventUpdated(
             Guid.CreateVersion7(),

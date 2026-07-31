@@ -12,9 +12,21 @@ public sealed class UpdateEventDetailsValidator : AbstractValidator<UpdateEventD
         RuleFor(command => command.AgeRestriction).MaximumLength(50);
         RuleFor(command => command.BannerImageUrl).MaximumLength(2000);
         RuleFor(command => command.VideoUrl).MaximumLength(2000);
-        RuleFor(command => command.OffSaleAt)
+        RuleFor(command => command.BookingEndsAt)
             .GreaterThan(command => command.OnSaleAt)
-            .When(command => command.OnSaleAt is not null && command.OffSaleAt is not null)
-            .WithMessage("OffSaleAt must be after OnSaleAt.");
+            .When(command => command.OnSaleAt is not null && command.BookingEndsAt is not null)
+            .WithMessage("BookingEndsAt must be after OnSaleAt.");
+
+        RuleFor(command => command.ContactPhone).MaximumLength(30);
+        RuleFor(command => command.ContactMobile).MaximumLength(30);
+        RuleFor(command => command.ContactEmail).MaximumLength(200).EmailAddress()
+            .When(command => !string.IsNullOrWhiteSpace(command.ContactEmail));
+        RuleFor(command => command.WebsiteUrl).MaximumLength(2000);
+
+        RuleForEach(command => command.SocialLinks).ChildRules(link =>
+        {
+            link.RuleFor(l => l.Platform).NotEmpty().MaximumLength(50);
+            link.RuleFor(l => l.Url).NotEmpty().MaximumLength(2000);
+        });
     }
 }

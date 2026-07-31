@@ -12,6 +12,7 @@ internal sealed class CreateEventHandler(IEventRepository repository)
             request.TenantId,
             request.Title,
             request.StartsAt,
+            request.EndsAt,
             request.Currency,
             request.LocationName,
             request.AddressLine1,

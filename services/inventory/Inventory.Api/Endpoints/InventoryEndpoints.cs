@@ -106,21 +106,34 @@ public static class InventoryEndpoints
             return Results.Unauthorized();
         }
 
-        if (request.SeatIds is null || request.SeatIds.Count == 0)
+        var seatIds = request.SeatIds ?? [];
+        var gaSelections = request.GeneralAdmissionSelections ?? [];
+
+        if (seatIds.Count == 0 && gaSelections.Count == 0)
         {
-            return Results.BadRequest(new { message = "At least one seat is required." });
+            return Results.BadRequest(new { message = "At least one seat or general-admission quantity is required." });
         }
 
-        if (request.SeatIds.Count > options.MaxSeatsPerHold)
+        if (seatIds.Count > options.MaxSeatsPerHold)
         {
             return Results.BadRequest(new { message = $"A hold may contain at most {options.MaxSeatsPerHold} seats." });
+        }
+
+        var totalGaQuantity = gaSelections.Sum(selection => selection.Quantity);
+        if (totalGaQuantity > options.MaxGeneralAdmissionQuantityPerHold)
+        {
+            return Results.BadRequest(new
+            {
+                message = $"A hold may contain at most {options.MaxGeneralAdmissionQuantityPerHold} general-admission admissions.",
+            });
         }
 
         var result = await holds.PlaceHoldAsync(
             tenant.TenantId.Value,
             userId.Value,
             request.EventId,
-            request.SeatIds,
+            seatIds,
+            gaSelections.Select(selection => (selection.AllocationId, selection.Quantity)).ToList(),
             cancellationToken);
 
         return result.Outcome switch
@@ -129,8 +142,17 @@ public static class InventoryEndpoints
                 Results.Created($"/v1/holds/{result.HoldId}", new { holdId = result.HoldId, expiresAt = result.ExpiresAt }),
             PlaceHoldOutcome.SeatNotFound =>
                 Results.NotFound(new { message = "One or more seats do not exist for this event." }),
+            PlaceHoldOutcome.AllocationNotFound =>
+                Results.NotFound(new { message = "One or more general-admission allocations do not exist for this event." }),
             PlaceHoldOutcome.Conflict =>
-                Results.Conflict(new { message = "One or more seats are no longer available.", seatId = result.ConflictSeatId }),
+                Results.Conflict(new
+                {
+                    message = "One or more seats or general-admission allocations are no longer available.",
+                    seatId = result.ConflictSeatId,
+                    allocationId = result.ConflictAllocationId,
+                }),
+            PlaceHoldOutcome.BookingWindowClosed =>
+                Results.Conflict(new { message = "The booking window for this event has closed." }),
             _ => Results.Problem("Unexpected hold outcome."),
         };
     }
@@ -230,14 +252,19 @@ public static class InventoryEndpoints
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
-        var result = await provisioning.ProvisionAsync(@event.TenantId, @event.CatalogEventId, cancellationToken);
+        var result = await provisioning.ProvisionAsync(
+            @event.TenantId,
+            @event.CatalogEventId,
+            @event.BookingEndsAt,
+            cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Inventory.Provisioning");
         if (result.Provisioned)
         {
             logger.LogInformation(
-                "Provisioned {SeatCount} seats for event {EventId}.",
+                "Provisioned {SeatCount} seats and {AllocationCount} general-admission allocations for event {EventId}.",
                 result.SeatCount,
+                result.GeneralAdmissionAllocationCount,
                 @event.CatalogEventId);
         }
         else

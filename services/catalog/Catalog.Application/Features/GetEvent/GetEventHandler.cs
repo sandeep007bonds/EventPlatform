@@ -2,40 +2,23 @@ namespace Catalog.Application.Features.GetEvent;
 
 /// <summary>Handles <see cref="GetEventQuery"/>, mapping the aggregate to a read model.</summary>
 /// <param name="repository">The event repository.</param>
-internal sealed class GetEventHandler(IEventRepository repository)
+/// <param name="eventGroupRepository">The event-group repository, used to resolve contact/social fallbacks.</param>
+internal sealed class GetEventHandler(IEventRepository repository, IEventGroupRepository eventGroupRepository)
     : IRequestHandler<GetEventQuery, EventResponse?>
 {
     /// <inheritdoc />
     public async Task<EventResponse?> Handle(GetEventQuery request, CancellationToken cancellationToken)
     {
         var @event = await repository.GetByIdAsync(request.Id, cancellationToken);
+        if (@event is null || !@event.IsVisibleTo(request.CallerTenantId))
+        {
+            return null;
+        }
 
-        return @event is null || !@event.IsVisibleTo(request.CallerTenantId)
+        var group = @event.EventGroupId is null
             ? null
-            : new EventResponse(
-                @event.Id,
-                @event.Title,
-                @event.StartsAt,
-                @event.Status.ToString(),
-                @event.Currency,
-                @event.EventGroupId,
-                @event.Description,
-                @event.Category,
-                @event.EndsAt,
-                @event.DoorsOpenAt,
-                @event.OnSaleAt,
-                @event.OffSaleAt,
-                @event.AgeRestriction,
-                @event.BannerImageUrl,
-                @event.VideoUrl,
-                @event.LocationName,
-                @event.AddressLine1,
-                @event.AddressLine2,
-                @event.City,
-                @event.Region,
-                @event.PostalCode,
-                @event.Country,
-                @event.Latitude,
-                @event.Longitude);
+            : await eventGroupRepository.GetByIdAsync(@event.EventGroupId.Value, cancellationToken);
+
+        return EventResponseMapper.Map(@event, group);
     }
 }

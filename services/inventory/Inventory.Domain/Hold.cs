@@ -1,12 +1,16 @@
 namespace Inventory.Domain;
 
 /// <summary>
-/// A buyer's temporary claim on a set of seats, subject to a TTL. Converted to a sale on checkout
-/// or released (by the buyer or the expiry reaper).
+/// A buyer's temporary claim on inventory, subject to a TTL. Covers either or both individually
+/// addressable seats (<see cref="HoldItem"/>) and general-admission quantities
+/// (<see cref="HoldGeneralAdmissionItem"/>) — a real checkout may mix both, e.g. two reserved
+/// seats plus three general-admission tickets in one purchase. Converted to a sale on checkout or
+/// released (by the buyer or the expiry reaper).
 /// </summary>
 public sealed class Hold
 {
     private readonly List<HoldItem> _items = new();
+    private readonly List<HoldGeneralAdmissionItem> _generalAdmissionItems = new();
 
     // Parameterless ctor for EF Core materialization.
     private Hold()
@@ -30,10 +34,10 @@ public sealed class Hold
     /// <summary>Owning tenant (organizer).</summary>
     public Guid TenantId { get; private set; }
 
-    /// <summary>The event the held seats belong to.</summary>
+    /// <summary>The event the held inventory belongs to.</summary>
     public Guid EventId { get; private set; }
 
-    /// <summary>The buyer holding the seats.</summary>
+    /// <summary>The buyer holding the inventory.</summary>
     public Guid UserId { get; private set; }
 
     /// <summary>The order this hold was converted for, once checkout starts.</summary>
@@ -48,24 +52,31 @@ public sealed class Hold
     /// <summary>When the hold was created (UTC).</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
-    /// <summary>The inventory items in this hold.</summary>
+    /// <summary>The individually-seated inventory items in this hold.</summary>
     public IReadOnlyCollection<HoldItem> Items => _items;
 
-    /// <summary>Creates an active hold over the given inventory items.</summary>
+    /// <summary>The general-admission quantities in this hold.</summary>
+    public IReadOnlyCollection<HoldGeneralAdmissionItem> GeneralAdmissionItems => _generalAdmissionItems;
+
+    /// <summary>Creates an active hold over the given inventory items and/or general-admission quantities.</summary>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="eventId">The event.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="expiresAt">When the hold expires (UTC).</param>
-    /// <param name="inventoryItemIds">The held inventory-item ids.</param>
+    /// <param name="inventoryItemIds">The held inventory-item ids (reserved seats), if any.</param>
+    /// <param name="generalAdmissionSelections">The held (allocation id, quantity) pairs (general admission), if any.</param>
     /// <returns>A new active <see cref="Hold"/>.</returns>
+    /// <exception cref="InvalidOperationException">Neither collection contains any items.</exception>
     public static Hold Create(
         Guid tenantId,
         Guid eventId,
         Guid userId,
         DateTimeOffset expiresAt,
-        IEnumerable<Guid> inventoryItemIds)
+        IEnumerable<Guid> inventoryItemIds,
+        IEnumerable<(Guid AllocationId, int Quantity)> generalAdmissionSelections)
     {
         ArgumentNullException.ThrowIfNull(inventoryItemIds);
+        ArgumentNullException.ThrowIfNull(generalAdmissionSelections);
 
         var hold = new Hold(Guid.CreateVersion7(), tenantId, eventId, userId, expiresAt);
         foreach (var itemId in inventoryItemIds)
@@ -73,9 +84,14 @@ public sealed class Hold
             hold._items.Add(new HoldItem(hold.Id, itemId));
         }
 
-        if (hold._items.Count == 0)
+        foreach (var selection in generalAdmissionSelections)
         {
-            throw new InvalidOperationException("A hold must contain at least one seat.");
+            hold._generalAdmissionItems.Add(new HoldGeneralAdmissionItem(hold.Id, selection.AllocationId, selection.Quantity));
+        }
+
+        if (hold._items.Count == 0 && hold._generalAdmissionItems.Count == 0)
+        {
+            throw new InvalidOperationException("A hold must contain at least one seat or general-admission quantity.");
         }
 
         return hold;

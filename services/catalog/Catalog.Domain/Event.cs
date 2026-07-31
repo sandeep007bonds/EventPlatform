@@ -6,6 +6,8 @@ namespace Catalog.Domain;
 /// </summary>
 public sealed class Event
 {
+    private readonly List<EventSocialLink> _socialLinks = new();
+
     // Parameterless ctor for EF Core materialization.
     private Event()
     {
@@ -16,6 +18,7 @@ public sealed class Event
         Guid tenantId,
         string title,
         DateTimeOffset startsAt,
+        DateTimeOffset endsAt,
         string currency,
         string locationName,
         string addressLine1,
@@ -32,6 +35,7 @@ public sealed class Event
         TenantId = tenantId;
         Title = title;
         StartsAt = startsAt;
+        EndsAt = endsAt;
         Currency = currency;
         LocationName = locationName;
         AddressLine1 = addressLine1;
@@ -64,6 +68,9 @@ public sealed class Event
     /// <summary>Scheduled start time (UTC).</summary>
     public DateTimeOffset StartsAt { get; private set; }
 
+    /// <summary>Scheduled end time (UTC) — this leg's run at its location ends at this time.</summary>
+    public DateTimeOffset EndsAt { get; private set; }
+
     /// <summary>Pricing currency (ISO 4217, e.g. <c>USD</c>).</summary>
     public string Currency { get; private set; } = default!;
 
@@ -76,20 +83,22 @@ public sealed class Event
     /// <summary>Free-text category (e.g. "Concert", "Comedy") — not a taxonomy table in this pass.</summary>
     public string? Category { get; private set; }
 
-    /// <summary>Scheduled end time (UTC), if known.</summary>
-    public DateTimeOffset? EndsAt { get; private set; }
-
     /// <summary>Doors-open time (UTC), if different from <see cref="StartsAt"/>.</summary>
     public DateTimeOffset? DoorsOpenAt { get; private set; }
 
     /// <summary>
     /// Display-only sales-window start (UTC). Not enforced by <see cref="Publish"/> or any status
-    /// transition in this pass — purely informational on the public event page.
+    /// transition — purely informational on the public event page. Contrast with
+    /// <see cref="BookingEndsAt"/>, which is enforced.
     /// </summary>
     public DateTimeOffset? OnSaleAt { get; private set; }
 
-    /// <summary>Display-only sales-window end (UTC) — see <see cref="OnSaleAt"/>.</summary>
-    public DateTimeOffset? OffSaleAt { get; private set; }
+    /// <summary>
+    /// Booking cutoff (UTC) — after this time, Inventory rejects new holds for this event. This is
+    /// a real, enforced invariant (unlike <see cref="OnSaleAt"/>): Catalog publishes it on
+    /// <see cref="Publish"/> so Inventory can check it at hold-placement time.
+    /// </summary>
+    public DateTimeOffset? BookingEndsAt { get; private set; }
 
     /// <summary>Free-text age restriction (e.g. "18+", "All ages"), if any.</summary>
     public string? AgeRestriction { get; private set; }
@@ -130,10 +139,29 @@ public sealed class Event
     /// <summary>Longitude, for a map pin.</summary>
     public double? Longitude { get; private set; }
 
+    /// <summary>Contact phone for this leg. <see langword="null"/> falls back to the owning <see cref="EventGroup"/>'s default.</summary>
+    public string? ContactPhone { get; private set; }
+
+    /// <summary>Contact mobile number for this leg — see <see cref="ContactPhone"/>.</summary>
+    public string? ContactMobile { get; private set; }
+
+    /// <summary>Contact email for this leg — see <see cref="ContactPhone"/>.</summary>
+    public string? ContactEmail { get; private set; }
+
+    /// <summary>Website URL for this leg — see <see cref="ContactPhone"/>.</summary>
+    public string? WebsiteUrl { get; private set; }
+
+    /// <summary>
+    /// This leg's own social links. When non-empty, these entirely replace (not merge with) the
+    /// owning <see cref="EventGroup"/>'s default social links.
+    /// </summary>
+    public IReadOnlyCollection<EventSocialLink> SocialLinks => _socialLinks;
+
     /// <summary>Creates a new draft event for the given tenant, at a specific place and time.</summary>
     /// <param name="tenantId">Owning tenant (organizer).</param>
     /// <param name="title">Event title.</param>
     /// <param name="startsAt">Scheduled start (UTC).</param>
+    /// <param name="endsAt">Scheduled end (UTC) — must be after <paramref name="startsAt"/>.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="locationName">Location/venue name.</param>
     /// <param name="addressLine1">Street address, line 1.</param>
@@ -148,10 +176,12 @@ public sealed class Event
     /// The tour/series this event is one leg of, if any (see <see cref="EventGroup"/>).
     /// </param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="endsAt"/> is not after <paramref name="startsAt"/>.</exception>
     public static Event Create(
         Guid tenantId,
         string title,
         DateTimeOffset startsAt,
+        DateTimeOffset endsAt,
         string currency,
         string locationName,
         string addressLine1,
@@ -171,11 +201,17 @@ public sealed class Event
         ArgumentException.ThrowIfNullOrWhiteSpace(city);
         ArgumentException.ThrowIfNullOrWhiteSpace(country);
 
+        if (endsAt <= startsAt)
+        {
+            throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
+        }
+
         return new Event(
             Guid.CreateVersion7(),
             tenantId,
             title,
             startsAt,
+            endsAt,
             currency,
             locationName,
             addressLine1,
@@ -204,44 +240,59 @@ public sealed class Event
     }
 
     /// <summary>
-    /// Sets the event's descriptive/promotional details. Only permitted while the event is still
-    /// a <see cref="EventStatus.Draft"/> — editing details after publish would need to re-notify
-    /// buyers of material changes, which this pass does not implement.
+    /// Sets the event's descriptive/promotional details, dates, and contact/social info. Only
+    /// permitted while the event is still a <see cref="EventStatus.Draft"/> — editing details
+    /// after publish would need to re-notify buyers of material changes, which this pass does not
+    /// implement (this includes <paramref name="bookingEndsAt"/> — it cannot be changed once
+    /// published in this pass).
     /// </summary>
     /// <param name="description">Marketing description.</param>
     /// <param name="category">Free-text category.</param>
-    /// <param name="endsAt">Scheduled end time (UTC), if known.</param>
+    /// <param name="endsAt">Scheduled end time (UTC) — must be after <see cref="StartsAt"/>.</param>
     /// <param name="doorsOpenAt">Doors-open time (UTC), if different from <see cref="StartsAt"/>.</param>
     /// <param name="onSaleAt">Display-only sales-window start (UTC).</param>
-    /// <param name="offSaleAt">Display-only sales-window end (UTC).</param>
+    /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
+    /// <param name="contactPhone">Contact phone for this leg, overriding the tour default.</param>
+    /// <param name="contactMobile">Contact mobile number for this leg, overriding the tour default.</param>
+    /// <param name="contactEmail">Contact email for this leg, overriding the tour default.</param>
+    /// <param name="websiteUrl">Website URL for this leg, overriding the tour default.</param>
+    /// <param name="socialLinks">
+    /// This leg's own social links (platform, URL pairs); replaces the existing list. An empty
+    /// list means "no override" — the tour's default social links apply instead.
+    /// </param>
     /// <exception cref="InvalidOperationException">The event is not a draft.</exception>
     public void UpdateDetails(
         string? description,
         string? category,
-        DateTimeOffset? endsAt,
+        DateTimeOffset endsAt,
         DateTimeOffset? doorsOpenAt,
         DateTimeOffset? onSaleAt,
-        DateTimeOffset? offSaleAt,
+        DateTimeOffset? bookingEndsAt,
         string? ageRestriction,
         string? bannerImageUrl,
-        string? videoUrl)
+        string? videoUrl,
+        string? contactPhone,
+        string? contactMobile,
+        string? contactEmail,
+        string? websiteUrl,
+        IEnumerable<(string Platform, string Url)> socialLinks)
     {
         if (Status != EventStatus.Draft)
         {
             throw new InvalidOperationException("Only a draft event's details can be changed.");
         }
 
-        if (endsAt is not null && endsAt <= StartsAt)
+        if (endsAt <= StartsAt)
         {
             throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
         }
 
-        if (onSaleAt is not null && offSaleAt is not null && offSaleAt <= onSaleAt)
+        if (onSaleAt is not null && bookingEndsAt is not null && bookingEndsAt <= onSaleAt)
         {
-            throw new ArgumentOutOfRangeException(nameof(offSaleAt), "The off-sale time must be after the on-sale time.");
+            throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must be after the on-sale time.");
         }
 
         Description = description;
@@ -249,10 +300,17 @@ public sealed class Event
         EndsAt = endsAt;
         DoorsOpenAt = doorsOpenAt;
         OnSaleAt = onSaleAt;
-        OffSaleAt = offSaleAt;
+        BookingEndsAt = bookingEndsAt;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;
+        ContactPhone = contactPhone;
+        ContactMobile = contactMobile;
+        ContactEmail = contactEmail;
+        WebsiteUrl = websiteUrl;
+
+        _socialLinks.Clear();
+        _socialLinks.AddRange(socialLinks.Select(link => new EventSocialLink(Guid.CreateVersion7(), Id, link.Platform, link.Url)));
     }
 
     /// <summary>

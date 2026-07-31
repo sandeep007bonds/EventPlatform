@@ -6,9 +6,9 @@ namespace Inventory.Application.Abstractions;
 /// </summary>
 public interface ISeatMapClient
 {
-    /// <summary>Gets the seats for an event from Catalog.</summary>
+    /// <summary>Gets the full seat map for an event from Catalog — both reserved seats and general-admission sections.</summary>
     /// <param name="eventId">The event id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The seats to provision inventory for.</returns>
-    Task<IReadOnlyList<SeatSnapshot>> GetSeatsAsync(Guid eventId, CancellationToken cancellationToken);
+    /// <returns>The seat map to provision inventory from.</returns>
+    Task<SeatMapSnapshot> GetSeatMapAsync(Guid eventId, CancellationToken cancellationToken);
 }

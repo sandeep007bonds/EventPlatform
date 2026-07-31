@@ -65,6 +65,49 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         return 'OK'
         """;
 
+    // KEYS = capacity keys (one per allocation); ARGV[1]=holdId, ARGV[2]=ttl, ARGV[3]=holdKey
+    // (shared TTL sentinel with the seat scripts), ARGV[4]=gaHoldItemsKey (a hash of
+    // allocationId -> held quantity), ARGV[5..4+n]=quantities aligned to KEYS,
+    // ARGV[5+n..4+2n]=allocationId strings aligned to KEYS. A missing capacity key (never
+    // initialized, or lost to a flush) reads as zero remaining — fail-closed, unlike the sparse
+    // seat model. Returns "OK" or "CONFLICT:{allocationId}".
+    private const string TryHoldGeneralAdmissionScript = """
+        local n = #KEYS
+        for i = 1, n do
+          local remaining = tonumber(redis.call('GET', KEYS[i]) or '0')
+          local qty = tonumber(ARGV[4 + i])
+          if remaining < qty then
+            return 'CONFLICT:' .. ARGV[4 + n + i]
+          end
+        end
+        for i = 1, n do
+          local qty = tonumber(ARGV[4 + i])
+          redis.call('DECRBY', KEYS[i], qty)
+          redis.call('HSET', ARGV[4], ARGV[4 + n + i], qty)
+        end
+        redis.call('SET', ARGV[3], '1', 'EX', tonumber(ARGV[2]))
+        redis.call('EXPIRE', ARGV[4], tonumber(ARGV[2]))
+        return 'OK'
+        """;
+
+    // KEYS = capacity keys; ARGV[1]=gaHoldItemsKey, ARGV[2..]=quantities aligned to KEYS.
+    private const string ReleaseGeneralAdmissionScript = """
+        for i = 1, #KEYS do
+          local qty = tonumber(ARGV[1 + i])
+          redis.call('INCRBY', KEYS[i], qty)
+        end
+        redis.call('DEL', ARGV[1])
+        return 'OK'
+        """;
+
+    // ARGV[1]=gaHoldItemsKey. Remaining capacity was already decremented at hold time and must not
+    // be restored — only the hold's bookkeeping hash is cleared, mirroring how MarkSoldScript
+    // deletes holdKey/holdSeatsKey without touching sold seats' permanent state.
+    private const string MarkGeneralAdmissionSoldScript = """
+        redis.call('DEL', ARGV[1])
+        return 'OK'
+        """;
+
     /// <inheritdoc />
     public async Task<HoldStoreResult> TryHoldAsync(
         Guid eventId,
@@ -202,6 +245,83 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         await redis.GetDatabase().StringSetAsync(ReconcilerSentinelKey, "1");
     }
 
+    /// <inheritdoc />
+    public async Task InitializeGeneralAdmissionCapacityAsync(
+        Guid eventId,
+        Guid allocationId,
+        int totalCapacity,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        await redis.GetDatabase().StringSetAsync(CapacityKey(eventId, allocationId), totalCapacity);
+    }
+
+    /// <inheritdoc />
+    public async Task<GeneralAdmissionHoldStoreResult> TryHoldGeneralAdmissionAsync(
+        Guid eventId,
+        Guid holdId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        TimeSpan ttl,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var keys = selections
+            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .ToArray();
+
+        var values = new List<RedisValue>
+        {
+            holdId.ToString("N"),
+            (int)ttl.TotalSeconds,
+            HoldKey(eventId, holdId),
+            GaHoldItemsKey(eventId, holdId),
+        };
+        values.AddRange(selections.Select(selection => (RedisValue)selection.Quantity));
+        values.AddRange(selections.Select(selection => (RedisValue)selection.AllocationId.ToString("N")));
+
+        var raw = (string?)await redis.GetDatabase()
+            .ScriptEvaluateAsync(TryHoldGeneralAdmissionScript, keys, values.ToArray());
+        if (raw == "OK")
+        {
+            return new GeneralAdmissionHoldStoreResult(true, null);
+        }
+
+        var conflictAllocationId = raw?.Split(':', 2) is [_, var id] && Guid.TryParse(id, out var allocation)
+            ? allocation
+            : (Guid?)null;
+
+        return new GeneralAdmissionHoldStoreResult(false, conflictAllocationId);
+    }
+
+    /// <inheritdoc />
+    public async Task ReleaseGeneralAdmissionAsync(
+        Guid eventId,
+        Guid holdId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var keys = selections
+            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .ToArray();
+
+        var values = new List<RedisValue> { GaHoldItemsKey(eventId, holdId) };
+        values.AddRange(selections.Select(selection => (RedisValue)selection.Quantity));
+
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseGeneralAdmissionScript, keys, values.ToArray());
+    }
+
+    /// <inheritdoc />
+    public async Task MarkGeneralAdmissionSoldAsync(Guid eventId, Guid holdId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var values = new RedisValue[] { GaHoldItemsKey(eventId, holdId) };
+        await redis.GetDatabase().ScriptEvaluateAsync(MarkGeneralAdmissionSoldScript, Array.Empty<RedisKey>(), values);
+    }
+
     private static RedisKey[] HoldKeys(Guid eventId, IReadOnlyList<Guid> seatIds) =>
         seatIds.Select(seatId => (RedisKey)SeatKey(eventId, seatId)).ToArray();
 
@@ -218,4 +338,9 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     private static string HoldKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}";
 
     private static string HoldSeatsKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}:seats";
+
+    private static string CapacityKey(Guid eventId, Guid allocationId) =>
+        $"inv:{eventId:N}:ga:{allocationId:N}:remaining";
+
+    private static string GaHoldItemsKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}:ga";
 }

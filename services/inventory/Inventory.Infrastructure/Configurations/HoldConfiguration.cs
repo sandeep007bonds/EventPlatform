@@ -24,5 +24,14 @@ internal sealed class HoldConfiguration : IEntityTypeConfiguration<Hold>
         builder.Metadata
             .FindNavigation(nameof(Hold.Items))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(h => h.GeneralAdmissionItems)
+            .WithOne()
+            .HasForeignKey(item => item.HoldId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Metadata
+            .FindNavigation(nameof(Hold.GeneralAdmissionItems))!
+            .SetPropertyAccessMode(PropertyAccessMode.Field);
     }
 }

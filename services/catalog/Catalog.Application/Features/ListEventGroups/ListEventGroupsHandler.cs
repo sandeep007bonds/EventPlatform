@@ -14,7 +14,7 @@ internal sealed class ListEventGroupsHandler(IEventGroupRepository repository)
             request.PageSize,
             cancellationToken);
 
-        var groups = items.Select(g => new EventGroupResponse(g.Id, g.Title)).ToList();
+        var groups = items.Select(EventGroupResponseMapper.Map).ToList();
 
         return new ListEventGroupsResponse(groups, request.Page, request.PageSize, totalCount);
     }

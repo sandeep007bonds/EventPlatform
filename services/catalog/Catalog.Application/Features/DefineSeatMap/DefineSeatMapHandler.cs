@@ -34,7 +34,19 @@ internal sealed class DefineSeatMapHandler(
         var seatMap = SeatMap.Create(request.EventId, request.TenantId, request.Name);
         foreach (var section in request.Sections)
         {
-            seatMap.AddSection(section.Name, section.PriceTier, section.PriceAmount, section.Rows, section.SeatsPerRow);
+            if (section.AllocationType == AllocationType.Reserved)
+            {
+                seatMap.AddReservedSection(
+                    section.Name,
+                    section.PriceTier,
+                    section.PriceAmount,
+                    section.Rows!.Value,
+                    section.SeatsPerRow!.Value);
+            }
+            else
+            {
+                seatMap.AddGeneralAdmissionSection(section.Name, section.PriceTier, section.PriceAmount, section.Capacity!.Value);
+            }
         }
 
         seatMapRepository.Add(seatMap);

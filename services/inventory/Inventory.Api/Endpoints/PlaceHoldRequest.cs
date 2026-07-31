@@ -1,9 +1,13 @@
 namespace Inventory.Api.Endpoints;
 
 /// <summary>
-/// Request body for placing a seat hold. The tenant and user are taken from the caller's token,
-/// never from this body (ADR-0011).
+/// Request body for placing a hold over reserved seats and/or general-admission quantities. The
+/// tenant and user are taken from the caller's token, never from this body (ADR-0011).
 /// </summary>
-/// <param name="EventId">The event the seats belong to.</param>
-/// <param name="SeatIds">The seat ids to hold.</param>
-public sealed record PlaceHoldRequest(Guid EventId, IReadOnlyList<Guid> SeatIds);
+/// <param name="EventId">The event the inventory belongs to.</param>
+/// <param name="SeatIds">The seat ids to hold, if any.</param>
+/// <param name="GeneralAdmissionSelections">The general-admission (allocation, quantity) pairs to hold, if any.</param>
+public sealed record PlaceHoldRequest(
+    Guid EventId,
+    IReadOnlyList<Guid>? SeatIds,
+    IReadOnlyList<GeneralAdmissionSelectionRequest>? GeneralAdmissionSelections);
