@@ -56,7 +56,7 @@
     <PackageVersion Include="Azure.Communication.Sms" Version="1.0.2" />
     <PackageVersion Include="Azure.Communication.Messages" Version="1.1.0" />
     <PackageVersion Include="Twilio" Version="7.14.9" />
-    <PackageVersion Include="Scriban" Version="6.2.1" />
+    <PackageVersion Include="Scriban" Version="7.2.6" />
   </ItemGroup>
 
   <ItemGroup Label="Gateway (YARP reverse proxy)">
