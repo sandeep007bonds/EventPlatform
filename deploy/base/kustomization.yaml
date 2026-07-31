@@ -7,4 +7,5 @@ resources:
   - payments
   - ticketing
   - communication
+  - media
   - gateway

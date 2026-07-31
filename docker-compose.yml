@@ -7,6 +7,7 @@ name: eventplatform-local
 #   Postgres  localhost:5432
 #   Redis     localhost:6380   (6379 is left free for Dapr's own runtime)
 #   Jaeger UI http://localhost:16686   (OTLP ingest on 4317/4318)
+#   Azurite   localhost:10000  (blob only — Media.Api's local storage emulator)
 
 services:
   postgres:
@@ -43,6 +44,12 @@ services:
       - "16686:16686"   # Jaeger UI
       - "4317:4317"     # OTLP gRPC (services export traces here)
       - "4318:4318"     # OTLP HTTP
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000"
+    ports:
+      - "10000:10000"
 
 volumes:
   pgdata:

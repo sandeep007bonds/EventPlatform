@@ -42,6 +42,9 @@ images:
   - name: communication-placeholder
     newName: REPLACE_ME.azurecr.io/communication
     newTag: REPLACE_ME
+  - name: media-placeholder
+    newName: REPLACE_ME.azurecr.io/media
+    newTag: REPLACE_ME
   - name: gateway-placeholder
     newName: REPLACE_ME.azurecr.io/gateway
     newTag: REPLACE_ME

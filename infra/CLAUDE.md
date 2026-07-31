@@ -22,9 +22,9 @@ the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
   every divergence and why. A future `staging`/`production` environment
   would follow the full ADR-0002/0005 topology instead.
 - `modules/` — leaf modules (`resource-group`, `networking`,
-  `container-registry`, `aks`, `postgres`, `redis`, `key-vault`), reused
-  across environments. Leaf modules never contain `provider`/`backend`/
-  `required_version` blocks — those are root-module-only, set in each
+  `container-registry`, `aks`, `postgres`, `redis`, `key-vault`,
+  `blob-storage`), reused across environments. Leaf modules never contain
+  `provider`/`backend`/`required_version` blocks — those are root-module-only, set in each
   `environments/*` config.
 
 ## Design notes

@@ -41,6 +41,7 @@ Optional: Visual Studio 2022 (17.14+ for `.slnx`), Rider, or VS Code + C# Dev Ki
 | PostgreSQL | `localhost:5432` | user `eventplatform` / pw `localdev` / db `eventplatform` |
 | Redis | `localhost:6380` | 6379 is left free for Dapr's own runtime |
 | Jaeger UI | http://localhost:16686 | traces from every service (OTLP on 4317) |
+| Azurite | `localhost:10000` (blob only) | Media.Api's local Azure Blob Storage emulator — `ConnectionStrings:media-storage` is `UseDevelopmentStorage=true`, the SDK's built-in shorthand for this |
 
 Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 
@@ -153,6 +154,9 @@ a **test** key locally, and roll any key that has ever been shared.
 | 5082 | Ordering.Api |
 | 5083 | Payments.Api |
 | 5084 | Ticketing.Api |
+| 5085 | Communication.Api |
+| 5086 | Media.Api |
+| 10000 | Azurite (blob) |
 
 `dev-up.sh` runs every service over plain HTTP on these ports (no dev TLS cert
 needed) — see [local-e2e-walkthrough.md](local-e2e-walkthrough.md) for why.

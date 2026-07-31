@@ -57,6 +57,16 @@ module "redis" {
   tags                = local.tags
 }
 
+module "media_storage" {
+  source = "../../modules/blob-storage"
+
+  # 24 chars exactly (the storage-account limit): "st" + "eventplatformdev" (16) + 6-char suffix.
+  name                = "st${replace(local.name_prefix, "-", "")}${local.suffix}"
+  resource_group_name = module.resource_group.name
+  location            = var.location
+  tags                = local.tags
+}
+
 module "aks" {
   source = "../../modules/aks"
 
@@ -145,6 +155,15 @@ resource "azurerm_key_vault_secret" "jwt_dev_signing_key" {
 resource "azurerm_key_vault_secret" "redis_connection_string" {
   name         = "redis-connection-string"
   value        = "${module.redis.hostname}:${module.redis.ssl_port},password=${module.redis.primary_access_key},ssl=True,abortConnect=False"
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+# Media service's blob storage connection string.
+resource "azurerm_key_vault_secret" "media_storage_connection_string" {
+  name         = "media-storage-connection-string"
+  value        = module.media_storage.primary_connection_string
   key_vault_id = module.key_vault.id
 
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
