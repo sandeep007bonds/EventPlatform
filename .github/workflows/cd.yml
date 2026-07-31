@@ -15,33 +15,102 @@ permissions:
   id-token: write # to mint the OIDC token azure/login federates with
 
 jobs:
-  build-and-push:
+  # Builds a matrix of only the services whose code actually changed, so a
+  # docs-only or single-service commit doesn't rebuild and redeploy all 7.
+  # Errs toward over-building, never under-building: anything ambiguous (no
+  # parent commit to diff against, or a change to shared code every service
+  # depends on) falls back to building everything.
+  detect-changes:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.filter.outputs.matrix }}
+      has_services: ${{ steps.filter.outputs.has_services }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+
+      - id: filter
+        run: |
+          set -euo pipefail
+
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            changed="$(git diff --name-only HEAD~1 HEAD)"
+          else
+            echo "No parent commit available to diff (shallow history or first commit) - building everything."
+            changed="__ALL__"
+          fi
+          echo "Changed files:"
+          echo "${changed}"
+
+          # Changing anything shared by every service forces a full rebuild -
+          # a per-service path filter can't tell whether the change affects
+          # them, so don't guess.
+          shared_changed=false
+          if [ "${changed}" = "__ALL__" ] || echo "${changed}" | grep -qE \
+            '^(building-blocks/|Directory\.Build\.props$|Directory\.Packages\.props$|Dockerfile$|\.dockerignore$|EventPlatform\.slnx$|\.github/workflows/cd\.yml$)'; then
+            shared_changed=true
+          fi
+
+          declare -A service_path=(
+            [catalog]="services/catalog"
+            [inventory]="services/inventory"
+            [ordering]="services/ordering"
+            [payments]="services/payments"
+            [ticketing]="services/ticketing"
+            [communication]="services/communication"
+            [gateway]="gateways/EventPlatform.Gateway"
+          )
+          declare -A project_path=(
+            [catalog]="services/catalog/Catalog.Api/Catalog.Api.csproj"
+            [inventory]="services/inventory/Inventory.Api/Inventory.Api.csproj"
+            [ordering]="services/ordering/Ordering.Api/Ordering.Api.csproj"
+            [payments]="services/payments/Payments.Api/Payments.Api.csproj"
+            [ticketing]="services/ticketing/Ticketing.Api/Ticketing.Api.csproj"
+            [communication]="services/communication/Communication.Api/Communication.Api.csproj"
+            [gateway]="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj"
+          )
+          declare -A assembly_name=(
+            [catalog]="Catalog.Api"
+            [inventory]="Inventory.Api"
+            [ordering]="Ordering.Api"
+            [payments]="Payments.Api"
+            [ticketing]="Ticketing.Api"
+            [communication]="Communication.Api"
+            [gateway]="EventPlatform.Gateway"
+          )
+
+          entries="[]"
+          for svc in catalog inventory ordering payments ticketing communication gateway; do
+            include=false
+            if [ "${shared_changed}" = true ]; then
+              include=true
+            elif echo "${changed}" | grep -q "^${service_path[$svc]}/"; then
+              include=true
+            fi
+            if [ "${include}" = true ]; then
+              entries="$(echo "${entries}" | jq -c \
+                --arg service "${svc}" \
+                --arg project_path "${project_path[$svc]}" \
+                --arg assembly_name "${assembly_name[$svc]}" \
+                '. + [{service:$service, project_path:$project_path, assembly_name:$assembly_name}]')"
+            fi
+          done
+
+          echo "Services to build: $(echo "${entries}" | jq -c '[.[].service]')"
+          {
+            echo "matrix={\"include\":${entries}}"
+            echo "has_services=$(echo "${entries}" | jq 'length > 0')"
+          } >> "${GITHUB_OUTPUT}"
+
+  build-and-push:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_services == 'true'
+    runs-on: ubuntu-latest
     strategy:
-      matrix:
-        include:
-          - service: catalog
-            project_path: services/catalog/Catalog.Api/Catalog.Api.csproj
-            assembly_name: Catalog.Api
-          - service: inventory
-            project_path: services/inventory/Inventory.Api/Inventory.Api.csproj
-            assembly_name: Inventory.Api
-          - service: ordering
-            project_path: services/ordering/Ordering.Api/Ordering.Api.csproj
-            assembly_name: Ordering.Api
-          - service: payments
-            project_path: services/payments/Payments.Api/Payments.Api.csproj
-            assembly_name: Payments.Api
-          - service: ticketing
-            project_path: services/ticketing/Ticketing.Api/Ticketing.Api.csproj
-            assembly_name: Ticketing.Api
-          - service: communication
-            project_path: services/communication/Communication.Api/Communication.Api.csproj
-            assembly_name: Communication.Api
-          - service: gateway
-            project_path: gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj
-            assembly_name: EventPlatform.Gateway
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -76,7 +145,7 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
   update-manifests:
-    needs: build-and-push
+    needs: [detect-changes, build-and-push]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -89,26 +158,32 @@ jobs:
             | tar xz
           sudo mv kustomize /usr/local/bin/
 
-      - name: Set image tags to this run's images
+      # Only bumps the tag for services build-and-push actually built -
+      # bumping every service's tag on every push would point unchanged
+      # services at images that were never pushed for this SHA.
+      - name: Set image tags for built services
         working-directory: deploy/overlays/dev
         run: |
           set -euo pipefail
-          kustomize edit set image \
-            "catalog-placeholder=${ACR_LOGIN_SERVER}/catalog:${SHA}" \
-            "inventory-placeholder=${ACR_LOGIN_SERVER}/inventory:${SHA}" \
-            "ordering-placeholder=${ACR_LOGIN_SERVER}/ordering:${SHA}" \
-            "payments-placeholder=${ACR_LOGIN_SERVER}/payments:${SHA}" \
-            "ticketing-placeholder=${ACR_LOGIN_SERVER}/ticketing:${SHA}" \
-            "communication-placeholder=${ACR_LOGIN_SERVER}/communication:${SHA}" \
-            "gateway-placeholder=${ACR_LOGIN_SERVER}/gateway:${SHA}"
+          services="$(echo "${MATRIX}" | jq -r '.include[].service')"
+          if [ -z "${services}" ]; then
+            echo "No services were built - nothing to update."
+            exit 0
+          fi
+          args=()
+          for svc in ${services}; do
+            args+=("${svc}-placeholder=${ACR_LOGIN_SERVER}/${svc}:${SHA}")
+          done
+          kustomize edit set image "${args[@]}"
         env:
+          MATRIX: ${{ needs.detect-changes.outputs.matrix }}
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       # Deliberate, narrow exception to "no direct commits to main": this bot
       # only ever changes one generated field (image tags) in one file, never
       # application code — the same class of exception as Argo CD's own
-      # bootstrap. Argo CD picks the change up and reconciles it; nothing here
+      # install. Argo CD picks the change up and reconciles it; nothing here
       # touches the cluster directly.
       - name: Commit and push
         run: |

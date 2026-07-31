@@ -4,8 +4,12 @@
   deploy/**` so `cd.yml`'s tag-bump commits don't retrigger it (see the loop
   note in both files, and [ADR-0004](../../docs/adr/0004-cicd-github-actions-argocd.md)).
 - **`cd.yml`** — runs after `ci.yml` succeeds on `main` or the current
-  working branch. Builds and pushes all 7 service images to ACR, then
-  commits the new tags into `deploy/overlays/dev/kustomization.yaml`. Never
+  working branch. `detect-changes` diffs the triggering commit against its
+  parent and builds/pushes only the services whose code (or `building-blocks/`
+  or another shared path) actually changed, then commits just those new tags
+  into `deploy/overlays/dev/kustomization.yaml`. Ambiguous cases (no parent
+  commit to diff, or a shared-code change) fall back to rebuilding
+  everything — it errs toward wasted builds, never a missed one. Never
   touches the cluster directly — Argo CD reconciles that commit (see
   `platform/argocd/`).
 

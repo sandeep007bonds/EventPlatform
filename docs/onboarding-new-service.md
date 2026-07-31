@@ -98,11 +98,14 @@ services/<name>/<Name>.Api/<Name>.Api.csproj -> <Name>.Api
 
 ## 5. CD workflow
 
-- [ ] Add a matrix entry for `<name>` to the `build-and-push` job in
-      [`.github/workflows/cd.yml`](../.github/workflows/cd.yml)
-      (`service`, `project_path`, `assembly_name`).
-- [ ] Add a `"<name>-placeholder=${ACR_LOGIN_SERVER}/<name>:${SHA}"` line to
-      the `kustomize edit set image` command in the `update-manifests` job.
+- [ ] Add `<name>` to all three associative arrays (`service_path`,
+      `project_path`, `assembly_name`) and to the `for svc in ...` loop in
+      the `detect-changes` job of
+      [`.github/workflows/cd.yml`](../.github/workflows/cd.yml). That job
+      computes which services changed and builds a matrix from it — there's
+      no static matrix to edit anymore, and no separate `update-manifests`
+      change needed, since it derives its `kustomize edit set image`
+      arguments from whatever `detect-changes` decided to build.
 
 ## 6. Argo CD
 
