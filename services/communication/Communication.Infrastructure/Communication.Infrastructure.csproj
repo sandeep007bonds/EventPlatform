@@ -22,6 +22,12 @@
     <PackageReference Include="Azure.Communication.Sms" />
     <PackageReference Include="Azure.Communication.Messages" />
     <PackageReference Include="Twilio" />
+    <!-- AddHttpClient<T>/IHttpClientFactory for TwilioSmsSender/TwilioWhatsAppSender
+         (see services/communication/CLAUDE.md) - was only compiling before via an
+         indirect transitive from Scriban 6.2.1; that path disappeared bumping to
+         7.2.6 (CS0234), so it needs to be a direct reference like any other type
+         this project uses directly. -->
+    <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Scriban" />
   </ItemGroup>
 
