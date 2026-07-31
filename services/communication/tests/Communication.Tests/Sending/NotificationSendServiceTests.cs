@@ -9,9 +9,6 @@ public sealed class NotificationSendServiceTests
     private readonly ITemplateRenderer renderer = Substitute.For<ITemplateRenderer>();
     private readonly INotificationRepository notifications = Substitute.For<INotificationRepository>();
 
-    private NotificationSendService CreateService() =>
-        new(emailSender, smsSender, whatsAppSender, templates, renderer, notifications);
-
     [Fact]
     public async Task SendAsync_Email_RendersTemplateAndSends()
     {
@@ -80,4 +77,7 @@ public sealed class NotificationSendServiceTests
         result.FailureReason.ShouldBe("vendor rejected");
         notifications.Received(1).AddDeliveryLog(Arg.Is<DeliveryLogEntry>(e => e.Status == DeliveryStatus.Failed));
     }
+
+    private NotificationSendService CreateService() =>
+        new(emailSender, smsSender, whatsAppSender, templates, renderer, notifications);
 }

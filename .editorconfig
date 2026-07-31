@@ -57,10 +57,17 @@ dotnet_naming_style.prefix_i.capitalization = pascal_case
 
 # --- Relax doc/style noise where it adds no value ---
 
-# Test projects: don't require XML docs
+# Test projects: don't require XML docs; allow the idiomatic
+# Method_Scenario_ExpectedResult xUnit naming convention (CA1707 otherwise
+# forbids underscores in identifiers); allow disposable fields (e.g. a
+# Testcontainers container, a DbContext) cleaned up via IAsyncLifetime's
+# InitializeAsync/DisposeAsync instead of IDisposable - CA1001 doesn't
+# recognize that xUnit-native pattern as valid disposal.
 [**/tests/**/*.cs]
 dotnet_diagnostic.CS1591.severity = none
 dotnet_diagnostic.SA1600.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1001.severity = none
 
 # Generated / migrations code: exclude from style
 [**/{Migrations,Generated}/**/*.cs]

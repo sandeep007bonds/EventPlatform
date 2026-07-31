@@ -5,8 +5,6 @@ public sealed class IntegrationEventNotificationHandlerTests
     private readonly INotificationRepository notifications = Substitute.For<INotificationRepository>();
     private readonly IRecipientResolver recipients = Substitute.For<IRecipientResolver>();
 
-    private IntegrationEventNotificationHandler CreateHandler() => new(notifications, recipients);
-
     [Fact]
     public async Task HandleOrderConfirmed_AlreadyProcessed_IsNoOp()
     {
@@ -44,4 +42,6 @@ public sealed class IntegrationEventNotificationHandlerTests
 
         notifications.Received(1).AddDeliveryLog(Arg.Is<DeliveryLogEntry>(e => e.Status == DeliveryStatus.Skipped && e.TemplateKey == TemplateKeys.TicketIssued));
     }
+
+    private IntegrationEventNotificationHandler CreateHandler() => new(notifications, recipients);
 }
