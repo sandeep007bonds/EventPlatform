@@ -29,7 +29,14 @@ internal sealed class DaprHoldClient : IHoldClient
         }
 
         var lines = hold.Lines
-            .Select(line => new HoldLineSnapshot(line.InventoryItemId, line.SeatId, line.PriceTier, line.PriceMinor))
+            .Select(line => new HoldLineSnapshot(
+                line.InventoryItemId,
+                line.SeatId,
+                line.GeneralAdmissionAllocationId,
+                line.Quantity,
+                line.PriceTier,
+                line.UnitPriceMinor,
+                line.PriceMinor))
             .ToList();
 
         return new HoldSnapshot(

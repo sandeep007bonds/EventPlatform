@@ -4,10 +4,11 @@ Inherits the [root CLAUDE.md](../../CLAUDE.md) and [engineering guidelines](../.
 
 ## Responsibility
 
-Issues tickets when an order is confirmed — one ticket per sold seat, each with an
-opaque scan token (encoded as a QR at the edge). Bounded context: **Ticketing**
-(ADR-0008). The aggregate is `Ticket`; the context is named `Ticketing` so the type
-never clashes with its namespace.
+Issues tickets when an order is confirmed — one ticket per sold seat, plus one
+ticket per general-admission unit purchased, each with an opaque scan token
+(encoded as a QR at the edge). Bounded context: **Ticketing** (ADR-0008). The
+aggregate is `Ticket`; the context is named `Ticketing` so the type never
+clashes with its namespace.
 
 ## Owns
 
@@ -18,8 +19,16 @@ never clashes with its namespace.
 
 ## Design notes
 
+- **Reserved seat vs. general admission:** `Ticket.SeatId` and
+  `Ticket.GeneralAdmissionAllocationId` are both nullable — exactly one is set
+  (enforced in `Ticket.Create`). `TicketIssuingService.IssueAsync` reads
+  `OrderConfirmed.Lines` (each line's `Quantity` — always 1 for a seat line) and
+  mints that many tickets per line, so a general-admission line becomes several
+  individually-scannable tickets with no seat.
 - **Idempotent issuance:** re-delivery of `OrderConfirmed` is a no-op once an order
-  is ticketed (unique index on `(order_id, seat_id)` + a pre-check).
+  is ticketed (unique index on `(order_id, seat_id)` + a pre-check — Postgres
+  treats each `NULL seat_id` as distinct, so multiple general-admission tickets
+  per order don't collide on that index).
 - **Scan token:** a 128-bit CSPRNG token (`RandomNumberGenerator`), unique per
   ticket. The QR encodes the token; the gate scans it. See tracker T-ticket-token
   for signing/rotation before production.

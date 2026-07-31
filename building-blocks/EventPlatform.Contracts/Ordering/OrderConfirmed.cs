@@ -12,7 +12,7 @@ namespace EventPlatform.Contracts.Ordering;
 /// <param name="UserId">The buyer.</param>
 /// <param name="TotalMinor">Order total in minor currency units.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
-/// <param name="SeatIds">The purchased seat ids.</param>
+/// <param name="Lines">The purchased lines — reserved seats and/or general-admission quantities.</param>
 public sealed record OrderConfirmed(
     Guid EventId,
     DateTimeOffset OccurredAt,
@@ -22,4 +22,4 @@ public sealed record OrderConfirmed(
     Guid UserId,
     long TotalMinor,
     string Currency,
-    IReadOnlyList<Guid> SeatIds) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    IReadOnlyList<OrderLineSummary> Lines) : IntegrationEvent(EventId, OccurredAt, TenantId);

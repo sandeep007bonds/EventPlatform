@@ -26,7 +26,7 @@ public sealed class ConfirmOrderActivity(IOrderRepository orders, IEventPublishe
             input.UserId,
             order.TotalMinor,
             order.Currency,
-            input.SeatIds));
+            input.Lines));
 
         await orders.SaveChangesAsync(CancellationToken.None);
         return true;

@@ -1,8 +1,9 @@
 namespace Ticketing.Domain;
 
 /// <summary>
-/// A ticket admitting one seat for one order. Carries an opaque <see cref="Token"/> that the QR
-/// code encodes and the gate scans.
+/// A ticket admitting one unit for one order — either a reserved seat (<see cref="SeatId"/> set) or
+/// one general-admission quantity (<see cref="GeneralAdmissionAllocationId"/> set), never both.
+/// Carries an opaque <see cref="Token"/> that the QR code encodes and the gate scans.
 /// </summary>
 public sealed class Ticket
 {
@@ -16,7 +17,8 @@ public sealed class Ticket
         Guid tenantId,
         Guid orderId,
         Guid catalogEventId,
-        Guid seatId,
+        Guid? seatId,
+        Guid? generalAdmissionAllocationId,
         Guid userId,
         string token)
     {
@@ -25,6 +27,7 @@ public sealed class Ticket
         OrderId = orderId;
         CatalogEventId = catalogEventId;
         SeatId = seatId;
+        GeneralAdmissionAllocationId = generalAdmissionAllocationId;
         UserId = userId;
         Token = token;
         Status = TicketStatus.Issued;
@@ -43,8 +46,11 @@ public sealed class Ticket
     /// <summary>The show/event the seat belongs to.</summary>
     public Guid CatalogEventId { get; private set; }
 
-    /// <summary>The seat the ticket admits.</summary>
-    public Guid SeatId { get; private set; }
+    /// <summary>The seat the ticket admits, if this ticket is for a reserved seat.</summary>
+    public Guid? SeatId { get; private set; }
+
+    /// <summary>The general-admission allocation the ticket admits, if this ticket is general admission.</summary>
+    public Guid? GeneralAdmissionAllocationId { get; private set; }
 
     /// <summary>The ticket holder.</summary>
     public Guid UserId { get; private set; }
@@ -58,25 +64,34 @@ public sealed class Ticket
     /// <summary>When the ticket was issued (UTC).</summary>
     public DateTimeOffset IssuedAt { get; private set; }
 
-    /// <summary>Issues a ticket for a seat.</summary>
+    /// <summary>Issues a ticket for a reserved seat or a general-admission quantity.</summary>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The order.</param>
     /// <param name="catalogEventId">The show/event.</param>
-    /// <param name="seatId">The seat admitted.</param>
+    /// <param name="seatId">The seat admitted, if this ticket is for a reserved seat.</param>
+    /// <param name="generalAdmissionAllocationId">The allocation admitted, if this ticket is general admission.</param>
     /// <param name="userId">The ticket holder.</param>
     /// <param name="token">The opaque scan token.</param>
     /// <returns>A new issued <see cref="Ticket"/>.</returns>
+    /// <exception cref="ArgumentException">Neither or both of <paramref name="seatId"/>/<paramref name="generalAdmissionAllocationId"/> are set.</exception>
     public static Ticket Create(
         Guid tenantId,
         Guid orderId,
         Guid catalogEventId,
-        Guid seatId,
+        Guid? seatId,
+        Guid? generalAdmissionAllocationId,
         Guid userId,
         string token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
 
-        return new Ticket(Guid.CreateVersion7(), tenantId, orderId, catalogEventId, seatId, userId, token);
+        if (seatId is null == generalAdmissionAllocationId is null)
+        {
+            throw new ArgumentException(
+                "A ticket must admit exactly one of a seat or a general-admission allocation.");
+        }
+
+        return new Ticket(Guid.CreateVersion7(), tenantId, orderId, catalogEventId, seatId, generalAdmissionAllocationId, userId, token);
     }
 
     /// <summary>Marks the ticket checked in at the gate.</summary>

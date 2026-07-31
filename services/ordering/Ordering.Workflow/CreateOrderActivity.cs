@@ -24,7 +24,13 @@ public sealed class CreateOrderActivity(IOrderRepository orders, CheckoutOptions
             input.HoldId,
             options.DefaultCurrency,
             input.IdempotencyKey,
-            input.Lines.Select(line => new OrderLineSpec(line.InventoryItemId, line.SeatId, line.PriceMinor)));
+            input.Lines.Select(line => new OrderLineSpec(
+                line.InventoryItemId,
+                line.SeatId,
+                line.GeneralAdmissionAllocationId,
+                line.Quantity,
+                line.UnitPriceMinor,
+                line.PriceMinor)));
         order.MarkAwaitingPayment();
 
         // Race window: two attempts both passed the check above. The unique index on

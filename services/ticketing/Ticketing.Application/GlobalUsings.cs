@@ -1,5 +1,6 @@
 global using System.Security.Cryptography;
 global using EventPlatform.Contracts;
+global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Contracts.Ticketing;
 global using Microsoft.Extensions.DependencyInjection;
 global using Ticketing.Application.Abstractions;

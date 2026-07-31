@@ -20,6 +20,13 @@ is named `Ordering` so the type never clashes with its namespace.
 
 ## Design notes
 
+- **Polymorphic order lines:** `OrderLine`/`OrderLineSpec` are widened with
+  nullable fields rather than split into separate seat/GA types — a line is
+  either a reserved seat (`InventoryItemId`/`SeatId` set, `Quantity` always 1)
+  or a general-admission quantity (`GeneralAdmissionAllocationId` set), never
+  both. The hold snapshot read from Inventory (`HoldLineSnapshot`) carries the
+  same shape, and `OrderConfirmed`'s `Lines` (`OrderLineSummary`) is the
+  publish-side equivalent Ticketing consumes to mint the right ticket count.
 - **Idempotent checkout:** deduped on `(tenant_id, idempotency_key)` — unique
   index + a pre-check. The `Idempotency-Key` header is required. Two *concurrent*
   requests can both pass the pre-check; the unique index then lets exactly one

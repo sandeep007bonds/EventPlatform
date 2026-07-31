@@ -94,7 +94,7 @@ public sealed class Order
         var order = new Order(Guid.CreateVersion7(), tenantId, userId, catalogEventId, holdId, currency, idempotencyKey);
         foreach (var line in lines)
         {
-            order._lines.Add(new OrderLine(order.Id, line.InventoryItemId, line.SeatId, line.PriceMinor));
+            order._lines.Add(new OrderLine(order.Id, line));
         }
 
         if (order._lines.Count == 0)

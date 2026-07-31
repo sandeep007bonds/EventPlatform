@@ -147,7 +147,12 @@ public static class OrderingEndpoints
         }
 
         var lines = order.Lines
-            .Select(line => new OrderLineResponse(line.SeatId, line.PriceMinor))
+            .Select(line => new OrderLineResponse(
+                line.SeatId,
+                line.GeneralAdmissionAllocationId,
+                line.Quantity,
+                line.UnitPriceMinor,
+                line.PriceMinor))
             .ToList();
 
         var response = new OrderResponse(

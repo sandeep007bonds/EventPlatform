@@ -34,7 +34,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleTicketIssued_NoRecipientResolved_RecordsSkippedWithTicketIssuedTemplateKey()
     {
-        var @event = new TicketIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid());
+        var @event = new TicketIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(false);
         recipients.ResolveAsync(@event.UserId, Arg.Any<CancellationToken>()).Returns((RecipientContact?)null);
 

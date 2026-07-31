@@ -10,6 +10,8 @@ internal sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLin
 
         builder.HasKey(line => line.Id);
 
+        builder.Property(line => line.Quantity).IsRequired();
+        builder.Property(line => line.UnitPriceMinor).IsRequired();
         builder.Property(line => line.PriceMinor).IsRequired();
 
         builder.HasIndex(line => line.OrderId);

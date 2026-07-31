@@ -10,7 +10,8 @@ namespace EventPlatform.Contracts.Ticketing;
 /// <param name="TicketId">The issued ticket id.</param>
 /// <param name="OrderId">The order the ticket was issued for.</param>
 /// <param name="CatalogEventId">The show/event the seat belongs to.</param>
-/// <param name="SeatId">The seat the ticket admits.</param>
+/// <param name="SeatId">The seat the ticket admits, if this ticket is for a reserved seat.</param>
+/// <param name="GeneralAdmissionAllocationId">The allocation the ticket admits, if this ticket is general admission.</param>
 /// <param name="UserId">The ticket holder.</param>
 public sealed record TicketIssued(
     Guid EventId,
@@ -19,5 +20,6 @@ public sealed record TicketIssued(
     Guid TicketId,
     Guid OrderId,
     Guid CatalogEventId,
-    Guid SeatId,
+    Guid? SeatId,
+    Guid? GeneralAdmissionAllocationId,
     Guid UserId) : IntegrationEvent(EventId, OccurredAt, TenantId);

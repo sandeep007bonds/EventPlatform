@@ -1,15 +1,22 @@
 namespace Ordering.Domain;
 
-/// <summary>A single seat line within an <see cref="Order"/>.</summary>
+/// <summary>
+/// A single line within an <see cref="Order"/> — either a reserved seat
+/// (<see cref="InventoryItemId"/>/<see cref="SeatId"/> set, <see cref="Quantity"/> always 1) or a
+/// general-admission quantity (<see cref="GeneralAdmissionAllocationId"/> set), never both.
+/// </summary>
 public sealed class OrderLine
 {
-    internal OrderLine(Guid orderId, Guid inventoryItemId, Guid seatId, long priceMinor)
+    internal OrderLine(Guid orderId, OrderLineSpec spec)
     {
         Id = Guid.CreateVersion7();
         OrderId = orderId;
-        InventoryItemId = inventoryItemId;
-        SeatId = seatId;
-        PriceMinor = priceMinor;
+        InventoryItemId = spec.InventoryItemId;
+        SeatId = spec.SeatId;
+        GeneralAdmissionAllocationId = spec.GeneralAdmissionAllocationId;
+        Quantity = spec.Quantity;
+        UnitPriceMinor = spec.UnitPriceMinor;
+        PriceMinor = spec.PriceMinor;
     }
 
     // Parameterless ctor for EF Core materialization.
@@ -23,12 +30,21 @@ public sealed class OrderLine
     /// <summary>The order this line belongs to.</summary>
     public Guid OrderId { get; private set; }
 
-    /// <summary>The inventory item sold on this line.</summary>
-    public Guid InventoryItemId { get; private set; }
+    /// <summary>The inventory item sold on this line, if this line is a reserved seat.</summary>
+    public Guid? InventoryItemId { get; private set; }
 
-    /// <summary>The Catalog seat id.</summary>
-    public Guid SeatId { get; private set; }
+    /// <summary>The Catalog seat id, if this line is a reserved seat.</summary>
+    public Guid? SeatId { get; private set; }
 
-    /// <summary>Price in minor currency units.</summary>
+    /// <summary>The general-admission allocation sold on this line, if this line is general admission.</summary>
+    public Guid? GeneralAdmissionAllocationId { get; private set; }
+
+    /// <summary>Number of admissions this line represents (1 for a reserved seat).</summary>
+    public int Quantity { get; private set; }
+
+    /// <summary>Price per unit in minor currency units.</summary>
+    public long UnitPriceMinor { get; private set; }
+
+    /// <summary>Total price of this line in minor currency units.</summary>
     public long PriceMinor { get; private set; }
 }

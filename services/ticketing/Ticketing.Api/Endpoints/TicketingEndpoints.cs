@@ -38,7 +38,7 @@ public static class TicketingEndpoints
             @event.OrderId,
             @event.CatalogEventId,
             @event.UserId,
-            @event.SeatIds,
+            @event.Lines,
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Ticketing.Issuing");
@@ -80,6 +80,7 @@ public static class TicketingEndpoints
             ticket.OrderId,
             ticket.CatalogEventId,
             ticket.SeatId,
+            ticket.GeneralAdmissionAllocationId,
             ticket.Token,
             ticket.Status.ToString(),
             ticket.IssuedAt);

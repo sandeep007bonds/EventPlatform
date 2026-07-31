@@ -76,10 +76,12 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         }
 
         // 5. Confirm.
-        var seatIds = hold.Lines.Select(line => line.SeatId).ToList();
+        var lines = hold.Lines
+            .Select(line => new OrderLineSummary(line.SeatId, line.GeneralAdmissionAllocationId, line.Quantity))
+            .ToList();
         await context.CallActivityAsync<bool>(
             nameof(ConfirmOrderActivity),
-            new ConfirmInput(order.OrderId, input.TenantId, hold.CatalogEventId, input.UserId, seatIds));
+            new ConfirmInput(order.OrderId, input.TenantId, hold.CatalogEventId, input.UserId, lines));
 
         return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Confirmed), order.OrderId);
     }
