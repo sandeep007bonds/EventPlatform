@@ -3,9 +3,15 @@ import { httpClient } from '../http/client';
 /** Lifecycle status of an order. */
 export type OrderStatus = 'Pending' | 'AwaitingPayment' | 'Confirmed' | 'Failed' | 'Refunded';
 
-/** One line of an order. */
+/**
+ * One line of an order — either a reserved seat (`seatId` set, `quantity` always 1) or a
+ * general-admission quantity (`generalAdmissionAllocationId` set), never both.
+ */
 export interface OrderLineResponse {
-  seatId: string;
+  seatId: string | null;
+  generalAdmissionAllocationId: string | null;
+  quantity: number;
+  unitPriceMinor: number;
   priceMinor: number;
 }
 

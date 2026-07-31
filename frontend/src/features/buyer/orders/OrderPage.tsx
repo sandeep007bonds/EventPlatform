@@ -101,7 +101,9 @@ export function OrderPage() {
           dataSource={order.lines}
           renderItem={(line) => (
             <List.Item>
-              <span>Seat {line.seatId}</span>
+              <span>
+                {line.seatId ? `Seat ${line.seatId}` : `General admission × ${line.quantity}`}
+              </span>
               <span>{formatMoney(line.priceMinor, order.currency)}</span>
             </List.Item>
           )}
@@ -124,7 +126,9 @@ export function OrderPage() {
             renderItem={(ticket) => (
               <List.Item>
                 <Card size="small" style={{ width: '100%' }}>
-                  <Typography.Text strong>Seat {ticket.seatId}</Typography.Text>
+                  <Typography.Text strong>
+                    {ticket.seatId ? `Seat ${ticket.seatId}` : 'General admission'}
+                  </Typography.Text>
                   <Tag
                     style={{ marginLeft: 8 }}
                     color={ticket.status === 'Issued' ? 'green' : 'default'}

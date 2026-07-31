@@ -133,7 +133,10 @@ export function CheckoutPage() {
         dataSource={hold.lines}
         renderItem={(line) => (
           <List.Item>
-            <span>{line.priceTier}</span>
+            <span>
+              {line.priceTier}
+              {line.generalAdmissionAllocationId ? ` × ${line.quantity}` : ''}
+            </span>
             <span>{formatMoney(line.priceMinor, currency)}</span>
           </List.Item>
         )}

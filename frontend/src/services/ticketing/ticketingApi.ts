@@ -3,12 +3,16 @@ import { httpClient } from '../http/client';
 /** Lifecycle status of a ticket. */
 export type TicketStatus = 'Issued' | 'CheckedIn' | 'Void';
 
-/** Read model for a single ticket. */
+/**
+ * Read model for a single ticket — either a reserved seat (`seatId` set) or a general-admission
+ * unit (`generalAdmissionAllocationId` set), never both.
+ */
 export interface TicketResponse {
   id: string;
   orderId: string;
   catalogEventId: string;
-  seatId: string;
+  seatId: string | null;
+  generalAdmissionAllocationId: string | null;
   token: string;
   status: TicketStatus;
   issuedAt: string;

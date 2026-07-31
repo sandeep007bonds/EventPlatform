@@ -19,6 +19,7 @@ import { EventGroupPicker } from '../eventGroups/EventGroupPicker';
 interface CreateEventFormValues {
   title: string;
   startsAt: Dayjs;
+  endsAt: Dayjs;
   currency: string;
   locationName: string;
   addressLine1: string;
@@ -45,6 +46,7 @@ export function CreateEventPage() {
       const result = await createEvent({
         title: values.title,
         startsAt: values.startsAt.toISOString(),
+        endsAt: values.endsAt.toISOString(),
         currency: values.currency,
         locationName: values.locationName,
         addressLine1: values.addressLine1,
@@ -80,6 +82,9 @@ export function CreateEventPage() {
           <Input />
         </Form.Item>
         <Form.Item name="startsAt" label="Starts at" rules={[{ required: true }]}>
+          <DatePicker showTime style={{ width: '100%' }} />
+        </Form.Item>
+        <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
           <DatePicker showTime style={{ width: '100%' }} />
         </Form.Item>
         <Form.Item name="currency" label="Currency" rules={[{ required: true }]}>

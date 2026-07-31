@@ -3,6 +3,15 @@ import { httpClient } from '../http/client';
 /** Lifecycle status of a catalog event. */
 export type EventStatus = 'Draft' | 'Published' | 'OnSale' | 'SoldOut' | 'Cancelled' | 'Completed';
 
+/** An open-ended (platform, URL) social link — no fixed platform list. */
+export interface SocialLinkResponse {
+  platform: string;
+  url: string;
+}
+
+/** A social link to save — same shape as {@link SocialLinkResponse}. */
+export type SocialLinkInput = SocialLinkResponse;
+
 /** Read model for a single event. */
 export interface EventResponse {
   id: string;
@@ -13,10 +22,10 @@ export interface EventResponse {
   eventGroupId: string | null;
   description: string | null;
   category: string | null;
-  endsAt: string | null;
+  endsAt: string;
   doorsOpenAt: string | null;
   onSaleAt: string | null;
-  offSaleAt: string | null;
+  bookingEndsAt: string | null;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
@@ -29,25 +38,42 @@ export interface EventResponse {
   country: string;
   latitude: number | null;
   longitude: number | null;
+  contactPhone: string | null;
+  contactMobile: string | null;
+  contactEmail: string | null;
+  websiteUrl: string | null;
+  socialLinks: SocialLinkResponse[];
 }
 
-/** Fields settable via {@link updateEventDetails} — all optional, Draft-only. */
+/** Fields settable via {@link updateEventDetails} — Draft-only. `endsAt` is required. */
 export interface UpdateEventDetailsRequest {
   description?: string | null;
   category?: string | null;
-  endsAt?: string | null;
+  endsAt: string;
   doorsOpenAt?: string | null;
   onSaleAt?: string | null;
-  offSaleAt?: string | null;
+  bookingEndsAt?: string | null;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
+  contactPhone?: string | null;
+  contactMobile?: string | null;
+  contactEmail?: string | null;
+  websiteUrl?: string | null;
+  socialLinks?: SocialLinkInput[];
 }
 
 /** Read model for a single event group (tour). */
 export interface EventGroupResponse {
   id: string;
   title: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  contactPhone: string | null;
+  contactMobile: string | null;
+  contactEmail: string | null;
+  websiteUrl: string | null;
+  socialLinks: SocialLinkResponse[];
 }
 
 /** Paginated read model for a page of event groups. */
@@ -63,6 +89,18 @@ export interface EventGroupRequest {
   title: string;
 }
 
+/** Fields settable via {@link updateEventGroup} — all optional except title. */
+export interface UpdateEventGroupRequest {
+  title: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  contactPhone?: string | null;
+  contactMobile?: string | null;
+  contactEmail?: string | null;
+  websiteUrl?: string | null;
+  socialLinks?: SocialLinkInput[];
+}
+
 /** Paginated read model for a page of events. */
 export interface ListEventsResponse {
   events: EventResponse[];
@@ -71,7 +109,7 @@ export interface ListEventsResponse {
   totalCount: number;
 }
 
-/** A single seat in a seat map. */
+/** A single reserved seat in a seat map. */
 export interface SeatResponse {
   id: string;
   section: string;
@@ -82,12 +120,22 @@ export interface SeatResponse {
   label: string;
 }
 
-/** Read model for an event's seat map. */
+/** A general-admission (capacity-only, no individual seats) section of a seat map. */
+export interface GeneralAdmissionSectionResponse {
+  id: string;
+  sectionName: string;
+  priceTier: string;
+  priceAmount: number;
+  capacity: number;
+}
+
+/** Read model for an event's seat map — reserved seats and/or general-admission sections. */
 export interface SeatMapResponse {
   eventId: string;
   name: string;
   capacity: number;
   seats: SeatResponse[];
+  generalAdmissionSections: GeneralAdmissionSectionResponse[];
 }
 
 /**
@@ -119,10 +167,11 @@ export async function getSeatMap(eventId: string): Promise<SeatMapResponse> {
   return response.data;
 }
 
-/** Fields for creating a new draft event. */
+/** Fields for creating a new draft event. `endsAt` is required alongside `startsAt`. */
 export interface CreateEventRequest {
   title: string;
   startsAt: string;
+  endsAt: string;
   currency: string;
   locationName: string;
   addressLine1: string;
@@ -142,13 +191,21 @@ export async function createEvent(request: CreateEventRequest): Promise<{ id: st
   return response.data;
 }
 
-/** A seat-map section to create, generating rows × seatsPerRow seats. */
+/** Per-section allocation choice: individually-seated rows, or a capacity-only pool. */
+export type AllocationType = 'Reserved' | 'GeneralAdmission';
+
+/**
+ * A seat-map section to create — `Reserved` generates rows × seatsPerRow seats;
+ * `GeneralAdmission` is a capacity-only pool with no individual seats.
+ */
 export interface SeatMapSectionInput {
   name: string;
   priceTier: string;
   priceAmount: number;
-  rows: number;
-  seatsPerRow: number;
+  allocationType: AllocationType;
+  rows?: number;
+  seatsPerRow?: number;
+  capacity?: number;
 }
 
 /** Defines the seat map for a draft event (one time only). */
@@ -197,4 +254,12 @@ export async function listEventGroups(params: {
 export async function createEventGroup(request: EventGroupRequest): Promise<{ id: string }> {
   const response = await httpClient.post<{ id: string }>('/api/catalog/v1/event-groups', request);
   return response.data;
+}
+
+/** Updates an event group (tour) — dates and contact/social defaults for its legs. */
+export async function updateEventGroup(
+  id: string,
+  request: UpdateEventGroupRequest,
+): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/event-groups/${id}`, request);
 }

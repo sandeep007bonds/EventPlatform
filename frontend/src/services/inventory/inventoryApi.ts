@@ -27,11 +27,17 @@ export async function getInventoryCount(
   return response.data;
 }
 
-/** One line of a placed or fetched hold. */
+/**
+ * One line of a placed or fetched hold — either a reserved seat (`seatId` set, `quantity` always 1)
+ * or a general-admission quantity (`generalAdmissionAllocationId` set), never both.
+ */
 export interface HoldLineView {
-  inventoryItemId: string;
-  seatId: string;
+  inventoryItemId: string | null;
+  seatId: string | null;
+  generalAdmissionAllocationId: string | null;
+  quantity: number;
   priceTier: string;
+  unitPriceMinor: number;
   priceMinor: number;
 }
 
@@ -47,10 +53,20 @@ export interface HoldView {
   lines: HoldLineView[];
 }
 
-/** Places a hold on the given seats. Throws (409, via axios) if any seat is no longer available. */
+/** A requested quantity of one general-admission allocation, as part of a hold request. */
+export interface GeneralAdmissionSelection {
+  allocationId: string;
+  quantity: number;
+}
+
+/**
+ * Places a hold on the given seats and/or general-admission quantities. Throws (409, via axios) if
+ * a seat or allocation is no longer available, or the event's booking window has closed.
+ */
 export async function placeHold(request: {
   eventId: string;
-  seatIds: string[];
+  seatIds?: string[];
+  generalAdmissionSelections?: GeneralAdmissionSelection[];
 }): Promise<{ holdId: string; expiresAt: string }> {
   const response = await httpClient.post<{ holdId: string; expiresAt: string }>(
     '/api/inventory/v1/holds/',

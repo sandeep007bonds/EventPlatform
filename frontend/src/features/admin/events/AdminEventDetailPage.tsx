@@ -8,6 +8,7 @@ import {
   Form,
   Input,
   InputNumber,
+  Radio,
   Space,
   Tag,
   Typography,
@@ -25,6 +26,7 @@ import {
   type EventResponse,
   type SeatMapResponse,
   type SeatMapSectionInput,
+  type SocialLinkInput,
   type UpdateEventDetailsRequest,
 } from '../../../services/catalog/catalogApi';
 import { uploadImage } from '../../../services/media/mediaApi';
@@ -32,6 +34,7 @@ import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkele
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
+import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 
 interface SeatMapFormValues {
@@ -42,14 +45,28 @@ interface SeatMapFormValues {
 interface EventDetailsFormValues {
   description?: string;
   category?: string;
-  endsAt?: Dayjs;
+  endsAt: Dayjs;
   doorsOpenAt?: Dayjs;
   onSaleAt?: Dayjs;
-  offSaleAt?: Dayjs;
+  bookingEndsAt?: Dayjs;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
+  contactPhone?: string;
+  contactMobile?: string;
+  contactEmail?: string;
+  websiteUrl?: string;
+  socialLinks?: SocialLinkInput[];
 }
+
+const DEFAULT_SEAT_MAP_SECTION: SeatMapSectionInput = {
+  name: '',
+  priceTier: '',
+  priceAmount: 0,
+  allocationType: 'Reserved',
+  rows: 1,
+  seatsPerRow: 1,
+};
 
 /** Organizer's event detail: define seat map, publish, and (once published) block/unblock seats. */
 export function AdminEventDetailPage() {
@@ -89,13 +106,18 @@ export function AdminEventDetailPage() {
     detailsForm.setFieldsValue({
       description: event.description ?? undefined,
       category: event.category ?? undefined,
-      endsAt: event.endsAt ? dayjs(event.endsAt) : undefined,
+      endsAt: dayjs(event.endsAt),
       doorsOpenAt: event.doorsOpenAt ? dayjs(event.doorsOpenAt) : undefined,
       onSaleAt: event.onSaleAt ? dayjs(event.onSaleAt) : undefined,
-      offSaleAt: event.offSaleAt ? dayjs(event.offSaleAt) : undefined,
+      bookingEndsAt: event.bookingEndsAt ? dayjs(event.bookingEndsAt) : undefined,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
+      contactPhone: event.contactPhone ?? undefined,
+      contactMobile: event.contactMobile ?? undefined,
+      contactEmail: event.contactEmail ?? undefined,
+      websiteUrl: event.websiteUrl ?? undefined,
+      socialLinks: event.socialLinks,
     });
   }, [event, detailsForm]);
 
@@ -124,13 +146,18 @@ export function AdminEventDetailPage() {
       const request: UpdateEventDetailsRequest = {
         description: values.description ?? null,
         category: values.category ?? null,
-        endsAt: values.endsAt?.toISOString() ?? null,
+        endsAt: values.endsAt.toISOString(),
         doorsOpenAt: values.doorsOpenAt?.toISOString() ?? null,
         onSaleAt: values.onSaleAt?.toISOString() ?? null,
-        offSaleAt: values.offSaleAt?.toISOString() ?? null,
+        bookingEndsAt: values.bookingEndsAt?.toISOString() ?? null,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
+        contactPhone: values.contactPhone ?? null,
+        contactMobile: values.contactMobile ?? null,
+        contactEmail: values.contactEmail ?? null,
+        websiteUrl: values.websiteUrl ?? null,
+        socialLinks: values.socialLinks ?? [],
       };
       await updateEventDetails(id, request);
       toast.success('Event details saved.');
@@ -175,9 +202,12 @@ export function AdminEventDetailPage() {
           <Descriptions.Item label="Starts">
             {dayjs(event.startsAt).format('dddd, MMMM D, YYYY · h:mm A')}
           </Descriptions.Item>
+          <Descriptions.Item label="Ends">
+            {dayjs(event.endsAt).format('dddd, MMMM D, YYYY · h:mm A')}
+          </Descriptions.Item>
           <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
           {seatMap && (
-            <Descriptions.Item label="Capacity">{seatMap.capacity} seats</Descriptions.Item>
+            <Descriptions.Item label="Capacity">{seatMap.capacity} total</Descriptions.Item>
           )}
         </Descriptions>
 
@@ -217,13 +247,17 @@ export function AdminEventDetailPage() {
               <Form.Item name="doorsOpenAt" label="Doors open">
                 <DatePicker showTime />
               </Form.Item>
-              <Form.Item name="endsAt" label="Ends at">
+              <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
                 <DatePicker showTime />
               </Form.Item>
               <Form.Item name="onSaleAt" label="On sale from">
                 <DatePicker showTime />
               </Form.Item>
-              <Form.Item name="offSaleAt" label="Off sale at">
+              <Form.Item
+                name="bookingEndsAt"
+                label="Booking closes at"
+                tooltip="After this time, no new tickets can be held or sold for this event."
+              >
                 <DatePicker showTime />
               </Form.Item>
             </Space>
@@ -271,6 +305,26 @@ export function AdminEventDetailPage() {
                 );
               }}
             </Form.Item>
+
+            <Divider>
+              Contact details (overrides the tour's defaults; leave blank to use them)
+            </Divider>
+            <Form.Item name="contactPhone" label="Phone">
+              <Input />
+            </Form.Item>
+            <Form.Item name="contactMobile" label="Mobile">
+              <Input />
+            </Form.Item>
+            <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
+              <Input />
+            </Form.Item>
+            <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
+              <Input placeholder="https://..." />
+            </Form.Item>
+
+            <Divider>Social links (overrides the tour's defaults)</Divider>
+            <SocialLinksEditor />
+
             <Button type="primary" htmlType="submit" loading={savingDetails}>
               Save details
             </Button>
@@ -282,9 +336,7 @@ export function AdminEventDetailPage() {
         <Card title="Define seat map" style={{ marginTop: 24 }}>
           <Form<SeatMapFormValues>
             layout="vertical"
-            initialValues={{
-              sections: [{ name: '', priceTier: '', priceAmount: 0, rows: 1, seatsPerRow: 1 }],
-            }}
+            initialValues={{ sections: [DEFAULT_SEAT_MAP_SECTION] }}
             onFinish={(values) => {
               void handleDefineSeatMap(values);
             }}
@@ -297,48 +349,71 @@ export function AdminEventDetailPage() {
               {(fields, { add, remove }) => (
                 <>
                   {fields.map((field) => (
-                    <Space key={field.key} align="baseline" wrap>
-                      <Form.Item
-                        name={[field.name, 'name']}
-                        rules={[{ required: true, message: 'Required' }]}
-                      >
-                        <Input placeholder="Section (e.g. Orchestra)" />
+                    <Card key={field.key} size="small" style={{ marginBottom: 12 }}>
+                      <Space align="baseline" wrap>
+                        <Form.Item
+                          name={[field.name, 'name']}
+                          rules={[{ required: true, message: 'Required' }]}
+                        >
+                          <Input placeholder="Section (e.g. Orchestra)" />
+                        </Form.Item>
+                        <Form.Item
+                          name={[field.name, 'priceTier']}
+                          rules={[{ required: true, message: 'Required' }]}
+                        >
+                          <Input placeholder="Price tier" />
+                        </Form.Item>
+                        <Form.Item
+                          name={[field.name, 'priceAmount']}
+                          rules={[{ required: true, message: 'Required' }]}
+                        >
+                          <InputNumber min={0} placeholder="Price" />
+                        </Form.Item>
+                        <Form.Item name={[field.name, 'allocationType']} initialValue="Reserved">
+                          <Radio.Group>
+                            <Radio.Button value="Reserved">Reserved seating</Radio.Button>
+                            <Radio.Button value="GeneralAdmission">General admission</Radio.Button>
+                          </Radio.Group>
+                        </Form.Item>
+                        {fields.length > 1 && (
+                          <MinusCircleOutlined onClick={() => remove(field.name)} />
+                        )}
+                      </Space>
+                      <Form.Item shouldUpdate noStyle>
+                        {({ getFieldValue }) => {
+                          const allocationType: SeatMapSectionInput['allocationType'] =
+                            getFieldValue(['sections', field.name, 'allocationType']) ?? 'Reserved';
+                          return allocationType === 'Reserved' ? (
+                            <Space wrap>
+                              <Form.Item
+                                name={[field.name, 'rows']}
+                                rules={[{ required: true, message: 'Required' }]}
+                              >
+                                <InputNumber min={1} placeholder="Rows" />
+                              </Form.Item>
+                              <Form.Item
+                                name={[field.name, 'seatsPerRow']}
+                                rules={[{ required: true, message: 'Required' }]}
+                              >
+                                <InputNumber min={1} placeholder="Seats/row" />
+                              </Form.Item>
+                            </Space>
+                          ) : (
+                            <Form.Item
+                              name={[field.name, 'capacity']}
+                              rules={[{ required: true, message: 'Required' }]}
+                            >
+                              <InputNumber min={1} placeholder="Total capacity" />
+                            </Form.Item>
+                          );
+                        }}
                       </Form.Item>
-                      <Form.Item
-                        name={[field.name, 'priceTier']}
-                        rules={[{ required: true, message: 'Required' }]}
-                      >
-                        <Input placeholder="Price tier" />
-                      </Form.Item>
-                      <Form.Item
-                        name={[field.name, 'priceAmount']}
-                        rules={[{ required: true, message: 'Required' }]}
-                      >
-                        <InputNumber min={0} placeholder="Price" />
-                      </Form.Item>
-                      <Form.Item
-                        name={[field.name, 'rows']}
-                        rules={[{ required: true, message: 'Required' }]}
-                      >
-                        <InputNumber min={1} placeholder="Rows" />
-                      </Form.Item>
-                      <Form.Item
-                        name={[field.name, 'seatsPerRow']}
-                        rules={[{ required: true, message: 'Required' }]}
-                      >
-                        <InputNumber min={1} placeholder="Seats/row" />
-                      </Form.Item>
-                      {fields.length > 1 && (
-                        <MinusCircleOutlined onClick={() => remove(field.name)} />
-                      )}
-                    </Space>
+                    </Card>
                   ))}
                   <Form.Item>
                     <Button
                       type="dashed"
-                      onClick={() =>
-                        add({ name: '', priceTier: '', priceAmount: 0, rows: 1, seatsPerRow: 1 })
-                      }
+                      onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
                       icon={<PlusOutlined />}
                     >
                       Add section

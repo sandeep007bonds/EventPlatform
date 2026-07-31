@@ -166,8 +166,52 @@ export function EventDetailPage() {
           <Descriptions.Item label="Seats provisioned">{availableCount}</Descriptions.Item>
         )}
       </Descriptions>
+      {event.bookingEndsAt && (
+        <Typography.Text type="warning" style={{ display: 'block', marginTop: 8 }}>
+          Booking closes on {dayjs(event.bookingEndsAt).format('MMMM D, YYYY · h:mm A')}
+        </Typography.Text>
+      )}
       {event.description && (
         <Typography.Paragraph style={{ marginTop: 16 }}>{event.description}</Typography.Paragraph>
+      )}
+      {(event.contactPhone ??
+        event.contactMobile ??
+        event.contactEmail ??
+        event.websiteUrl ??
+        event.socialLinks.length > 0) && (
+        <div style={{ marginTop: 16 }}>
+          <Typography.Title level={5}>Contact</Typography.Title>
+          <Space direction="vertical" size={4}>
+            {event.contactPhone && <Typography.Text>Phone: {event.contactPhone}</Typography.Text>}
+            {event.contactMobile && (
+              <Typography.Text>Mobile: {event.contactMobile}</Typography.Text>
+            )}
+            {event.contactEmail && (
+              <Typography.Text>
+                Email: <a href={`mailto:${event.contactEmail}`}>{event.contactEmail}</a>
+              </Typography.Text>
+            )}
+            {event.websiteUrl && (
+              <Typography.Link href={event.websiteUrl} target="_blank" rel="noreferrer">
+                {event.websiteUrl}
+              </Typography.Link>
+            )}
+            {event.socialLinks.length > 0 && (
+              <Space wrap>
+                {event.socialLinks.map((link) => (
+                  <Typography.Link
+                    key={link.platform + link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {link.platform}
+                  </Typography.Link>
+                ))}
+              </Space>
+            )}
+          </Space>
+        </div>
       )}
       {event.videoUrl &&
         (embedUrl ? (
