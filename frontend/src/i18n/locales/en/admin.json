@@ -1,6 +1,7 @@
 {
   "nav": {
     "events": "Events",
-    "orders": "Orders"
+    "orders": "Orders",
+    "venues": "Venues"
   }
 }

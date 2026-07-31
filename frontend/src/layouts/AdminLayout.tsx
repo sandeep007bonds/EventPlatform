@@ -18,7 +18,11 @@ export function AdminLayout() {
     void navigate('/admin/login');
   };
 
-  const selectedKey = location.pathname.startsWith('/admin/orders') ? 'orders' : 'events';
+  const selectedKey = location.pathname.startsWith('/admin/orders')
+    ? 'orders'
+    : location.pathname.startsWith('/admin/venues')
+      ? 'venues'
+      : 'events';
 
   return (
     <ConfigProvider theme={adminTheme}>
@@ -40,6 +44,7 @@ export function AdminLayout() {
             selectedKeys={[selectedKey]}
             items={[
               { key: 'events', label: <Link to="/admin">{t('nav.events')}</Link> },
+              { key: 'venues', label: <Link to="/admin/venues">{t('nav.venues')}</Link> },
               { key: 'orders', label: <Link to="/admin/orders">{t('nav.orders')}</Link> },
             ]}
           />

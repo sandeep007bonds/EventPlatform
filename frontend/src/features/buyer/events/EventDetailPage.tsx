@@ -107,7 +107,13 @@ export function EventDetailPage() {
         <img
           src={event.bannerImageUrl}
           alt={event.title}
-          style={{ width: '100%', borderRadius: 8, marginBottom: 16, maxHeight: 360, objectFit: 'cover' }}
+          style={{
+            width: '100%',
+            borderRadius: 8,
+            marginBottom: 16,
+            maxHeight: 360,
+            objectFit: 'cover',
+          }}
         />
       )}
       <Typography.Title level={2}>{event.title}</Typography.Title>
@@ -152,7 +158,14 @@ export function EventDetailPage() {
               title={`${event.title} video`}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               allowFullScreen
-              style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 0 }}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                border: 0,
+              }}
             />
           </div>
         ) : (

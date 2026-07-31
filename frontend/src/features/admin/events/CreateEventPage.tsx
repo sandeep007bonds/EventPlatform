@@ -4,6 +4,7 @@ import type { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { createEvent } from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { VenuePicker } from '../venues/VenuePicker';
 
 interface CreateEventFormValues {
   title: string;
@@ -50,13 +51,8 @@ export function CreateEventPage() {
         <Form.Item name="title" label="Title" rules={[{ required: true }]}>
           <Input />
         </Form.Item>
-        <Form.Item
-          name="venueId"
-          label="Venue ID"
-          rules={[{ required: true }]}
-          extra="A venue UUID — venue management isn't built yet, so paste one you have."
-        >
-          <Input />
+        <Form.Item name="venueId" label="Venue" rules={[{ required: true }]}>
+          <VenuePicker />
         </Form.Item>
         <Form.Item name="startsAt" label="Starts at" rules={[{ required: true }]}>
           <DatePicker showTime style={{ width: '100%' }} />
