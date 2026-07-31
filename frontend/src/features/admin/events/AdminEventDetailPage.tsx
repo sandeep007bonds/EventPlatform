@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Divider,
   Form,
@@ -10,19 +11,23 @@ import {
   Space,
   Tag,
   Typography,
+  Upload,
 } from 'antd';
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import { MinusCircleOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   defineSeatMap,
   getEvent,
   getSeatMap,
   publishEvent,
+  updateEventDetails,
   type EventResponse,
   type SeatMapResponse,
   type SeatMapSectionInput,
+  type UpdateEventDetailsRequest,
 } from '../../../services/catalog/catalogApi';
+import { uploadImage } from '../../../services/media/mediaApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
@@ -32,6 +37,18 @@ import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 interface SeatMapFormValues {
   name: string;
   sections: SeatMapSectionInput[];
+}
+
+interface EventDetailsFormValues {
+  description?: string;
+  category?: string;
+  endsAt?: Dayjs;
+  doorsOpenAt?: Dayjs;
+  onSaleAt?: Dayjs;
+  offSaleAt?: Dayjs;
+  ageRestriction?: string;
+  bannerImageUrl?: string;
+  videoUrl?: string;
 }
 
 /** Organizer's event detail: define seat map, publish, and (once published) block/unblock seats. */
@@ -44,6 +61,8 @@ export function AdminEventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsForm] = Form.useForm<EventDetailsFormValues>();
 
   const load = (eventId: string) => {
     Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null)])
@@ -61,6 +80,25 @@ export function AdminEventDetailPage() {
     }
   }, [id]);
 
+  // Form.initialValues only applies on first mount, not on later reloads (e.g. after saving) —
+  // sync explicitly so a re-fetched event's details always reflect what's actually saved.
+  useEffect(() => {
+    if (!event) {
+      return;
+    }
+    detailsForm.setFieldsValue({
+      description: event.description ?? undefined,
+      category: event.category ?? undefined,
+      endsAt: event.endsAt ? dayjs(event.endsAt) : undefined,
+      doorsOpenAt: event.doorsOpenAt ? dayjs(event.doorsOpenAt) : undefined,
+      onSaleAt: event.onSaleAt ? dayjs(event.onSaleAt) : undefined,
+      offSaleAt: event.offSaleAt ? dayjs(event.offSaleAt) : undefined,
+      ageRestriction: event.ageRestriction ?? undefined,
+      bannerImageUrl: event.bannerImageUrl ?? undefined,
+      videoUrl: event.videoUrl ?? undefined,
+    });
+  }, [event, detailsForm]);
+
   const handleDefineSeatMap = async (values: SeatMapFormValues) => {
     if (!id) {
       return;
@@ -74,6 +112,33 @@ export function AdminEventDetailPage() {
       toast.error('Could not create the seat map.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSaveDetails = async (values: EventDetailsFormValues) => {
+    if (!id) {
+      return;
+    }
+    setSavingDetails(true);
+    try {
+      const request: UpdateEventDetailsRequest = {
+        description: values.description ?? null,
+        category: values.category ?? null,
+        endsAt: values.endsAt?.toISOString() ?? null,
+        doorsOpenAt: values.doorsOpenAt?.toISOString() ?? null,
+        onSaleAt: values.onSaleAt?.toISOString() ?? null,
+        offSaleAt: values.offSaleAt?.toISOString() ?? null,
+        ageRestriction: values.ageRestriction ?? null,
+        bannerImageUrl: values.bannerImageUrl ?? null,
+        videoUrl: values.videoUrl ?? null,
+      };
+      await updateEventDetails(id, request);
+      toast.success('Event details saved.');
+      load(id);
+    } catch {
+      toast.error('Could not save event details.');
+    } finally {
+      setSavingDetails(false);
     }
   };
 
@@ -132,6 +197,86 @@ export function AdminEventDetailPage() {
           </Typography.Text>
         )}
       </Card>
+
+      {event.status === 'Draft' && (
+        <Card title="Event details" style={{ marginTop: 24 }}>
+          <Form<EventDetailsFormValues>
+            form={detailsForm}
+            layout="vertical"
+            onFinish={(values) => {
+              void handleSaveDetails(values);
+            }}
+          >
+            <Form.Item name="description" label="Description">
+              <Input.TextArea rows={4} maxLength={4000} showCount />
+            </Form.Item>
+            <Form.Item name="category" label="Category">
+              <Input placeholder="e.g. Concert, Comedy" />
+            </Form.Item>
+            <Space wrap>
+              <Form.Item name="doorsOpenAt" label="Doors open">
+                <DatePicker showTime />
+              </Form.Item>
+              <Form.Item name="endsAt" label="Ends at">
+                <DatePicker showTime />
+              </Form.Item>
+              <Form.Item name="onSaleAt" label="On sale from">
+                <DatePicker showTime />
+              </Form.Item>
+              <Form.Item name="offSaleAt" label="Off sale at">
+                <DatePicker showTime />
+              </Form.Item>
+            </Space>
+            <Form.Item name="ageRestriction" label="Age restriction">
+              <Input placeholder="e.g. 18+, All ages" style={{ maxWidth: 240 }} />
+            </Form.Item>
+            <Form.Item name="videoUrl" label="Video URL (YouTube or Vimeo link)">
+              <Input placeholder="https://youtube.com/watch?v=..." />
+            </Form.Item>
+            <Form.Item name="bannerImageUrl" label="Banner image">
+              <Input type="hidden" />
+            </Form.Item>
+            <Form.Item shouldUpdate>
+              {() => {
+                const currentUrl: string | undefined = detailsForm.getFieldValue('bannerImageUrl');
+                return (
+                  <Space direction="vertical">
+                    {currentUrl && (
+                      <img
+                        src={currentUrl}
+                        alt="Current banner"
+                        style={{ maxWidth: 320, borderRadius: 8 }}
+                      />
+                    )}
+                    <Upload
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      maxCount={1}
+                      showUploadList={false}
+                      customRequest={(options) => {
+                        const { file, onSuccess, onError } = options;
+                        uploadImage(file as File)
+                          .then(({ url }) => {
+                            detailsForm.setFieldValue('bannerImageUrl', url);
+                            onSuccess?.(url);
+                          })
+                          .catch((error: unknown) => {
+                            onError?.(error as Error);
+                            toast.error('Image upload failed.');
+                          });
+                      }}
+                    >
+                      <Button icon={<UploadOutlined />}>Upload banner image</Button>
+                    </Upload>
+                  </Space>
+                );
+              }}
+            </Form.Item>
+            <Button type="primary" htmlType="submit" loading={savingDetails}>
+              Save details
+            </Button>
+          </Form>
+        </Card>
+      )}
 
       {!seatMap && event.status === 'Draft' && (
         <Card title="Define seat map" style={{ marginTop: 24 }}>
