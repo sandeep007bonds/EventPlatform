@@ -4,6 +4,7 @@ global using System.Text.Json;
 global using System.Text.Json.Serialization;
 global using Microsoft.AspNetCore.Authentication.JwtBearer;
 global using Microsoft.AspNetCore.Builder;
+global using Microsoft.AspNetCore.Diagnostics;
 global using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 global using Microsoft.AspNetCore.Http;
 global using Microsoft.Extensions.Configuration;

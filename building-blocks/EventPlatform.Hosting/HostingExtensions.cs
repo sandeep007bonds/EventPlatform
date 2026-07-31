@@ -24,7 +24,33 @@ public static class HostingExtensions
         builder.Services.AddEventPlatformOpenApi(serviceName);
         builder.AddDefaultObservability(serviceName);
         builder.Services.AddDefaultHealthChecks();
-        builder.Services.AddProblemDetails();
+
+        // Unhandled exceptions always become a ProblemDetails response (never a raw 500 with no
+        // body) - but the message/stack trace are only attached in Development. Without this,
+        // UseExceptionHandler()'s default output is the same generic "An error occurred..." with
+        // no Detail in every environment, which makes local debugging from the HTTP response alone
+        // impossible. Never enable this outside Development - it would leak internals to callers.
+        var environment = builder.Environment;
+        builder.Services.AddProblemDetails(options =>
+        {
+            options.CustomizeProblemDetails = context =>
+            {
+                if (!environment.IsDevelopment())
+                {
+                    return;
+                }
+
+                var exception = context.HttpContext.Features.Get<IExceptionHandlerFeature>()?.Error;
+                if (exception is null)
+                {
+                    return;
+                }
+
+                context.ProblemDetails.Detail = exception.Message;
+                context.ProblemDetails.Extensions["stackTrace"] = exception.StackTrace;
+            };
+        });
+
         builder.Services.AddHttpContextAccessor();
 
         return builder;
