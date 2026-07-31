@@ -33,3 +33,31 @@ output "kube_config_raw" {
   value       = azurerm_kubernetes_cluster.this.kube_config_raw
   sensitive   = true
 }
+
+# Structured (not raw-YAML) cluster-admin credentials, for configuring the
+# helm/kubectl Terraform providers directly against this cluster in the same
+# apply — see environments/dev/providers.tf and argocd.tf. Client-certificate
+# auth, not a kubeconfig file on disk.
+output "kube_config_host" {
+  description = "AKS API server host, for the helm/kubectl provider blocks."
+  value       = azurerm_kubernetes_cluster.this.kube_config[0].host
+  sensitive   = true
+}
+
+output "kube_config_client_certificate" {
+  description = "Cluster-admin client certificate (PEM, base64-decoded), for the helm/kubectl provider blocks."
+  value       = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_certificate)
+  sensitive   = true
+}
+
+output "kube_config_client_key" {
+  description = "Cluster-admin client key (PEM, base64-decoded), for the helm/kubectl provider blocks."
+  value       = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].client_key)
+  sensitive   = true
+}
+
+output "kube_config_cluster_ca_certificate" {
+  description = "Cluster CA certificate (PEM, base64-decoded), for the helm/kubectl provider blocks."
+  value       = base64decode(azurerm_kubernetes_cluster.this.kube_config[0].cluster_ca_certificate)
+  sensitive   = true
+}

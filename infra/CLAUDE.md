@@ -6,8 +6,11 @@ Inherits the [root CLAUDE.md](../CLAUDE.md).
 
 Azure infrastructure as code, per [ADR-0005](../docs/adr/0005-iac-terraform.md).
 Provisions the underlying cloud resources (AKS, Postgres, Redis, ACR, Key
-Vault, networking, remote-state storage) — it does not deploy the
-application onto them; that's `deploy/` + Argo CD (GitOps).
+Vault, networking, remote-state storage, GitHub OIDC identity) **and**
+installs Argo CD onto the cluster it creates (`environments/dev/argocd.tf`,
+via the `helm`/`kubectl` providers — the one platform workload this layer
+installs, since Argo CD can't deploy its own install). It does not deploy
+the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
 
 ## Owns
 
@@ -58,5 +61,10 @@ application onto them; that's `deploy/` + Argo CD (GitOps).
   has state stored in its storage account.
 - Always review `terraform plan` output before `apply` — infrastructure
   changes here are real, billable, and not always reversible.
-- Never `kubectl apply`/`helm install` by hand onto a cluster this creates —
-  that's `deploy/` + Argo CD's job, per the root CLAUDE.md's GitOps rule.
+- Never `kubectl apply`/`helm install` **by hand** onto a cluster this
+  creates — that's `deploy/` + Argo CD's job, per the root CLAUDE.md's
+  GitOps rule. `environments/dev/argocd.tf`'s `helm_release`/
+  `kubectl_manifest` resources are the sanctioned exception: still
+  Terraform-tracked IaC (reviewed in `terraform plan`, applied by
+  `terraform apply`), not an ad-hoc command — and limited to installing
+  Argo CD itself, never anything under `deploy/`.

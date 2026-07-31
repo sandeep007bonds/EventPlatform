@@ -2,14 +2,17 @@
 
 Minimal-cost Azure dev environment: one AKS cluster, one shared Postgres
 Flexible Server (5 databases), one Redis cache (pub/sub + Dapr Workflow
-state), one ACR, one Key Vault. Deliberately diverges from the production
-topology in the ADRs — see
+state), one ACR, one Key Vault, a GitHub Actions OIDC identity, and Argo CD
+(installed onto the cluster via the `helm`/`kubectl` providers in
+`argocd.tf`, in the same apply — see `platform/argocd/README.md`).
+Deliberately diverges from the production topology in the ADRs — see
 [ADR-0017](../../../docs/adr/0017-dev-environment-cost-topology.md) for every
 divergence and why.
 
-This pass provisions the Azure resources only. Deploying the app onto the
-cluster (Helm/K8s manifests, Argo CD, Dapr install, CI OIDC federation) is
-out of scope here — a future pass once these resources exist.
+This pass provisions the Azure resources and installs Argo CD; it does not
+deploy the *application* onto the cluster — that's `deploy/` +
+Argo CD reconciling it (GitOps), triggered by `.github/workflows/cd.yml`
+after your first push.
 
 ## Prerequisites
 
@@ -50,6 +53,28 @@ az acr login --name "$(terraform output -raw acr_login_server | cut -d. -f1)"
 # Postgres admin password and Redis access key are in Key Vault, not in
 # terraform output, other than the Postgres FQDN/database names.
 ```
+
+Argo CD is already installed and watching `deploy/overlays/dev` at this
+point — see `platform/argocd/README.md` for the admin password and UI
+access. The two things left before a push actually deploys anything:
+filling in `deploy/overlays/dev/keyvault-secretproviderclass.yaml`'s three
+placeholders (below), and the GitHub Actions secrets (next section).
+
+## Key Vault secrets for the cluster
+
+`deploy/overlays/dev/keyvault-secretproviderclass.yaml` has three
+placeholders that must be filled in once per environment, after apply:
+
+```bash
+terraform output aks_key_vault_secrets_provider_client_id
+terraform output key_vault_name
+terraform output aks_tenant_id
+```
+
+Paste those into `userAssignedIdentityID`, `keyvaultName`, and `tenantId`
+respectively, then commit and push (see `deploy/README.md` for why this one
+file can't be filled in by Terraform automatically — it's deliberately
+GitOps-owned, not infra-owned).
 
 ## GitHub Actions CD secrets
 
