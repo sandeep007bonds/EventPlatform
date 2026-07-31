@@ -10,6 +10,66 @@ export interface EventResponse {
   startsAt: string;
   status: EventStatus;
   currency: string;
+  venueId: string;
+  description: string | null;
+  category: string | null;
+  endsAt: string | null;
+  doorsOpenAt: string | null;
+  onSaleAt: string | null;
+  offSaleAt: string | null;
+  ageRestriction: string | null;
+  bannerImageUrl: string | null;
+  videoUrl: string | null;
+}
+
+/** Fields settable via {@link updateEventDetails} — all optional, Draft-only. */
+export interface UpdateEventDetailsRequest {
+  description?: string | null;
+  category?: string | null;
+  endsAt?: string | null;
+  doorsOpenAt?: string | null;
+  onSaleAt?: string | null;
+  offSaleAt?: string | null;
+  ageRestriction?: string | null;
+  bannerImageUrl?: string | null;
+  videoUrl?: string | null;
+}
+
+/** Read model for a single venue. */
+export interface VenueResponse {
+  id: string;
+  name: string;
+  addressLine1: string;
+  addressLine2: string | null;
+  city: string;
+  region: string | null;
+  postalCode: string | null;
+  country: string;
+  latitude: number | null;
+  longitude: number | null;
+  capacity: number | null;
+}
+
+/** Paginated read model for a page of venues. */
+export interface ListVenuesResponse {
+  venues: VenueResponse[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
+}
+
+/** Fields for creating or updating a venue. */
+export interface VenueRequest {
+  name: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  region?: string | null;
+  postalCode?: string | null;
+  country: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  capacity?: number | null;
 }
 
 /** Paginated read model for a page of events. */
@@ -99,4 +159,38 @@ export async function defineSeatMap(
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);
+}
+
+/** Sets a draft event's descriptive/promotional details (Draft-only; 409 otherwise). */
+export async function updateEventDetails(
+  eventId: string,
+  request: UpdateEventDetailsRequest,
+): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/events/${eventId}/details`, request);
+}
+
+/** Fetches a single venue. 404s if it doesn't exist. Public — no login required. */
+export async function getVenue(id: string): Promise<VenueResponse> {
+  const response = await httpClient.get<VenueResponse>(`/api/catalog/v1/venues/${id}`);
+  return response.data;
+}
+
+/** Lists the caller's own venues — an organizer's reusable-venue picker, not public browsing. */
+export async function listVenues(params: {
+  page?: number;
+  pageSize?: number;
+}): Promise<ListVenuesResponse> {
+  const response = await httpClient.get<ListVenuesResponse>('/api/catalog/v1/venues', { params });
+  return response.data;
+}
+
+/** Creates a new venue for the caller's tenant. */
+export async function createVenue(request: VenueRequest): Promise<{ id: string }> {
+  const response = await httpClient.post<{ id: string }>('/api/catalog/v1/venues', request);
+  return response.data;
+}
+
+/** Updates an existing venue the caller's tenant owns. */
+export async function updateVenue(id: string, request: VenueRequest): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/venues/${id}`, request);
 }

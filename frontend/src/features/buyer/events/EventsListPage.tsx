@@ -97,7 +97,19 @@ export function EventsListPage() {
           {visibleEvents.map((event) => (
             <Col key={event.id} xs={24} sm={12} md={8}>
               <Link to={`/events/${event.id}`}>
-                <Card hoverable title={event.title}>
+                <Card
+                  hoverable
+                  title={event.title}
+                  cover={
+                    event.bannerImageUrl ? (
+                      <img
+                        src={event.bannerImageUrl}
+                        alt={event.title}
+                        style={{ height: 160, objectFit: 'cover' }}
+                      />
+                    ) : undefined
+                  }
+                >
                   <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
                     {dayjs(event.startsAt).format('MMM D, YYYY · h:mm A')}
