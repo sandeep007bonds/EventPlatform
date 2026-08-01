@@ -17,8 +17,10 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.FailureReason).HasMaxLength(200);
         builder.Property(o => o.BuyerEmail).HasMaxLength(320);
 
-        // Idempotent checkout: one order per (tenant, idempotency key).
-        builder.HasIndex(o => new { o.TenantId, o.IdempotencyKey }).IsUnique();
+        // Idempotent checkout: one order per (buyer, idempotency key) — a checkout attempt is a
+        // buyer action, not a tenant action (ADR-0022); UserId is always populated (JWT `sub`) even
+        // for a buyer token with no tenant_id claim.
+        builder.HasIndex(o => new { o.UserId, o.IdempotencyKey }).IsUnique();
         builder.HasIndex(o => new { o.TenantId, o.UserId });
 
         builder.HasMany(o => o.Lines)

@@ -35,8 +35,10 @@ is named `Ordering` so the type never clashes with its namespace.
   both. The hold snapshot read from Inventory (`HoldLineSnapshot`) carries the
   same shape, and `OrderConfirmed`'s `Lines` (`OrderLineSummary`) is the
   publish-side equivalent Ticketing consumes to mint the right ticket count.
-- **Idempotent checkout:** deduped on `(tenant_id, idempotency_key)` — unique
-  index + a pre-check. The `Idempotency-Key` header is required. Two *concurrent*
+- **Idempotent checkout:** deduped on `(user_id, idempotency_key)` — unique
+  index + a pre-check. Scoped by buyer, not tenant: a checkout attempt is a
+  buyer action, and the buyer's own token may carry no `tenant_id` claim at
+  all (ADR-0022). The `Idempotency-Key` header is required. Two *concurrent*
   requests can both pass the pre-check; the unique index then lets exactly one
   order win. `CreateOrderActivity` re-checks, and `IOrderRepository.TryAddAsync`
   swallows the unique-violation so the loser re-fetches the winner and the
@@ -47,7 +49,9 @@ is named `Ordering` so the type never clashes with its namespace.
   create order → charge → convert-to-sold → confirm) with compensation (fail
   order, refund, release hold). The orchestrator is deterministic — all I/O is in
   activities — so a crash mid-flight resumes exactly where it left off. The Api
-  schedules the workflow and awaits its completion.
+  schedules the workflow and awaits its completion. Tenant is sourced from the
+  fetched hold (`hold.TenantId`, step 1 of the saga), not from
+  `CheckoutWorkflowInput` — that record has no `TenantId` field (ADR-0022).
 - **Cross-service calls** go through ports: `IHoldClient` (Inventory) and
   `IPaymentClient` (Payments), both via Dapr service invocation.
 
@@ -73,5 +77,6 @@ by app-id.
 
 - Read another service's database (call Inventory via Dapr).
 - Add a package version to the `.csproj` (use `Directory.Packages.props`).
-- Trust the tenant/user/idempotency key from the body — take them from the token
-  and the `Idempotency-Key` header.
+- Trust the tenant, user, or idempotency key from the request body — user comes
+  from the token's `sub`, tenant is derived from the fetched `Hold` (ADR-0022),
+  idempotency key comes from the `Idempotency-Key` header.

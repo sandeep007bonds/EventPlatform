@@ -33,6 +33,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0019](0019-event-tours-and-inline-location.md) | Event tours (`EventGroup`) and inline event location, replacing Venue | Accepted |
 | [0020](0020-tour-dates-contact-social-and-ga-tickets.md) | Tour dates, enforced booking cutoff, contact/social, and Reserved-vs-General-Admission tickets | Accepted |
 | [0021](0021-ticket-delivery-checkin-and-buyer-limits.md) | Ticket delivery email, check-in/scan, and per-buyer ticket limits | Accepted |
+| [0022](0022-buyer-tenant-derivation.md) | Buyer-facing checkout: derive tenant from the resource, not the caller's claim | Accepted |
 
 ## Format
 

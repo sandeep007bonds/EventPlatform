@@ -37,10 +37,11 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.HoldExpired), null);
         }
 
-        // 2. Create the order (awaiting payment).
+        // 2. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
+        //    organizer who owns the event/inventory, not necessarily present on the buyer's own token.
         var order = await context.CallActivityAsync<CreateOrderOutput>(
             nameof(CreateOrderActivity),
-            new CreateOrderInput(input.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail));
+            new CreateOrderInput(hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
@@ -53,7 +54,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         // 3. Charge. On failure: fail the order and release the hold.
         var charge = await context.CallActivityAsync<ChargeOutput>(
             nameof(ChargeActivity),
-            new ChargeInput(input.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
+            new ChargeInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
         if (!charge.Succeeded)
         {
             await context.CallActivityAsync<bool>(
@@ -81,7 +82,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             .ToList();
         await context.CallActivityAsync<bool>(
             nameof(ConfirmOrderActivity),
-            new ConfirmInput(order.OrderId, input.TenantId, hold.CatalogEventId, input.UserId, lines));
+            new ConfirmInput(order.OrderId, hold.TenantId, hold.CatalogEventId, input.UserId, lines));
 
         return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Confirmed), order.OrderId);
     }

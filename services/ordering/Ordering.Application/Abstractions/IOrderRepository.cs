@@ -8,7 +8,7 @@ public interface IOrderRepository
 {
     /// <summary>
     /// Adds and persists a new order, tolerating a concurrent duplicate. Returns
-    /// <see langword="false"/> when another order with the same tenant-scoped idempotency key
+    /// <see langword="false"/> when another order with the same buyer-scoped idempotency key
     /// already exists (the unique index rejected the insert) — the caller should re-fetch the
     /// winner rather than treat it as an error. Any other failure still throws.
     /// </summary>
@@ -24,12 +24,12 @@ public interface IOrderRepository
     /// <returns>The order, or <see langword="null"/>.</returns>
     Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
-    /// <summary>Gets an order by its tenant-scoped idempotency key (checkout dedupe).</summary>
-    /// <param name="tenantId">Owning tenant.</param>
+    /// <summary>Gets an order by its buyer-scoped idempotency key (checkout dedupe).</summary>
+    /// <param name="userId">The buyer.</param>
     /// <param name="idempotencyKey">The idempotency key.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The matching order, or <see langword="null"/>.</returns>
-    Task<Order?> GetByIdempotencyKeyAsync(Guid tenantId, string idempotencyKey, CancellationToken cancellationToken);
+    Task<Order?> GetByIdempotencyKeyAsync(Guid userId, string idempotencyKey, CancellationToken cancellationToken);
 
     /// <summary>
     /// Lists orders, filtered by tenant and/or buyer. At least one filter is expected to be

@@ -46,6 +46,10 @@ event, and enforces that event's booking cutoff.
   (`PlaceHoldOutcome.OnSaleNotStarted`) — both checked before touching
   Redis/Postgres. Changing either bound after an event is published is out of
   scope for this pass (`UpdateEventDetails` on Catalog stays Draft-only).
+  **`EventInventorySettings.TenantId` is also the source of the tenant
+  stamped on a placed `Hold`** — `PlaceHoldAsync` no longer takes a
+  caller-supplied tenant; a buyer's own token may not carry one at all
+  (ADR-0022).
 - **`EventInventorySettings.MaxTicketsPerBuyer`** (per-buyer ticket limit, if
   set — ADR-0021) is checked right after the on-sale/booking-cutoff checks.
   `IInventoryRepository.GetBuyerCommittedQuantityAsync` sums the buyer's

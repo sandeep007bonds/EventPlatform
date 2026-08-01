@@ -30,13 +30,13 @@ internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepos
 
     /// <inheritdoc />
     public Task<Order?> GetByIdempotencyKeyAsync(
-        Guid tenantId,
+        Guid userId,
         string idempotencyKey,
         CancellationToken cancellationToken) =>
         dbContext.Orders
             .Include(o => o.Lines)
             .FirstOrDefaultAsync(
-                o => o.TenantId == tenantId && o.IdempotencyKey == idempotencyKey,
+                o => o.UserId == userId && o.IdempotencyKey == idempotencyKey,
                 cancellationToken);
 
     /// <inheritdoc />

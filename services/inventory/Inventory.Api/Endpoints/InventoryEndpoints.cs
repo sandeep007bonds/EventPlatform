@@ -89,17 +89,11 @@ public static class InventoryEndpoints
 
     private static async Task<IResult> PlaceHoldAsync(
         PlaceHoldRequest request,
-        ITenantContext tenant,
         ClaimsPrincipal principal,
         HoldService holds,
         HoldOptions options,
         CancellationToken cancellationToken)
     {
-        if (tenant.TenantId is null)
-        {
-            return Results.Unauthorized();
-        }
-
         var userId = GetUserId(principal);
         if (userId is null)
         {
@@ -129,7 +123,6 @@ public static class InventoryEndpoints
         }
 
         var result = await holds.PlaceHoldAsync(
-            tenant.TenantId.Value,
             userId.Value,
             request.EventId,
             seatIds,
@@ -140,6 +133,8 @@ public static class InventoryEndpoints
         {
             PlaceHoldOutcome.Held =>
                 Results.Created($"/v1/holds/{result.HoldId}", new { holdId = result.HoldId, expiresAt = result.ExpiresAt }),
+            PlaceHoldOutcome.EventNotFound =>
+                Results.NotFound(new { message = "This event has not been provisioned yet." }),
             PlaceHoldOutcome.SeatNotFound =>
                 Results.NotFound(new { message = "One or more seats do not exist for this event." }),
             PlaceHoldOutcome.AllocationNotFound =>
