@@ -258,17 +258,17 @@ export function AdminEventDetailPage() {
             </Typography.Title>
             <Row gutter={20}>
               <Col span={24}>
-                <Form.Item name="description" label="Description">
+                <Form.Item name="description" label="Description" rules={[{ max: 4000 }]}>
                   <Input.TextArea rows={4} maxLength={4000} showCount />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="category" label="Category">
+                <Form.Item name="category" label="Category" rules={[{ max: 100 }]}>
                   <Input placeholder="e.g. Concert, Comedy" />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="ageRestriction" label="Age restriction">
+                <Form.Item name="ageRestriction" label="Age restriction" rules={[{ max: 50 }]}>
                   <Input placeholder="e.g. 18+, All ages" />
                 </Form.Item>
               </Col>
@@ -285,7 +285,19 @@ export function AdminEventDetailPage() {
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12} md={6}>
-                <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
+                <Form.Item
+                  name="endsAt"
+                  label="Ends at"
+                  rules={[
+                    { required: true },
+                    {
+                      validator: (_rule, value: Dayjs | undefined) =>
+                        !value || value.isAfter(dayjs(event.startsAt))
+                          ? Promise.resolve()
+                          : Promise.reject(new Error('Ends at must be after Starts at.')),
+                    },
+                  ]}
+                >
                   <DatePicker showTime style={{ width: '100%' }} />
                 </Form.Item>
               </Col>
@@ -299,6 +311,19 @@ export function AdminEventDetailPage() {
                   name="bookingEndsAt"
                   label="Booking closes at"
                   tooltip="After this time, no new tickets can be held or sold for this event."
+                  dependencies={['onSaleAt']}
+                  rules={[
+                    ({ getFieldValue }) => ({
+                      validator: (_rule, value: Dayjs | undefined) => {
+                        const onSaleAt = getFieldValue('onSaleAt') as Dayjs | undefined;
+                        return !value || !onSaleAt || value.isAfter(onSaleAt)
+                          ? Promise.resolve()
+                          : Promise.reject(
+                              new Error('Booking closes at must be after On sale from.'),
+                            );
+                      },
+                    }),
+                  ]}
                 >
                   <DatePicker showTime style={{ width: '100%' }} />
                 </Form.Item>
@@ -308,6 +333,7 @@ export function AdminEventDetailPage() {
                   name="maxTicketsPerBuyer"
                   label="Max tickets per buyer (optional)"
                   tooltip="Sums a buyer's held and purchased tickets for this event across all their orders."
+                  rules={[{ type: 'number', min: 1 }]}
                 >
                   <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
                 </Form.Item>
@@ -320,12 +346,21 @@ export function AdminEventDetailPage() {
             </Typography.Title>
             <Row gutter={20}>
               <Col xs={24} md={12}>
-                <Form.Item name="videoUrl" label="Video URL (YouTube or Vimeo link)">
+                <Form.Item
+                  name="videoUrl"
+                  label="Video URL (YouTube or Vimeo link)"
+                  rules={[{ max: 2000 }]}
+                >
                   <Input placeholder="https://youtube.com/watch?v=..." />
                 </Form.Item>
               </Col>
               <Col xs={24} md={12}>
-                <Form.Item name="bannerImageUrl" label="Banner image" style={{ marginBottom: 0 }}>
+                <Form.Item
+                  name="bannerImageUrl"
+                  label="Banner image"
+                  rules={[{ max: 2000 }]}
+                  style={{ marginBottom: 0 }}
+                >
                   <Input type="hidden" />
                 </Form.Item>
                 <Form.Item shouldUpdate noStyle>
@@ -378,22 +413,30 @@ export function AdminEventDetailPage() {
             </Typography.Text>
             <Row gutter={20}>
               <Col xs={24} sm={12}>
-                <Form.Item name="contactPhone" label="Phone">
+                <Form.Item name="contactPhone" label="Phone" rules={[{ max: 30 }]}>
                   <Input />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="contactMobile" label="Mobile">
+                <Form.Item name="contactMobile" label="Mobile" rules={[{ max: 30 }]}>
                   <Input />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
+                <Form.Item
+                  name="contactEmail"
+                  label="Email"
+                  rules={[{ type: 'email' }, { max: 200 }]}
+                >
                   <Input />
                 </Form.Item>
               </Col>
               <Col xs={24} sm={12}>
-                <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
+                <Form.Item
+                  name="websiteUrl"
+                  label="Website"
+                  rules={[{ type: 'url' }, { max: 2000 }]}
+                >
                   <Input placeholder="https://..." />
                 </Form.Item>
               </Col>
@@ -428,7 +471,7 @@ export function AdminEventDetailPage() {
               void handleDefineSeatMap(values);
             }}
           >
-            <Form.Item name="name" label="Seat map name" rules={[{ required: true }]}>
+            <Form.Item name="name" label="Seat map name" rules={[{ required: true }, { max: 200 }]}>
               <Input placeholder="e.g. Main Floor" style={{ maxWidth: 360 }} />
             </Form.Item>
 
@@ -452,7 +495,30 @@ export function AdminEventDetailPage() {
                           <Form.Item
                             name={[field.name, 'name']}
                             label="Section name"
-                            rules={[{ required: true, message: 'Required' }]}
+                            rules={[
+                              { required: true, message: 'Required' },
+                              { max: 100 },
+                              ({ getFieldValue }) => ({
+                                validator: (_rule, value: string | undefined) => {
+                                  if (!value) {
+                                    return Promise.resolve();
+                                  }
+                                  const sections =
+                                    (getFieldValue('sections') as
+                                      SeatMapSectionInput[] | undefined) ?? [];
+                                  const isDuplicate = sections.some(
+                                    (section, i) =>
+                                      i !== field.name &&
+                                      section?.name &&
+                                      section.name.trim().toLowerCase() ===
+                                        value.trim().toLowerCase(),
+                                  );
+                                  return isDuplicate
+                                    ? Promise.reject(new Error('Section names must be unique.'))
+                                    : Promise.resolve();
+                                },
+                              }),
+                            ]}
                           >
                             <Input placeholder="e.g. Orchestra" />
                           </Form.Item>
@@ -461,7 +527,7 @@ export function AdminEventDetailPage() {
                           <Form.Item
                             name={[field.name, 'priceTier']}
                             label="Price tier"
-                            rules={[{ required: true, message: 'Required' }]}
+                            rules={[{ required: true, message: 'Required' }, { max: 50 }]}
                           >
                             <Input placeholder="e.g. Gold" />
                           </Form.Item>
@@ -470,7 +536,10 @@ export function AdminEventDetailPage() {
                           <Form.Item
                             name={[field.name, 'priceAmount']}
                             label="Price"
-                            rules={[{ required: true, message: 'Required' }]}
+                            rules={[
+                              { required: true, message: 'Required' },
+                              { type: 'number', min: 0 },
+                            ]}
                           >
                             <InputNumber min={0} style={{ width: '100%' }} />
                           </Form.Item>
@@ -500,18 +569,24 @@ export function AdminEventDetailPage() {
                                   <Form.Item
                                     name={[field.name, 'rows']}
                                     label="Rows"
-                                    rules={[{ required: true, message: 'Required' }]}
+                                    rules={[
+                                      { required: true, message: 'Required' },
+                                      { type: 'number', min: 1, max: 500 },
+                                    ]}
                                   >
-                                    <InputNumber min={1} style={{ width: '100%' }} />
+                                    <InputNumber min={1} max={500} style={{ width: '100%' }} />
                                   </Form.Item>
                                 </Col>
                                 <Col xs={12} sm={6}>
                                   <Form.Item
                                     name={[field.name, 'seatsPerRow']}
                                     label="Seats per row"
-                                    rules={[{ required: true, message: 'Required' }]}
+                                    rules={[
+                                      { required: true, message: 'Required' },
+                                      { type: 'number', min: 1, max: 500 },
+                                    ]}
                                   >
-                                    <InputNumber min={1} style={{ width: '100%' }} />
+                                    <InputNumber min={1} max={500} style={{ width: '100%' }} />
                                   </Form.Item>
                                 </Col>
                               </>
@@ -520,9 +595,12 @@ export function AdminEventDetailPage() {
                                 <Form.Item
                                   name={[field.name, 'capacity']}
                                   label="Total capacity"
-                                  rules={[{ required: true, message: 'Required' }]}
+                                  rules={[
+                                    { required: true, message: 'Required' },
+                                    { type: 'number', min: 1, max: 1000000 },
+                                  ]}
                                 >
-                                  <InputNumber min={1} style={{ width: '100%' }} />
+                                  <InputNumber min={1} max={1000000} style={{ width: '100%' }} />
                                 </Form.Item>
                               </Col>
                             );

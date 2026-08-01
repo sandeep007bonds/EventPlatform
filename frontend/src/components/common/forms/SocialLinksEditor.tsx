@@ -15,7 +15,7 @@ export function SocialLinksEditor({ name = 'socialLinks' }: { name?: string }) {
             <Space key={field.key} align="baseline" wrap>
               <Form.Item
                 name={[field.name, 'platform']}
-                rules={[{ required: true, message: 'Required' }]}
+                rules={[{ required: true, message: 'Required' }, { max: 50 }]}
               >
                 <Input placeholder="Platform (e.g. Instagram)" />
               </Form.Item>
@@ -24,6 +24,7 @@ export function SocialLinksEditor({ name = 'socialLinks' }: { name?: string }) {
                 rules={[
                   { required: true, message: 'Required' },
                   { type: 'url', message: 'Must be a URL' },
+                  { max: 2000 },
                 ]}
               >
                 <Input placeholder="https://..." style={{ width: 280 }} />

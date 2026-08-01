@@ -109,12 +109,28 @@ export function SeatSelectionPage() {
 
   const setGaQuantity = (allocationId: string, quantity: number) => {
     setGaQuantities((prev) => {
-      const next = new Map(prev);
       if (quantity <= 0) {
+        const next = new Map(prev);
         next.delete(allocationId);
-      } else {
-        next.set(allocationId, quantity);
+        return next;
       }
+
+      // The server caps the SUM of general-admission quantities across all sections in one hold
+      // (HoldOptions.MaxGeneralAdmissionQuantityPerHold) — each section's own stepper only clamps
+      // that section individually, so the total must be checked here too.
+      const otherSectionsTotal = [...prev].reduce(
+        (sum, [id, existingQuantity]) => (id === allocationId ? sum : sum + existingQuantity),
+        0,
+      );
+      if (otherSectionsTotal + quantity > MAX_GENERAL_ADMISSION_QUANTITY) {
+        toast.error(
+          `You can select up to ${MAX_GENERAL_ADMISSION_QUANTITY} general-admission admissions in total.`,
+        );
+        return prev;
+      }
+
+      const next = new Map(prev);
+      next.set(allocationId, quantity);
       return next;
     });
   };

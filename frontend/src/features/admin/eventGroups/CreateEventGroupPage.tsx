@@ -83,7 +83,7 @@ export function CreateEventGroupPage() {
         >
           <Row gutter={20}>
             <Col span={24}>
-              <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+              <Form.Item name="title" label="Title" rules={[{ required: true }, { max: 200 }]}>
                 <Input placeholder="e.g. Coldplay World Tour" size="large" />
               </Form.Item>
             </Col>
@@ -93,7 +93,23 @@ export function CreateEventGroupPage() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="endsAt" label="Overall ends at (optional)">
+              <Form.Item
+                name="endsAt"
+                label="Overall ends at (optional)"
+                dependencies={['startsAt']}
+                rules={[
+                  ({ getFieldValue }) => ({
+                    validator: (_rule, value: Dayjs | undefined) => {
+                      const startsAt = getFieldValue('startsAt') as Dayjs | undefined;
+                      return !value || !startsAt || value.isAfter(startsAt)
+                        ? Promise.resolve()
+                        : Promise.reject(
+                            new Error('Overall ends at must be after Overall starts at.'),
+                          );
+                    },
+                  }),
+                ]}
+              >
                 <DatePicker showTime style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -102,22 +118,26 @@ export function CreateEventGroupPage() {
           <Divider titlePlacement="left">Default contact details (each leg can override)</Divider>
           <Row gutter={20}>
             <Col xs={24} sm={12}>
-              <Form.Item name="contactPhone" label="Phone">
+              <Form.Item name="contactPhone" label="Phone" rules={[{ max: 30 }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="contactMobile" label="Mobile">
+              <Form.Item name="contactMobile" label="Mobile" rules={[{ max: 30 }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
+              <Form.Item
+                name="contactEmail"
+                label="Email"
+                rules={[{ type: 'email' }, { max: 200 }]}
+              >
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
+              <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }, { max: 2000 }]}>
                 <Input placeholder="https://..." />
               </Form.Item>
             </Col>
