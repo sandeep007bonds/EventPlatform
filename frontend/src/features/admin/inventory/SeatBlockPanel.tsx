@@ -7,6 +7,7 @@ import {
   unblockSeats,
   type SeatInventoryStatus,
 } from '../../../services/inventory/inventoryApi';
+import { getEventTickets } from '../../../services/ticketing/ticketingApi';
 import { toast } from '../../../components/common/feedback/toast';
 import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
@@ -24,16 +25,20 @@ const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
   Blocked: '#ffccc7',
 };
 
+const CHECKED_IN_COLOR = '#b7eb8f';
+
 const LEGEND: { label: string; color: string }[] = [
   { label: 'Available', color: '#eef1f3' },
   { label: 'Blocked', color: '#ffccc7' },
   { label: 'Held / Sold (locked)', color: '#e2e2e2' },
+  { label: 'Checked in', color: CHECKED_IN_COLOR },
 ];
 
 /** Organizer seat block/unblock — reuses the same per-seat-status endpoint the buyer picker uses. */
 export function SeatBlockPanel({ eventId }: { eventId: string }) {
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
+  const [checkedInSeatIds, setCheckedInSeatIds] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -90,6 +95,23 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
           toast.error('Could not load seat inventory.');
           setLoading(false);
         }
+      });
+
+    getEventTickets(eventId)
+      .then((tickets) => {
+        if (cancelled) {
+          return;
+        }
+        setCheckedInSeatIds(
+          new Set(
+            tickets
+              .filter((ticket) => ticket.status === 'CheckedIn' && ticket.seatId !== null)
+              .map((ticket) => ticket.seatId as string),
+          ),
+        );
+      })
+      .catch(() => {
+        // Non-critical — the seat grid still works with plain Inventory statuses if this fails.
       });
 
     return () => {
@@ -207,14 +229,15 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
           seats={seatMap.seats}
           renderSeat={(seat) => {
             const status = statuses.get(seat.id) ?? 'Sold';
+            const checkedIn = checkedInSeatIds.has(seat.id);
             return (
               <SeatChip
                 key={seat.id}
                 label={String(seat.number)}
-                tooltip={`${seat.label} · ${status}`}
+                tooltip={checkedIn ? `${seat.label} · Checked in` : `${seat.label} · ${status}`}
                 selected={selected.has(seat.id)}
                 disabled={status !== 'Available' && status !== 'Blocked'}
-                color={STATUS_COLOR[status]}
+                color={checkedIn ? CHECKED_IN_COLOR : STATUS_COLOR[status]}
                 onClick={() => toggleSeat(seat.id)}
               />
             );

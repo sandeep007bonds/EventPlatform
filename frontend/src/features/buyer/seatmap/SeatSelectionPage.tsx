@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Alert, Button, Card, InputNumber, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
+import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
@@ -54,6 +55,8 @@ export function SeatSelectionPage() {
 
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [currency, setCurrency] = useState('USD');
+  const [maxTicketsPerBuyer, setMaxTicketsPerBuyer] = useState<number | null>(null);
+  const [onSaleAt, setOnSaleAt] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
@@ -110,6 +113,8 @@ export function SeatSelectionPage() {
           return;
         }
         setCurrency(event.currency);
+        setMaxTicketsPerBuyer(event.maxTicketsPerBuyer);
+        setOnSaleAt(event.onSaleAt);
         setSeatMap(map);
         pollStatuses(map);
       })
@@ -140,6 +145,16 @@ export function SeatSelectionPage() {
         toast.error(`You can select up to ${MAX_SEATS} seats.`);
         return prev;
       }
+
+      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
+      if (maxTicketsPerBuyer !== null) {
+        const gaCount = [...gaQuantities.values()].reduce((a, b) => a + b, 0);
+        if (next.size + 1 + gaCount > maxTicketsPerBuyer) {
+          toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
+          return prev;
+        }
+      }
+
       next.add(seatId);
       return next;
     });
@@ -164,6 +179,15 @@ export function SeatSelectionPage() {
         toast.error(
           `You can select up to ${MAX_GENERAL_ADMISSION_QUANTITY} general-admission admissions in total.`,
         );
+        return prev;
+      }
+
+      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
+      if (
+        maxTicketsPerBuyer !== null &&
+        selected.size + otherSectionsTotal + quantity > maxTicketsPerBuyer
+      ) {
+        toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
         return prev;
       }
 
@@ -213,6 +237,16 @@ export function SeatSelectionPage() {
   if (!seatMap) {
     return (
       <Typography.Text type="secondary">No seat map is available for this event.</Typography.Text>
+    );
+  }
+
+  // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
+  // enforce the on-sale window here too. The server rejects the hold either way (OnSaleNotStarted).
+  if (onSaleAt !== null && dayjs(onSaleAt).isAfter(dayjs())) {
+    return (
+      <Typography.Text type="secondary">
+        Tickets go on sale {dayjs(onSaleAt).format('MMMM D, YYYY · h:mm A')}.
+      </Typography.Text>
     );
   }
 

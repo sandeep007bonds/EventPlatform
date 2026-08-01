@@ -29,6 +29,13 @@ internal sealed class TicketRepository(TicketingDbContext dbContext) : ITicketRe
         dbContext.Tickets.FirstOrDefaultAsync(t => t.Token == token, cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Ticket>> GetByEventAsync(Guid tenantId, Guid catalogEventId, CancellationToken cancellationToken) =>
+        await dbContext.Tickets
+            .AsNoTracking()
+            .Where(t => t.TenantId == tenantId && t.CatalogEventId == catalogEventId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

@@ -34,6 +34,13 @@ public interface ITicketRepository
     /// <returns>The ticket (tracked, for check-in), or <see langword="null"/>.</returns>
     Task<Ticket?> GetByTokenAsync(string token, CancellationToken cancellationToken);
 
+    /// <summary>Gets every ticket for a tenant's event — e.g. to overlay check-in status on a seat map.</summary>
+    /// <param name="tenantId">Owning tenant.</param>
+    /// <param name="catalogEventId">The show/event.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The event's tickets.</returns>
+    Task<IReadOnlyList<Ticket>> GetByEventAsync(Guid tenantId, Guid catalogEventId, CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>

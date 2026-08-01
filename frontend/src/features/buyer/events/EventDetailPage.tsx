@@ -112,6 +112,10 @@ export function EventDetailPage() {
       toast.error('This event has no seat map yet.');
       return;
     }
+    if (event?.onSaleAt && dayjs(event.onSaleAt).isAfter(dayjs())) {
+      toast.error('Tickets are not on sale yet for this event.');
+      return;
+    }
     void navigate(`/events/${id}/seats`);
   };
 
@@ -132,6 +136,7 @@ export function EventDetailPage() {
     event.socialLinks.length > 0;
   const bookingClosed =
     event.bookingEndsAt !== null && dayjs(event.bookingEndsAt).isBefore(dayjs());
+  const notOnSaleYet = event.onSaleAt !== null && dayjs(event.onSaleAt).isAfter(dayjs());
 
   return (
     <div>
@@ -194,6 +199,11 @@ export function EventDetailPage() {
                   {event.locationName} — {event.addressLine1}, {event.city}
                 </Typography.Text>
               </Space>
+              {notOnSaleYet && (
+                <Tag color="blue" style={{ width: 'fit-content' }}>
+                  On sale {dayjs(event.onSaleAt).format('MMMM D, YYYY · h:mm A')}
+                </Tag>
+              )}
               {bookingClosed && (
                 <Tag color="warning" style={{ width: 'fit-content' }}>
                   Booking closed
@@ -354,10 +364,14 @@ export function EventDetailPage() {
                 type="primary"
                 size="large"
                 block
-                disabled={bookingClosed}
+                disabled={bookingClosed || notOnSaleYet}
                 onClick={handleSelectSeats}
               >
-                {bookingClosed ? 'Booking closed' : 'Select seats'}
+                {bookingClosed
+                  ? 'Booking closed'
+                  : notOnSaleYet
+                    ? 'Not on sale yet'
+                    : 'Select seats'}
               </Button>
             ) : (
               <Typography.Text type="secondary">Seats aren't on sale yet.</Typography.Text>

@@ -44,6 +44,11 @@ public sealed class HoldService(
         }
 
         var settings = await inventory.GetEventInventorySettingsAsync(eventId, cancellationToken);
+        if (settings?.OnSaleAt is { } onSaleAt && DateTimeOffset.UtcNow < onSaleAt)
+        {
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.OnSaleNotStarted);
+        }
+
         if (settings?.BookingEndsAt is { } bookingEndsAt && DateTimeOffset.UtcNow > bookingEndsAt)
         {
             return PlaceHoldResult.Failed(PlaceHoldOutcome.BookingWindowClosed);

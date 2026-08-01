@@ -24,6 +24,10 @@ public static class TicketingEndpoints
             .WithName("GetTicket")
             .WithTags("Tickets");
 
+        app.MapGet("/v1/events/{eventId:guid}/tickets", GetEventTicketsAsync)
+            .WithName("GetEventTickets")
+            .WithTags("Tickets");
+
         app.MapPost("/v1/tickets/scan", ScanTicketAsync)
             .WithName("ScanTicket")
             .WithTags("Tickets");
@@ -77,6 +81,22 @@ public static class TicketingEndpoints
     {
         var ticket = await repository.GetByIdAsync(id, cancellationToken);
         return ticket is null ? Results.NotFound() : Results.Ok(Map(ticket));
+    }
+
+    private static async Task<IResult> GetEventTicketsAsync(
+        Guid eventId,
+        ITenantContext tenant,
+        ITicketRepository repository,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var tickets = await repository.GetByEventAsync(tenant.TenantId.Value, eventId, cancellationToken);
+        var response = tickets.Select(Map).ToList();
+        return Results.Ok(response);
     }
 
     private static async Task<IResult> ScanTicketAsync(

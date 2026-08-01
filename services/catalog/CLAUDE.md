@@ -37,11 +37,12 @@ context: **Catalog** (ADR-0008).
   values (if any) override entirely (see ADR-0020).
 - **`Event.EndsAt` is required** (set at creation, alongside `StartsAt`) — every
   leg has a real date range, not just a start instant. **`Event.BookingEndsAt`**
-  (renamed from the old, display-only `OffSaleAt`) is a real, **enforced**
-  cutoff: Catalog hands it to Inventory via `EventPublished` so Inventory can
-  reject new holds after that time — unlike `OnSaleAt`, which stays
-  display-only. `BookingEndsAt` cannot change after publish in this pass
-  (`UpdateEventDetails` is Draft-only, same as every other detail field).
+  (renamed from the old, display-only `OffSaleAt`) and **`Event.OnSaleAt`** are
+  both real, **enforced** window bounds: Catalog hands both to Inventory via
+  `EventPublished` so Inventory can reject new holds outside that window
+  (before `OnSaleAt`, after `BookingEndsAt`). Neither can change after publish
+  in this pass (`UpdateEventDetails` is Draft-only, same as every other detail
+  field).
 - **`Event.MaxTicketsPerBuyer`** (nullable — `null` means no limit), settable
   at `Create`/editable via `UpdateDetails` (Draft-only, same lifecycle as
   `BookingEndsAt`). Propagated to Inventory via `EventPublished`, which
