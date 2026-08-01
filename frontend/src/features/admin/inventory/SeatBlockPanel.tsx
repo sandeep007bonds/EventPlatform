@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Space, Typography } from 'antd';
+import { Alert, Button, Card, Input, Space, Typography } from 'antd';
 import { getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
   blockSeats,
@@ -10,6 +10,12 @@ import {
 import { toast } from '../../../components/common/feedback/toast';
 import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
+
+// Inventory is provisioned asynchronously (pub/sub off Catalog's EventPublished, via the outbox
+// relay), so the per-seat status endpoint can briefly return an empty list right after a publish
+// — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
+const INVENTORY_POLL_INTERVAL_MS = 1500;
+const INVENTORY_POLL_MAX_ATTEMPTS = 6;
 
 const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
   Available: '#eef1f3',
@@ -31,19 +37,65 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
+  const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
-  const load = () => {
-    Promise.all([getSeatMap(eventId), getInventorySeats(eventId)])
-      .then(([map, seats]) => {
+  useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+
+    const pollStatuses = (map: SeatMapResponse) => {
+      getInventorySeats(eventId)
+        .then((seats) => {
+          if (cancelled) {
+            return;
+          }
+          if (seats.length > 0 || map.seats.length === 0) {
+            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+            setProvisioning(false);
+            return;
+          }
+          attempts += 1;
+          if (attempts >= INVENTORY_POLL_MAX_ATTEMPTS) {
+            setProvisioning(false);
+            return;
+          }
+          setProvisioning(true);
+          setTimeout(() => {
+            if (!cancelled) {
+              pollStatuses(map);
+            }
+          }, INVENTORY_POLL_INTERVAL_MS);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            toast.error('Could not load seat inventory.');
+            setProvisioning(false);
+          }
+        });
+    };
+
+    getSeatMap(eventId)
+      .then((map) => {
+        if (cancelled) {
+          return;
+        }
         setSeatMap(map);
-        setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+        setLoading(false);
+        pollStatuses(map);
       })
-      .catch(() => toast.error('Could not load seat inventory.'))
-      .finally(() => setLoading(false));
-  };
+      .catch(() => {
+        if (!cancelled) {
+          toast.error('Could not load seat inventory.');
+          setLoading(false);
+        }
+      });
 
-  useEffect(load, [eventId]);
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId, reloadToken]);
 
   const selectedStatuses = new Set([...selected].map((seatId) => statuses.get(seatId)));
   const canBlock =
@@ -75,7 +127,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
       toast.success('Seats blocked.');
       setSelected(new Set());
       setReason('');
-      load();
+      setReloadToken((token) => token + 1);
     } catch {
       toast.error('Could not block those seats.');
     } finally {
@@ -89,7 +141,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
       await unblockSeats(eventId, { seatIds: [...selected] });
       toast.success('Seats unblocked.');
       setSelected(new Set());
-      load();
+      setReloadToken((token) => token + 1);
     } catch {
       toast.error('Could not unblock those seats.');
     } finally {
@@ -143,23 +195,32 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         </Space>
       </div>
 
-      <SeatGrid
-        seats={seatMap.seats}
-        renderSeat={(seat) => {
-          const status = statuses.get(seat.id) ?? 'Sold';
-          return (
-            <SeatChip
-              key={seat.id}
-              label={String(seat.number)}
-              tooltip={`${seat.label} · ${status}`}
-              selected={selected.has(seat.id)}
-              disabled={status !== 'Available' && status !== 'Blocked'}
-              color={STATUS_COLOR[status]}
-              onClick={() => toggleSeat(seat.id)}
-            />
-          );
-        }}
-      />
+      {provisioning ? (
+        <Alert
+          type="info"
+          showIcon
+          message="Seats are still being set up — this can take a few seconds."
+          style={{ marginBottom: 16 }}
+        />
+      ) : (
+        <SeatGrid
+          seats={seatMap.seats}
+          renderSeat={(seat) => {
+            const status = statuses.get(seat.id) ?? 'Sold';
+            return (
+              <SeatChip
+                key={seat.id}
+                label={String(seat.number)}
+                tooltip={`${seat.label} · ${status}`}
+                selected={selected.has(seat.id)}
+                disabled={status !== 'Available' && status !== 'Blocked'}
+                color={STATUS_COLOR[status]}
+                onClick={() => toggleSeat(seat.id)}
+              />
+            );
+          }}
+        />
+      )}
 
       <Card styles={{ body: { padding: '16px 20px' } }}>
         <Space align="center" wrap style={{ width: '100%', justifyContent: 'space-between' }}>
