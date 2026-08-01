@@ -16,6 +16,7 @@ import { AdminEventDetailPage } from '../features/admin/events/AdminEventDetailP
 import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
 import { EventGroupsPage } from '../features/admin/eventGroups/EventGroupsPage';
 import { CreateEventGroupPage } from '../features/admin/eventGroups/CreateEventGroupPage';
+import { ScanTicketPage } from '../features/admin/tickets/ScanTicketPage';
 import { ProtectedRoute } from './ProtectedRoute';
 
 /**
@@ -90,6 +91,7 @@ export function AppRouter() {
         <Route path="tours" element={<EventGroupsPage />} />
         <Route path="tours/new" element={<CreateEventGroupPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
+        <Route path="scan" element={<ScanTicketPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

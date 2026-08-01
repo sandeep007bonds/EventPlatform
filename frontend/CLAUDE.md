@@ -44,6 +44,7 @@ src/
             (hold summary + countdown) orders/ (order+tickets, order history)
     admin/  events/ (list, create, detail with seat-map form + publish)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
+            tickets/ (ScanTicketPage — check in a ticket by its scan token)
   utils/         formatMoney, eventStatusColor — small, shared across features
 ```
 

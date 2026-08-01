@@ -31,6 +31,7 @@ internal sealed class UpdateEventDetailsHandler(IEventRepository repository, IEv
             request.DoorsOpenAt,
             request.OnSaleAt,
             request.BookingEndsAt,
+            request.MaxTicketsPerBuyer,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

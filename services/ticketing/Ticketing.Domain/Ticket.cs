@@ -64,6 +64,9 @@ public sealed class Ticket
     /// <summary>When the ticket was issued (UTC).</summary>
     public DateTimeOffset IssuedAt { get; private set; }
 
+    /// <summary>When the ticket was scanned/checked in at the gate (UTC), if it has been.</summary>
+    public DateTimeOffset? CheckedInAt { get; private set; }
+
     /// <summary>Issues a ticket for a reserved seat or a general-admission quantity.</summary>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The order.</param>
@@ -104,6 +107,7 @@ public sealed class Ticket
         }
 
         Status = TicketStatus.CheckedIn;
+        CheckedInAt = DateTimeOffset.UtcNow;
     }
 
     /// <summary>Voids the ticket (e.g. after a refund).</summary>

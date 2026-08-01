@@ -27,6 +27,13 @@ public static class NotificationsEndpoints
             .WithName("OnTicketIssued")
             .ExcludeFromDescription();
 
+        // One combined ticket-delivery email per order, sent directly (the buyer email arrived on
+        // the event) — see IntegrationEventNotificationHandler.HandleOrderTicketsIssuedAsync.
+        app.MapPost("/integration/ticketing/order-tickets-issued", OnOrderTicketsIssuedAsync)
+            .WithTopic("pubsub", nameof(OrderTicketsIssued))
+            .WithName("OnOrderTicketsIssued")
+            .ExcludeFromDescription();
+
         return app;
     }
 
@@ -79,6 +86,16 @@ public static class NotificationsEndpoints
         CancellationToken cancellationToken)
     {
         await handler.HandleTicketIssuedAsync(@event, cancellationToken);
+
+        return Results.Ok();
+    }
+
+    private static async Task<IResult> OnOrderTicketsIssuedAsync(
+        OrderTicketsIssued @event,
+        IntegrationEventNotificationHandler handler,
+        CancellationToken cancellationToken)
+    {
+        await handler.HandleOrderTicketsIssuedAsync(@event, cancellationToken);
 
         return Results.Ok();
     }

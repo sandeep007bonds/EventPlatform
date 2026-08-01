@@ -42,6 +42,11 @@ public static class OrderingEndpoints
             return Results.BadRequest(new { message = "The Idempotency-Key header is required." });
         }
 
+        if (string.IsNullOrWhiteSpace(request.BuyerEmail) || !MailAddress.TryCreate(request.BuyerEmail, out _))
+        {
+            return Results.BadRequest(new { message = "A valid BuyerEmail is required." });
+        }
+
         // Idempotency: a prior attempt with this key wins before starting a new workflow.
         var existing = await orders.GetByIdempotencyKeyAsync(tenant.TenantId.Value, idempotencyKey, cancellationToken);
         if (existing is not null)
@@ -55,7 +60,7 @@ public static class OrderingEndpoints
         await workflowClient.ScheduleNewWorkflowAsync(
             nameof(CheckoutWorkflow),
             instanceId,
-            new CheckoutWorkflowInput(tenant.TenantId.Value, userId.Value, request.HoldId, idempotencyKey));
+            new CheckoutWorkflowInput(tenant.TenantId.Value, userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail));
 
         var state = await workflowClient.WaitForWorkflowCompletionAsync(
             instanceId,

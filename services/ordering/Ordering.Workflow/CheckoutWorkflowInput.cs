@@ -5,4 +5,5 @@ namespace Ordering.Workflow;
 /// <param name="UserId">The buyer.</param>
 /// <param name="HoldId">The hold to purchase.</param>
 /// <param name="IdempotencyKey">Idempotency key (unique per tenant).</param>
-public sealed record CheckoutWorkflowInput(Guid TenantId, Guid UserId, Guid HoldId, string IdempotencyKey);
+/// <param name="BuyerEmail">The buyer's email, for ticket delivery.</param>
+public sealed record CheckoutWorkflowInput(Guid TenantId, Guid UserId, Guid HoldId, string IdempotencyKey, string BuyerEmail);

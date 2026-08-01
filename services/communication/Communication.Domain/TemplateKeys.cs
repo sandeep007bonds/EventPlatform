@@ -11,4 +11,7 @@ public static class TemplateKeys
 
     /// <summary>Ticket issued — recorded on delivery-log rows only; not yet rendered.</summary>
     public const string TicketIssued = "ticket-issued";
+
+    /// <summary>One combined email listing every ticket minted for an order — rendered and sent when a buyer email is present.</summary>
+    public const string OrderTickets = "order-tickets";
 }

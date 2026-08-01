@@ -207,6 +207,11 @@ export function EventDetailPage() {
                   </Typography.Text>
                 </Space>
               )}
+              {event.maxTicketsPerBuyer !== null && (
+                <Typography.Text type="secondary">
+                  Limit: {event.maxTicketsPerBuyer} per person
+                </Typography.Text>
+              )}
             </Space>
 
             {event.description && (

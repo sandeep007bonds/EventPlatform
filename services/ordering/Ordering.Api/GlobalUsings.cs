@@ -1,3 +1,4 @@
+global using System.Net.Mail;
 global using System.Security.Claims;
 global using Dapr.Workflow;
 global using EventPlatform.Hosting;

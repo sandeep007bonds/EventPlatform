@@ -29,7 +29,8 @@ public sealed class Event
         string country,
         double? latitude,
         double? longitude,
-        Guid? eventGroupId)
+        Guid? eventGroupId,
+        int? maxTicketsPerBuyer)
     {
         Id = id;
         TenantId = tenantId;
@@ -47,6 +48,7 @@ public sealed class Event
         Latitude = latitude;
         Longitude = longitude;
         EventGroupId = eventGroupId;
+        MaxTicketsPerBuyer = maxTicketsPerBuyer;
         Status = EventStatus.Draft;
     }
 
@@ -99,6 +101,13 @@ public sealed class Event
     /// <see cref="Publish"/> so Inventory can check it at hold-placement time.
     /// </summary>
     public DateTimeOffset? BookingEndsAt { get; private set; }
+
+    /// <summary>
+    /// The maximum number of tickets a single buyer may hold for this event, summed across their
+    /// active and converted holds. <see langword="null"/> means no limit. Enforced by Inventory at
+    /// hold-placement time, propagated the same way as <see cref="BookingEndsAt"/>.
+    /// </summary>
+    public int? MaxTicketsPerBuyer { get; private set; }
 
     /// <summary>Free-text age restriction (e.g. "18+", "All ages"), if any.</summary>
     public string? AgeRestriction { get; private set; }
@@ -175,6 +184,10 @@ public sealed class Event
     /// <param name="eventGroupId">
     /// The tour/series this event is one leg of, if any (see <see cref="EventGroup"/>).
     /// </param>
+    /// <param name="maxTicketsPerBuyer">
+    /// The maximum number of tickets a single buyer may hold for this event, if limited.
+    /// See <see cref="MaxTicketsPerBuyer"/>.
+    /// </param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="endsAt"/> is not after <paramref name="startsAt"/>.</exception>
     public static Event Create(
@@ -192,7 +205,8 @@ public sealed class Event
         string country,
         double? latitude,
         double? longitude,
-        Guid? eventGroupId)
+        Guid? eventGroupId,
+        int? maxTicketsPerBuyer = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -222,7 +236,8 @@ public sealed class Event
             country,
             latitude,
             longitude,
-            eventGroupId);
+            eventGroupId,
+            maxTicketsPerBuyer);
     }
 
     /// <summary>
@@ -252,6 +267,7 @@ public sealed class Event
     /// <param name="doorsOpenAt">Doors-open time (UTC), if different from <see cref="StartsAt"/>.</param>
     /// <param name="onSaleAt">Display-only sales-window start (UTC).</param>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
+    /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
@@ -271,6 +287,7 @@ public sealed class Event
         DateTimeOffset? doorsOpenAt,
         DateTimeOffset? onSaleAt,
         DateTimeOffset? bookingEndsAt,
+        int? maxTicketsPerBuyer,
         string? ageRestriction,
         string? bannerImageUrl,
         string? videoUrl,
@@ -301,6 +318,7 @@ public sealed class Event
         DoorsOpenAt = doorsOpenAt;
         OnSaleAt = onSaleAt;
         BookingEndsAt = bookingEndsAt;
+        MaxTicketsPerBuyer = maxTicketsPerBuyer;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;

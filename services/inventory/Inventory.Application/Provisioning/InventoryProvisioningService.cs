@@ -18,12 +18,14 @@ public sealed class InventoryProvisioningService(
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="eventId">The published event.</param>
     /// <param name="bookingEndsAt">The event's enforced booking cutoff (UTC), if any.</param>
+    /// <param name="maxTicketsPerBuyer">The event's per-buyer ticket limit, if any.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The provisioning result.</returns>
     public async Task<ProvisioningResult> ProvisionAsync(
         Guid tenantId,
         Guid eventId,
         DateTimeOffset? bookingEndsAt,
+        int? maxTicketsPerBuyer,
         CancellationToken cancellationToken)
     {
         if (await inventory.ExistsForEventAsync(eventId, cancellationToken))
@@ -54,7 +56,7 @@ public sealed class InventoryProvisioningService(
             .ToList();
         inventory.AddGeneralAdmissionAllocations(allocations);
 
-        inventory.AddEventInventorySettings(EventInventorySettings.Create(eventId, tenantId, bookingEndsAt));
+        inventory.AddEventInventorySettings(EventInventorySettings.Create(eventId, tenantId, bookingEndsAt, maxTicketsPerBuyer));
 
         await inventory.SaveChangesAsync(cancellationToken);
 

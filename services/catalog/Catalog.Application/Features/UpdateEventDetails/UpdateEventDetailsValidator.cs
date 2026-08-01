@@ -17,6 +17,10 @@ public sealed class UpdateEventDetailsValidator : AbstractValidator<UpdateEventD
             .When(command => command.OnSaleAt is not null && command.BookingEndsAt is not null)
             .WithMessage("BookingEndsAt must be after OnSaleAt.");
 
+        RuleFor(command => command.MaxTicketsPerBuyer)
+            .GreaterThan(0)
+            .When(command => command.MaxTicketsPerBuyer is not null);
+
         RuleFor(command => command.ContactPhone).MaximumLength(30);
         RuleFor(command => command.ContactMobile).MaximumLength(30);
         RuleFor(command => command.ContactEmail).MaximumLength(200).EmailAddress()

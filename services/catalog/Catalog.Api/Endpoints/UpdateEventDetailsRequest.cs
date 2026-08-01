@@ -10,6 +10,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="DoorsOpenAt">Doors-open time (UTC), if different from the start time.</param>
 /// <param name="OnSaleAt">Display-only sales-window start (UTC).</param>
 /// <param name="BookingEndsAt">Enforced booking cutoff (UTC) — Inventory rejects new holds after this time.</param>
+/// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
 /// <param name="AgeRestriction">Free-text age restriction.</param>
 /// <param name="BannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
 /// <param name="VideoUrl">Video embed URL.</param>
@@ -25,6 +26,7 @@ public sealed record UpdateEventDetailsRequest(
     DateTimeOffset? DoorsOpenAt,
     DateTimeOffset? OnSaleAt,
     DateTimeOffset? BookingEndsAt,
+    int? MaxTicketsPerBuyer,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,

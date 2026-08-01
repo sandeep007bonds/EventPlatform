@@ -23,7 +23,8 @@ internal sealed class CreateEventHandler(IEventRepository repository)
             request.Country,
             request.Latitude,
             request.Longitude,
-            request.EventGroupId);
+            request.EventGroupId,
+            request.MaxTicketsPerBuyer);
 
         repository.Add(@event);
         await repository.SaveChangesAsync(cancellationToken);

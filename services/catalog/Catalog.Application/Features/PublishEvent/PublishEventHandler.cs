@@ -43,7 +43,8 @@ internal sealed class PublishEventHandler(
             @event.Id,
             @event.Title,
             seatMap.Capacity,
-            @event.BookingEndsAt));
+            @event.BookingEndsAt,
+            @event.MaxTicketsPerBuyer));
 
         await repository.SaveChangesAsync(cancellationToken);
         return PublishEventOutcome.Published;

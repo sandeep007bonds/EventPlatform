@@ -3,6 +3,7 @@ import {
   CalendarOutlined,
   CompassOutlined,
   LogoutOutlined,
+  QrcodeOutlined,
   ShoppingOutlined,
 } from '@ant-design/icons';
 import { useTranslation } from 'react-i18next';
@@ -29,7 +30,9 @@ export function AdminLayout() {
     ? 'orders'
     : location.pathname.startsWith('/admin/tours')
       ? 'tours'
-      : 'events';
+      : location.pathname.startsWith('/admin/scan')
+        ? 'scan'
+        : 'events';
 
   return (
     <ConfigProvider theme={adminTheme}>
@@ -94,6 +97,11 @@ export function AdminLayout() {
                 key: 'orders',
                 icon: <ShoppingOutlined />,
                 label: <Link to="/admin/orders">{t('nav.orders')}</Link>,
+              },
+              {
+                key: 'scan',
+                icon: <QrcodeOutlined />,
+                label: <Link to="/admin/scan">{t('nav.scan')}</Link>,
               },
             ]}
           />

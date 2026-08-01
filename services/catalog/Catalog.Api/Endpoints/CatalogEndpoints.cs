@@ -49,7 +49,8 @@ public static class CatalogEndpoints
             request.Country,
             request.Latitude,
             request.Longitude,
-            request.EventGroupId);
+            request.EventGroupId,
+            request.MaxTicketsPerBuyer);
 
         var id = await sender.Send(command, cancellationToken);
         return Results.Created($"/v1/events/{id}", new { id });
@@ -170,6 +171,7 @@ public static class CatalogEndpoints
             request.DoorsOpenAt,
             request.OnSaleAt,
             request.BookingEndsAt,
+            request.MaxTicketsPerBuyer,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

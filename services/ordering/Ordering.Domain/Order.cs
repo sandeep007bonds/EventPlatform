@@ -20,7 +20,8 @@ public sealed class Order
         Guid catalogEventId,
         Guid holdId,
         string currency,
-        string idempotencyKey)
+        string idempotencyKey,
+        string? buyerEmail)
     {
         Id = id;
         TenantId = tenantId;
@@ -29,6 +30,7 @@ public sealed class Order
         HoldId = holdId;
         Currency = currency;
         IdempotencyKey = idempotencyKey;
+        BuyerEmail = buyerEmail;
         Status = OrderStatus.Pending;
         CreatedAt = DateTimeOffset.UtcNow;
     }
@@ -60,6 +62,13 @@ public sealed class Order
     /// <summary>Idempotency key; unique per tenant, dedupes retried checkouts.</summary>
     public string IdempotencyKey { get; private set; } = default!;
 
+    /// <summary>
+    /// The buyer's email, provided at checkout for ticket delivery. Not derived from any token
+    /// claim — a plain field the buyer supplies, since buyers don't necessarily log in with an
+    /// email-carrying identity (see ADR-0021).
+    /// </summary>
+    public string? BuyerEmail { get; private set; }
+
     /// <summary>Reason the order failed, when <see cref="Status"/> is <see cref="OrderStatus.Failed"/>.</summary>
     public string? FailureReason { get; private set; }
 
@@ -77,6 +86,7 @@ public sealed class Order
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key (unique per tenant).</param>
     /// <param name="lines">The order lines.</param>
+    /// <param name="buyerEmail">The buyer's email, for ticket delivery.</param>
     /// <returns>A new pending <see cref="Order"/>.</returns>
     public static Order Create(
         Guid tenantId,
@@ -85,13 +95,14 @@ public sealed class Order
         Guid holdId,
         string currency,
         string idempotencyKey,
-        IEnumerable<OrderLineSpec> lines)
+        IEnumerable<OrderLineSpec> lines,
+        string? buyerEmail = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentNullException.ThrowIfNull(lines);
 
-        var order = new Order(Guid.CreateVersion7(), tenantId, userId, catalogEventId, holdId, currency, idempotencyKey);
+        var order = new Order(Guid.CreateVersion7(), tenantId, userId, catalogEventId, holdId, currency, idempotencyKey, buyerEmail);
         foreach (var line in lines)
         {
             order._lines.Add(new OrderLine(order.Id, line));

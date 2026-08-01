@@ -12,11 +12,12 @@ public sealed class EventInventorySettings
     {
     }
 
-    private EventInventorySettings(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt)
+    private EventInventorySettings(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer)
     {
         EventId = eventId;
         TenantId = tenantId;
         BookingEndsAt = bookingEndsAt;
+        MaxTicketsPerBuyer = maxTicketsPerBuyer;
     }
 
     /// <summary>The event these settings belong to (primary key).</summary>
@@ -31,18 +32,33 @@ public sealed class EventInventorySettings
     /// </summary>
     public DateTimeOffset? BookingEndsAt { get; private set; }
 
+    /// <summary>
+    /// Maximum tickets a single buyer may hold for this event, if limited — <c>HoldService.PlaceHoldAsync</c>
+    /// rejects a new hold once the buyer's active-plus-converted commitment would exceed this.
+    /// </summary>
+    public int? MaxTicketsPerBuyer { get; private set; }
+
     /// <summary>Creates the settings row for an event.</summary>
     /// <param name="eventId">The event.</param>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC), if any.</param>
+    /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit, if any.</param>
     /// <returns>A new <see cref="EventInventorySettings"/>.</returns>
-    public static EventInventorySettings Create(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt) =>
-        new(eventId, tenantId, bookingEndsAt);
+    public static EventInventorySettings Create(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer) =>
+        new(eventId, tenantId, bookingEndsAt, maxTicketsPerBuyer);
 
     /// <summary>
-    /// Updates the booking cutoff — called on redelivery of <c>EventPublished</c>, keeping this
-    /// idempotent alongside the existing per-event provisioning guard.
+    /// Updates the booking cutoff and per-buyer ticket limit — called on redelivery of
+    /// <c>EventPublished</c>, keeping this idempotent alongside the existing per-event provisioning
+    /// guard. Unreachable today: <c>InventoryProvisioningService.ProvisionAsync</c> short-circuits
+    /// on <c>ExistsForEventAsync</c> before this would ever run — kept symmetrical for when
+    /// post-publish updates are supported.
     /// </summary>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC), if any.</param>
-    public void UpdateBookingCutoff(DateTimeOffset? bookingEndsAt) => BookingEndsAt = bookingEndsAt;
+    /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit, if any.</param>
+    public void Update(DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer)
+    {
+        BookingEndsAt = bookingEndsAt;
+        MaxTicketsPerBuyer = maxTicketsPerBuyer;
+    }
 }

@@ -20,5 +20,6 @@ public sealed class CreateEventValidator : AbstractValidator<CreateEventCommand>
         RuleFor(command => command.Country).NotEmpty().Length(2);
         RuleFor(command => command.Latitude).InclusiveBetween(-90, 90).When(c => c.Latitude is not null);
         RuleFor(command => command.Longitude).InclusiveBetween(-180, 180).When(c => c.Longitude is not null);
+        RuleFor(command => command.MaxTicketsPerBuyer).GreaterThan(0).When(c => c.MaxTicketsPerBuyer is not null);
     }
 }

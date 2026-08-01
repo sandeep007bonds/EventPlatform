@@ -153,6 +153,8 @@ public static class InventoryEndpoints
                 }),
             PlaceHoldOutcome.BookingWindowClosed =>
                 Results.Conflict(new { message = "The booking window for this event has closed." }),
+            PlaceHoldOutcome.BuyerLimitExceeded =>
+                Results.Conflict(new { message = "This would exceed the maximum tickets allowed per buyer for this event." }),
             _ => Results.Problem("Unexpected hold outcome."),
         };
     }
@@ -256,6 +258,7 @@ public static class InventoryEndpoints
             @event.TenantId,
             @event.CatalogEventId,
             @event.BookingEndsAt,
+            @event.MaxTicketsPerBuyer,
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Inventory.Provisioning");

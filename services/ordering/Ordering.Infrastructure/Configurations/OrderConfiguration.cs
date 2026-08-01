@@ -15,6 +15,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.IdempotencyKey).HasMaxLength(200).IsRequired();
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(o => o.FailureReason).HasMaxLength(200);
+        builder.Property(o => o.BuyerEmail).HasMaxLength(320);
 
         // Idempotent checkout: one order per (tenant, idempotency key).
         builder.HasIndex(o => new { o.TenantId, o.IdempotencyKey }).IsUnique();

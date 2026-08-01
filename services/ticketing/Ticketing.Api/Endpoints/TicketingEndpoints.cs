@@ -24,6 +24,10 @@ public static class TicketingEndpoints
             .WithName("GetTicket")
             .WithTags("Tickets");
 
+        app.MapPost("/v1/tickets/scan", ScanTicketAsync)
+            .WithName("ScanTicket")
+            .WithTags("Tickets");
+
         return app;
     }
 
@@ -39,6 +43,7 @@ public static class TicketingEndpoints
             @event.CatalogEventId,
             @event.UserId,
             @event.Lines,
+            @event.BuyerEmail,
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Ticketing.Issuing");
@@ -74,6 +79,36 @@ public static class TicketingEndpoints
         return ticket is null ? Results.NotFound() : Results.Ok(Map(ticket));
     }
 
+    private static async Task<IResult> ScanTicketAsync(
+        ScanTicketRequest request,
+        ITenantContext tenant,
+        ITicketRepository repository,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var ticket = await repository.GetByTokenAsync(request.Token, cancellationToken);
+        if (ticket is null || ticket.TenantId != tenant.TenantId)
+        {
+            return Results.NotFound(new { message = "No ticket matches that token." });
+        }
+
+        try
+        {
+            ticket.CheckIn();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Results.Conflict(new { message = ex.Message });
+        }
+
+        await repository.SaveChangesAsync(cancellationToken);
+        return Results.Ok(Map(ticket));
+    }
+
     private static TicketResponse Map(Ticket ticket) =>
         new(
             ticket.Id,
@@ -83,5 +118,6 @@ public static class TicketingEndpoints
             ticket.GeneralAdmissionAllocationId,
             ticket.Token,
             ticket.Status.ToString(),
-            ticket.IssuedAt);
+            ticket.IssuedAt,
+            ticket.CheckedInAt);
 }

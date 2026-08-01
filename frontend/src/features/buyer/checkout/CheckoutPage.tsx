@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Progress, Result, Tag, Typography } from 'antd';
-import { ClockCircleOutlined } from '@ant-design/icons';
+import { Button, Card, Input, Progress, Result, Tag, Typography } from 'antd';
+import { ClockCircleOutlined, MailOutlined } from '@ant-design/icons';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent } from '../../../services/catalog/catalogApi';
@@ -9,6 +9,9 @@ import { checkout } from '../../../services/ordering/orderingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+import { useAuth } from '../../../contexts/useAuth';
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const HOLD_TTL_SECONDS_ESTIMATE = 120;
 
@@ -38,11 +41,13 @@ function useCountdown(expiresAt: string | null): number {
 export function CheckoutPage() {
   const { holdId } = useParams<{ holdId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [hold, setHold] = useState<HoldView | null>(null);
   const [currency, setCurrency] = useState('USD');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [buyerEmail, setBuyerEmail] = useState(user?.email ?? '');
   // Generated once per mount and reused across retries of this same attempt — never regenerated
   // on retry, so the backend's idempotency check actually dedupes.
   const idempotencyKey = useRef(crypto.randomUUID());
@@ -83,9 +88,14 @@ export function CheckoutPage() {
       return;
     }
 
+    if (!EMAIL_PATTERN.test(buyerEmail)) {
+      toast.error('Enter a valid email so we can send your tickets.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const result = await checkout(holdId, idempotencyKey.current);
+      const result = await checkout(holdId, idempotencyKey.current, buyerEmail);
       void navigate(`/orders/${result.orderId}`);
     } catch (error) {
       const axiosError = error as AxiosError<CheckoutErrorBody>;
@@ -184,6 +194,18 @@ export function CheckoutPage() {
             {formatMoney(hold.totalMinor, currency)}
           </Typography.Title>
         </div>
+
+        <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>
+          Email for ticket delivery
+        </Typography.Text>
+        <Input
+          prefix={<MailOutlined />}
+          type="email"
+          placeholder="you@example.com"
+          value={buyerEmail}
+          onChange={(event) => setBuyerEmail(event.target.value)}
+          style={{ marginBottom: 20 }}
+        />
 
         <Button
           type="primary"

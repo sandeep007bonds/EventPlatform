@@ -13,6 +13,7 @@ namespace EventPlatform.Contracts.Ordering;
 /// <param name="TotalMinor">Order total in minor currency units.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
 /// <param name="Lines">The purchased lines — reserved seats and/or general-admission quantities.</param>
+/// <param name="BuyerEmail">The email address the buyer provided at checkout for ticket delivery.</param>
 public sealed record OrderConfirmed(
     Guid EventId,
     DateTimeOffset OccurredAt,
@@ -22,4 +23,5 @@ public sealed record OrderConfirmed(
     Guid UserId,
     long TotalMinor,
     string Currency,
-    IReadOnlyList<OrderLineSummary> Lines) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    IReadOnlyList<OrderLineSummary> Lines,
+    string? BuyerEmail = null) : IntegrationEvent(EventId, OccurredAt, TenantId);

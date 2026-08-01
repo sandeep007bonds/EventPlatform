@@ -17,4 +17,7 @@ public enum PlaceHoldOutcome
 
     /// <summary>The event's enforced booking cutoff has passed; no new holds are accepted.</summary>
     BookingWindowClosed,
+
+    /// <summary>This request would push the buyer's total commitment for the event past its per-buyer ticket limit.</summary>
+    BuyerLimitExceeded,
 }

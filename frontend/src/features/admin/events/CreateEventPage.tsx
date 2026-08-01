@@ -34,6 +34,7 @@ interface CreateEventFormValues {
   latitude?: number;
   longitude?: number;
   eventGroupId?: string;
+  maxTicketsPerBuyer?: number;
 }
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR'];
@@ -61,6 +62,7 @@ export function CreateEventPage() {
         latitude: values.latitude ?? null,
         longitude: values.longitude ?? null,
         eventGroupId: values.eventGroupId ?? null,
+        maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
       });
       toast.success('Event created.');
       void navigate(`/admin/events/${result.id}`);
@@ -109,6 +111,11 @@ export function CreateEventPage() {
             <Col span={24}>
               <Form.Item name="eventGroupId" label="Part of a tour? (optional)">
                 <EventGroupPicker />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item name="maxTicketsPerBuyer" label="Max tickets per buyer (optional)">
+                <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
               </Form.Item>
             </Col>
           </Row>

@@ -12,7 +12,9 @@ is named `Ordering` so the type never clashes with its namespace.
 ## Owns
 
 - **Data store:** PostgreSQL `ordering` DB (this service only)
-- **Public API:** `POST /v1/checkout` (Idempotency-Key), `GET /v1/orders`
+- **Public API:** `POST /v1/checkout` (Idempotency-Key; body requires a
+  `BuyerEmail` — a plain checkout-time field for ticket delivery, not derived
+  from any token claim, see ADR-0021), `GET /v1/orders`
   (`?mine=true` — buyer's own; `?forTenant=true` — organizer's tenant; exactly
   one is required), `GET /v1/orders/{id}`
 - **Events published:** `OrderConfirmed` (via outbox)
@@ -20,6 +22,12 @@ is named `Ordering` so the type never clashes with its namespace.
 
 ## Design notes
 
+- **`Order.BuyerEmail`** (nullable, `HasMaxLength(320)`) is a plain
+  checkout-time field, threaded through `CheckoutWorkflowInput` →
+  `CreateOrderInput` → `Order` → `OrderConfirmed`, so Ticketing/Communication
+  can send a single combined ticket-delivery email (ADR-0021). Not derived
+  from any JWT claim — buyers won't necessarily authenticate via a flow that
+  carries an email claim (see the deferred Identity/OTP work).
 - **Polymorphic order lines:** `OrderLine`/`OrderLineSpec` are widened with
   nullable fields rather than split into separate seat/GA types — a line is
   either a reserved seat (`InventoryItemId`/`SeatId` set, `Quantity` always 1)

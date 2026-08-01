@@ -130,4 +130,16 @@ public interface IInventoryRepository
     /// <summary>Registers a new event inventory settings row to be persisted.</summary>
     /// <param name="settings">The settings to add.</param>
     void AddEventInventorySettings(EventInventorySettings settings);
+
+    /// <summary>
+    /// Sums a buyer's already-committed quantity for an event — seats plus general-admission
+    /// quantities — across their <see cref="HoldStatus.Active"/> and <see cref="HoldStatus.Converted"/>
+    /// holds. Used to enforce <see cref="EventInventorySettings.MaxTicketsPerBuyer"/> before a new
+    /// hold is placed. Released holds are excluded — that quantity has freed back up.
+    /// </summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="userId">The buyer.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The buyer's total already-committed quantity for the event.</returns>
+    Task<int> GetBuyerCommittedQuantityAsync(Guid eventId, Guid userId, CancellationToken cancellationToken);
 }

@@ -16,6 +16,7 @@ export interface TicketResponse {
   token: string;
   status: TicketStatus;
   issuedAt: string;
+  checkedInAt: string | null;
 }
 
 /**
@@ -27,5 +28,16 @@ export async function getOrderTickets(orderId: string): Promise<TicketResponse[]
   const response = await httpClient.get<TicketResponse[]>(
     `/api/ticketing/v1/orders/${orderId}/tickets`,
   );
+  return response.data;
+}
+
+/**
+ * Scans/checks in a ticket by its opaque token (as read from its QR code). Throws (via axios) on
+ * `404` (no ticket matches that token) or `409` (already checked in, or void).
+ */
+export async function scanTicket(token: string): Promise<TicketResponse> {
+  const response = await httpClient.post<TicketResponse>('/api/ticketing/v1/tickets/scan', {
+    token,
+  });
   return response.data;
 }

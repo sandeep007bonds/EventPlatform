@@ -15,6 +15,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
     /// <param name="catalogEventId">The show/event.</param>
     /// <param name="userId">The ticket holder.</param>
     /// <param name="lines">The purchased lines — reserved seats and/or general-admission quantities.</param>
+    /// <param name="buyerEmail">The buyer's email, for ticket delivery — see <see cref="OrderTicketsIssued"/>.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The issue result.</returns>
     public async Task<IssueResult> IssueAsync(
@@ -23,6 +24,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
         Guid catalogEventId,
         Guid userId,
         IReadOnlyList<OrderLineSummary> lines,
+        string? buyerEmail,
         CancellationToken cancellationToken)
     {
         if (await tickets.ExistsForOrderAsync(orderId, cancellationToken))
@@ -59,6 +61,18 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
         }
 
         tickets.AddRange(issued);
+
+        events.Enqueue(new OrderTicketsIssued(
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow,
+            tenantId,
+            orderId,
+            catalogEventId,
+            userId,
+            buyerEmail,
+            issued.Select(ticket => new IssuedTicketSummary(
+                ticket.Id, ticket.SeatId, ticket.GeneralAdmissionAllocationId, ticket.Token)).ToList()));
+
         await tickets.SaveChangesAsync(cancellationToken);
 
         return new IssueResult(Issued: true, TicketCount: issued.Count);

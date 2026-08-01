@@ -15,6 +15,10 @@ namespace EventPlatform.Contracts.Catalog;
 /// Enforced booking cutoff (UTC), if set — Inventory rejects new holds for this event after this
 /// time. Cannot change after publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
 /// </param>
+/// <param name="MaxTicketsPerBuyer">
+/// Maximum tickets a single buyer may hold for this event, if limited — Inventory enforces this
+/// at hold-placement time, summing the buyer's active and converted holds.
+/// </param>
 public sealed record EventPublished(
     Guid EventId,
     DateTimeOffset OccurredAt,
@@ -22,4 +26,5 @@ public sealed record EventPublished(
     Guid CatalogEventId,
     string Title,
     int SeatCount,
-    DateTimeOffset? BookingEndsAt) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    DateTimeOffset? BookingEndsAt,
+    int? MaxTicketsPerBuyer = null) : IntegrationEvent(EventId, OccurredAt, TenantId);

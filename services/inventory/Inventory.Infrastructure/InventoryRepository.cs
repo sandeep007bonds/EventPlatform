@@ -143,4 +143,28 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
     /// <inheritdoc />
     public void AddEventInventorySettings(EventInventorySettings settings) =>
         dbContext.EventInventorySettings.Add(settings);
+
+    /// <inheritdoc />
+    public async Task<int> GetBuyerCommittedQuantityAsync(Guid eventId, Guid userId, CancellationToken cancellationToken)
+    {
+        var seatCount = await (
+            from holdItem in dbContext.Set<HoldItem>()
+            join hold in dbContext.Holds on holdItem.HoldId equals hold.Id
+            where hold.EventId == eventId
+                && hold.UserId == userId
+                && (hold.Status == HoldStatus.Active || hold.Status == HoldStatus.Converted)
+            select holdItem)
+            .CountAsync(cancellationToken);
+
+        var gaQuantity = await (
+            from gaItem in dbContext.Set<HoldGeneralAdmissionItem>()
+            join hold in dbContext.Holds on gaItem.HoldId equals hold.Id
+            where hold.EventId == eventId
+                && hold.UserId == userId
+                && (hold.Status == HoldStatus.Active || hold.Status == HoldStatus.Converted)
+            select gaItem.Quantity)
+            .SumAsync(cancellationToken);
+
+        return seatCount + gaQuantity;
+    }
 }

@@ -42,6 +42,11 @@ context: **Catalog** (ADR-0008).
   reject new holds after that time — unlike `OnSaleAt`, which stays
   display-only. `BookingEndsAt` cannot change after publish in this pass
   (`UpdateEventDetails` is Draft-only, same as every other detail field).
+- **`Event.MaxTicketsPerBuyer`** (nullable — `null` means no limit), settable
+  at `Create`/editable via `UpdateDetails` (Draft-only, same lifecycle as
+  `BookingEndsAt`). Propagated to Inventory via `EventPublished`, which
+  enforces it cumulatively across a buyer's holds at hold-placement time —
+  Catalog itself does not enforce anything (see ADR-0021).
 - **Seat maps mix Reserved and General-Admission sections.** `DefineSeatMap`'s
   section input carries an `AllocationType`: `Reserved` sections generate
   individual `Seat` rows (rows × seats-per-row) exactly as before;
@@ -49,7 +54,8 @@ context: **Catalog** (ADR-0008).
   a single event can have both kinds side by side. `GetSeatMapResponse`
   (the hand-off Inventory reads) carries both `Seats` and
   `GeneralAdmissionSections` lists.
-- **Events published:** `EventPublished` (now also carries `BookingEndsAt`), `EventUpdated`
+- **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
+  `MaxTicketsPerBuyer`), `EventUpdated`
 - **Events consumed:** —
 
 ## Structure

@@ -19,6 +19,7 @@ namespace Catalog.Application.Features.CreateEvent;
 /// <param name="Latitude">Latitude, if known.</param>
 /// <param name="Longitude">Longitude, if known.</param>
 /// <param name="EventGroupId">The tour/series this event is one leg of, if any.</param>
+/// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
 public sealed record CreateEventCommand(
     Guid TenantId,
     string Title,
@@ -34,4 +35,5 @@ public sealed record CreateEventCommand(
     string Country,
     double? Latitude,
     double? Longitude,
-    Guid? EventGroupId) : IRequest<Guid>;
+    Guid? EventGroupId,
+    int? MaxTicketsPerBuyer = null) : IRequest<Guid>;

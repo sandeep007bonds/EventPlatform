@@ -52,6 +52,7 @@ interface EventDetailsFormValues {
   doorsOpenAt?: Dayjs;
   onSaleAt?: Dayjs;
   bookingEndsAt?: Dayjs;
+  maxTicketsPerBuyer?: number;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -115,6 +116,7 @@ export function AdminEventDetailPage() {
       doorsOpenAt: event.doorsOpenAt ? dayjs(event.doorsOpenAt) : undefined,
       onSaleAt: event.onSaleAt ? dayjs(event.onSaleAt) : undefined,
       bookingEndsAt: event.bookingEndsAt ? dayjs(event.bookingEndsAt) : undefined,
+      maxTicketsPerBuyer: event.maxTicketsPerBuyer ?? undefined,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -155,6 +157,7 @@ export function AdminEventDetailPage() {
         doorsOpenAt: values.doorsOpenAt?.toISOString() ?? null,
         onSaleAt: values.onSaleAt?.toISOString() ?? null,
         bookingEndsAt: values.bookingEndsAt?.toISOString() ?? null,
+        maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -298,6 +301,15 @@ export function AdminEventDetailPage() {
                   tooltip="After this time, no new tickets can be held or sold for this event."
                 >
                   <DatePicker showTime style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="maxTicketsPerBuyer"
+                  label="Max tickets per buyer (optional)"
+                  tooltip="Sums a buyer's held and purchased tickets for this event across all their orders."
+                >
+                  <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
                 </Form.Item>
               </Col>
             </Row>

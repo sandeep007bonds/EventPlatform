@@ -23,7 +23,8 @@ per channel by configuration.
   has no reference to `EventPlatform.Messaging`. This is the one service in
   the repo without an outbox; don't add one without a real publishing need.
 - **Events consumed:** `OrderConfirmed` (Ordering), `TicketIssued` (Ticketing)
-  — wired for dedup-safety, **delivery deferred** (see below).
+  — wired for dedup-safety, **delivery still deferred** (see below);
+  `OrderTicketsIssued` (Ticketing) — **delivers today** (see below, ADR-0021).
 
 ## Design notes (ADR-0016)
 
@@ -78,6 +79,20 @@ per channel by configuration.
   `TicketIssued` fires once per seat; a real implementation will need a
   batching decision (one email per ticket vs. one combined order receipt)
   — not solved yet.
+- **`OrderTicketsIssued` is the one subscriber that delivers today (ADR-0021).**
+  It carries the buyer's email directly on the event (captured at Ordering's
+  checkout, not resolved via `IRecipientResolver`), so
+  `IntegrationEventNotificationHandler.HandleOrderTicketsIssuedAsync` renders
+  the new `order-tickets` template (ticket list pre-formatted into one
+  flat placeholder string — no loop support in `ITemplateRenderer`) and
+  calls `IEmailSender` **directly**, bypassing `NotificationSendService`.
+  Reason: `NotificationSendService` does its own internal `SaveChangesAsync`,
+  which would split "delivery logged" from "event marked processed" into two
+  transactions — a crash in between could cause an at-least-once redelivery
+  to double-send. This handler writes the delivery-log row and the
+  processed-event marker in **one** `SaveChangesAsync` instead. Falls back to
+  a `Skipped` row if `BuyerEmail` is absent (shouldn't happen once checkout
+  requires it) or the template is missing.
 - **No transactional outbox.** See "Owns" above — this is the one
   intentional structural difference from every other service's scaffold.
 

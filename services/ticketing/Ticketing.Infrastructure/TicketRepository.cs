@@ -25,6 +25,10 @@ internal sealed class TicketRepository(TicketingDbContext dbContext) : ITicketRe
             .FirstOrDefaultAsync(t => t.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public Task<Ticket?> GetByTokenAsync(string token, CancellationToken cancellationToken) =>
+        dbContext.Tickets.FirstOrDefaultAsync(t => t.Token == token, cancellationToken);
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

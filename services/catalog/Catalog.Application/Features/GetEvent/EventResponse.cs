@@ -16,6 +16,7 @@ namespace Catalog.Application.Features.GetEvent;
 /// <param name="DoorsOpenAt">Doors-open time (UTC), if set.</param>
 /// <param name="OnSaleAt">Display-only sales-window start (UTC), if set — not enforced.</param>
 /// <param name="BookingEndsAt">Enforced booking cutoff (UTC), if set — Inventory rejects new holds after this time.</param>
+/// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event, if set.</param>
 /// <param name="AgeRestriction">Free-text age restriction, if set.</param>
 /// <param name="BannerImageUrl">Banner image URL, if set.</param>
 /// <param name="VideoUrl">Video embed URL, if set.</param>
@@ -48,6 +49,7 @@ public sealed record EventResponse(
     DateTimeOffset? DoorsOpenAt,
     DateTimeOffset? OnSaleAt,
     DateTimeOffset? BookingEndsAt,
+    int? MaxTicketsPerBuyer,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,

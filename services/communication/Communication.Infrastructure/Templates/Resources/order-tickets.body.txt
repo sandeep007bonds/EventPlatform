@@ -1,0 +1,5 @@
+Your order is confirmed! {{ ticket_count }} ticket(s) have been issued:
+
+{{ ticket_list }}
+
+Keep this email as your ticket confirmation.

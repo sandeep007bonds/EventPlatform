@@ -51,10 +51,11 @@ export interface OrderListResponse {
 export async function checkout(
   holdId: string,
   idempotencyKey: string,
+  buyerEmail: string,
 ): Promise<{ orderId: string }> {
   const response = await httpClient.post<{ orderId: string }>(
     '/api/ordering/v1/checkout',
-    { holdId },
+    { holdId, buyerEmail },
     { headers: { 'Idempotency-Key': idempotencyKey } },
   );
   return response.data;

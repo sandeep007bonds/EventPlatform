@@ -26,6 +26,7 @@ export interface EventResponse {
   doorsOpenAt: string | null;
   onSaleAt: string | null;
   bookingEndsAt: string | null;
+  maxTicketsPerBuyer: number | null;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
@@ -53,6 +54,7 @@ export interface UpdateEventDetailsRequest {
   doorsOpenAt?: string | null;
   onSaleAt?: string | null;
   bookingEndsAt?: string | null;
+  maxTicketsPerBuyer?: number | null;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -183,6 +185,7 @@ export interface CreateEventRequest {
   latitude?: number | null;
   longitude?: number | null;
   eventGroupId?: string | null;
+  maxTicketsPerBuyer?: number | null;
 }
 
 /** Creates a new draft event for the caller's tenant. */

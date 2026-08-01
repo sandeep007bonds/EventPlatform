@@ -2,6 +2,7 @@
   "nav": {
     "events": "Events",
     "orders": "Orders",
-    "tours": "Tours"
+    "tours": "Tours",
+    "scan": "Scan tickets"
   }
 }

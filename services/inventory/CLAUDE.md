@@ -21,7 +21,8 @@ event, and enforces that event's booking cutoff.
   `SeatUnblocked` (via outbox) — seat-only today; general-admission holds don't
   yet appear on these events (no external consumer needs them this pass)
 - **Events consumed:** `EventPublished` (Catalog) → provision seat inventory and
-  general-admission allocations, and record the event's `BookingEndsAt`
+  general-admission allocations, and record the event's `BookingEndsAt` and
+  `MaxTicketsPerBuyer`
 
 ## General admission and the enforced booking cutoff
 
@@ -43,6 +44,15 @@ event, and enforces that event's booking cutoff.
   checked before touching Redis/Postgres. Changing the cutoff after an event is
   published is out of scope for this pass (`UpdateEventDetails` on Catalog stays
   Draft-only).
+- **`EventInventorySettings.MaxTicketsPerBuyer`** (per-buyer ticket limit, if
+  set — ADR-0021) is checked right after the booking-cutoff check.
+  `IInventoryRepository.GetBuyerCommittedQuantityAsync` sums the buyer's
+  existing seat/GA commitment across their `Active` and `Converted` holds for
+  the event (an explicit `HoldItem`/`HoldGeneralAdmissionItem` join to `Hold`,
+  same style as `GetReconciliationStateAsync` — not navigated via
+  `Hold.Items`/`Hold.GeneralAdmissionItems`); if the new request would push
+  the total past the limit, `PlaceHoldAsync` returns
+  `PlaceHoldOutcome.BuyerLimitExceeded` (409) before touching Redis/Postgres.
 - **Not extended for GA in this pass:** `InventoryReconciler` only rebuilds the
   seat fast gate from Postgres after a flush. A GA capacity counter lost to a
   flush degrades fast-path availability (Redis under-reports remaining

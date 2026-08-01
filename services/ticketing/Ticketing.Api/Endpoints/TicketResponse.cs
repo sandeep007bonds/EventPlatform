@@ -9,6 +9,7 @@ namespace Ticketing.Api.Endpoints;
 /// <param name="Token">Opaque scan token encoded in the QR code.</param>
 /// <param name="Status">Ticket status name.</param>
 /// <param name="IssuedAt">When the ticket was issued (UTC).</param>
+/// <param name="CheckedInAt">When the ticket was scanned/checked in at the gate (UTC), if it has been.</param>
 public sealed record TicketResponse(
     Guid Id,
     Guid OrderId,
@@ -17,4 +18,5 @@ public sealed record TicketResponse(
     Guid? GeneralAdmissionAllocationId,
     string Token,
     string Status,
-    DateTimeOffset IssuedAt);
+    DateTimeOffset IssuedAt,
+    DateTimeOffset? CheckedInAt);

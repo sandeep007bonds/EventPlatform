@@ -30,7 +30,8 @@ public sealed class CreateOrderActivity(IOrderRepository orders, CheckoutOptions
                 line.GeneralAdmissionAllocationId,
                 line.Quantity,
                 line.UnitPriceMinor,
-                line.PriceMinor)));
+                line.PriceMinor)),
+            input.BuyerEmail);
         order.MarkAwaitingPayment();
 
         // Race window: two attempts both passed the check above. The unique index on

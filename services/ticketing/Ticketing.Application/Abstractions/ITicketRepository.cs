@@ -28,6 +28,12 @@ public interface ITicketRepository
     /// <returns>The ticket, or <see langword="null"/>.</returns>
     Task<Ticket?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
+    /// <summary>Gets a tracked ticket by its opaque scan token, or <see langword="null"/>.</summary>
+    /// <param name="token">The scan token.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The ticket (tracked, for check-in), or <see langword="null"/>.</returns>
+    Task<Ticket?> GetByTokenAsync(string token, CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>

@@ -49,6 +49,16 @@ public sealed class HoldService(
             return PlaceHoldResult.Failed(PlaceHoldOutcome.BookingWindowClosed);
         }
 
+        if (settings?.MaxTicketsPerBuyer is { } maxTicketsPerBuyer)
+        {
+            var requestedQuantity = distinctSeatIds.Count + gaSelections.Sum(selection => selection.Quantity);
+            var alreadyCommitted = await inventory.GetBuyerCommittedQuantityAsync(eventId, userId, cancellationToken);
+            if (alreadyCommitted + requestedQuantity > maxTicketsPerBuyer)
+            {
+                return PlaceHoldResult.Failed(PlaceHoldOutcome.BuyerLimitExceeded);
+            }
+        }
+
         var items = new List<InventoryItem>();
         if (distinctSeatIds.Count > 0)
         {

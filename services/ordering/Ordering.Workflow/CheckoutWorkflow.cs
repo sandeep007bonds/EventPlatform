@@ -40,7 +40,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         // 2. Create the order (awaiting payment).
         var order = await context.CallActivityAsync<CreateOrderOutput>(
             nameof(CreateOrderActivity),
-            new CreateOrderInput(input.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines));
+            new CreateOrderInput(input.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
