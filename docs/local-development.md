@@ -133,6 +133,29 @@ dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." \
 In the cloud the key comes from **Key Vault** (surfaced as the same config key). Use
 a **test** key locally, and roll any key that has ever been shared.
 
+### Twilio credentials (Communication SMS/WhatsApp)
+
+Communication's SMS/WhatsApp senders use Twilio when `Communication:Sms:Provider`
+(or `Communication:WhatsApp:Provider`) is set to `Twilio`; otherwise they use the
+dev/logging sender (`dev-up.sh` works fine either way — nothing sends for real).
+**Never commit these values.** For local dev, use user-secrets, set *before*
+running `dev-up.sh`:
+
+```bash
+dotnet user-secrets set "Communication:Sms:Provider" "Twilio" \
+  --project services/communication/Communication.Api
+dotnet user-secrets set "Communication:Twilio:AccountSid" "AC..." \
+  --project services/communication/Communication.Api
+dotnet user-secrets set "Communication:Twilio:AuthToken" "..." \
+  --project services/communication/Communication.Api
+dotnet user-secrets set "Communication:Twilio:SmsFromNumber" "+1..." \
+  --project services/communication/Communication.Api
+```
+
+In the cloud these come from **Key Vault** (surfaced as the same config keys).
+Use a **trial/test** account locally, and roll any credential that has ever
+been shared or pasted somewhere outside a secrets manager.
+
 ## What is NOT needed locally
 
 - ❌ An Azure subscription
