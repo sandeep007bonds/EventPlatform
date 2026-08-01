@@ -1,3 +1,4 @@
+global using System.Globalization;
 global using Communication.Application.Abstractions;
 global using Communication.Application.Sending;
 global using Communication.Application.Subscribing;

@@ -106,17 +106,6 @@ public sealed class SeatMap
         _generalAdmissionSections.Add(new GeneralAdmissionSection(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, capacity));
     }
 
-    private void EnsureSectionNameIsUnique(string section)
-    {
-        var exists = _seats.Any(s => string.Equals(s.Section, section, StringComparison.OrdinalIgnoreCase))
-            || _generalAdmissionSections.Any(s => string.Equals(s.SectionName, section, StringComparison.OrdinalIgnoreCase));
-
-        if (exists)
-        {
-            throw new InvalidOperationException($"Section '{section}' already exists in the seat map.");
-        }
-    }
-
     // Spreadsheet-column style labels: A..Z, then AA..AZ, BA.. (supports up to 702 rows).
     private static string BuildRowLabel(int index)
     {
@@ -127,5 +116,16 @@ public sealed class SeatMap
         return first == 0
             ? $"{secondChar}"
             : $"{(char)('A' + first - 1)}{secondChar}";
+    }
+
+    private void EnsureSectionNameIsUnique(string section)
+    {
+        var exists = _seats.Any(s => string.Equals(s.Section, section, StringComparison.OrdinalIgnoreCase))
+            || _generalAdmissionSections.Any(s => string.Equals(s.SectionName, section, StringComparison.OrdinalIgnoreCase));
+
+        if (exists)
+        {
+            throw new InvalidOperationException($"Section '{section}' already exists in the seat map.");
+        }
     }
 }

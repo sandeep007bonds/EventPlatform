@@ -43,24 +43,6 @@ public sealed class IntegrationEventNotificationHandler(
         return HandleAsync(@event.EventId, nameof(TicketIssued), @event.TenantId, @event.UserId, TemplateKeys.TicketIssued, cancellationToken);
     }
 
-    private async Task HandleAsync(Guid eventId, string eventType, Guid tenantId, Guid userId, string intendedTemplateKey, CancellationToken cancellationToken)
-    {
-        if (await notifications.HasProcessedEventAsync(eventId, cancellationToken))
-        {
-            return;
-        }
-
-        // Always null today (no IRecipientResolver implementation resolves a real contact yet), so
-        // this always falls through to recording a Skipped row rather than attempting a send. Once
-        // a real resolver exists, branch on a non-null contact here and call NotificationSendService
-        // instead — no other change needed.
-        _ = await recipients.ResolveAsync(userId, cancellationToken);
-
-        notifications.AddDeliveryLog(DeliveryLogEntry.Skipped(tenantId, NotificationChannel.Email, intendedTemplateKey, eventId));
-        notifications.RecordProcessedEvent(eventId, eventType);
-        await notifications.SaveChangesAsync(cancellationToken);
-    }
-
     /// <summary>
     /// Handles an <see cref="OrderTicketsIssued"/> event by sending one combined ticket-delivery
     /// email — the email already arrived on the event (captured at checkout), so this bypasses
@@ -104,7 +86,7 @@ public sealed class IntegrationEventNotificationHandler(
         var placeholders = new Dictionary<string, string>
         {
             ["order_id"] = @event.OrderId.ToString(),
-            ["ticket_count"] = @event.Tickets.Count.ToString(),
+            ["ticket_count"] = @event.Tickets.Count.ToString(CultureInfo.InvariantCulture),
             ["ticket_list"] = ticketList,
         };
 
@@ -117,6 +99,24 @@ public sealed class IntegrationEventNotificationHandler(
             ? DeliveryLogEntry.Sent(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.ProviderReference, @event.EventId)
             : DeliveryLogEntry.Failed(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.FailureReason ?? "unknown", @event.EventId));
         notifications.RecordProcessedEvent(@event.EventId, nameof(OrderTicketsIssued));
+        await notifications.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task HandleAsync(Guid eventId, string eventType, Guid tenantId, Guid userId, string intendedTemplateKey, CancellationToken cancellationToken)
+    {
+        if (await notifications.HasProcessedEventAsync(eventId, cancellationToken))
+        {
+            return;
+        }
+
+        // Always null today (no IRecipientResolver implementation resolves a real contact yet), so
+        // this always falls through to recording a Skipped row rather than attempting a send. Once
+        // a real resolver exists, branch on a non-null contact here and call NotificationSendService
+        // instead — no other change needed.
+        _ = await recipients.ResolveAsync(userId, cancellationToken);
+
+        notifications.AddDeliveryLog(DeliveryLogEntry.Skipped(tenantId, NotificationChannel.Email, intendedTemplateKey, eventId));
+        notifications.RecordProcessedEvent(eventId, eventType);
         await notifications.SaveChangesAsync(cancellationToken);
     }
 }
