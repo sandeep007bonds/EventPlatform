@@ -8,4 +8,5 @@ resources:
   - ticketing
   - communication
   - media
+  - identity
   - gateway

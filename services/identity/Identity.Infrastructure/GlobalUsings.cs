@@ -1,0 +1,17 @@
+global using System.IdentityModel.Tokens.Jwt;
+global using System.Net.Http.Json;
+global using System.Security.Claims;
+global using System.Security.Cryptography;
+global using System.Text;
+global using System.Text.Json;
+global using Dapr.Client;
+global using Identity.Application.Abstractions;
+global using Identity.Domain;
+global using Identity.Infrastructure.Otp;
+global using Identity.Infrastructure.Signing;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Design;
+global using Microsoft.EntityFrameworkCore.Metadata.Builders;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.IdentityModel.Tokens;

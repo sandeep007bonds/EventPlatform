@@ -54,4 +54,11 @@
     <Project Path="services/media/Media.Api/Media.Api.csproj" />
     <Project Path="services/media/tests/Media.Tests/Media.Tests.csproj" />
   </Folder>
+  <Folder Name="/services/identity/">
+    <Project Path="services/identity/Identity.Domain/Identity.Domain.csproj" />
+    <Project Path="services/identity/Identity.Application/Identity.Application.csproj" />
+    <Project Path="services/identity/Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <Project Path="services/identity/Identity.Api/Identity.Api.csproj" />
+    <Project Path="services/identity/tests/Identity.Tests/Identity.Tests.csproj" />
+  </Folder>
 </Solution>
