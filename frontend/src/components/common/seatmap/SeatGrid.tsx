@@ -1,0 +1,71 @@
+import type { ReactNode } from 'react';
+import { Card, Typography } from 'antd';
+import type { SeatResponse } from '../../../services/catalog/catalogApi';
+
+/**
+ * Renders reserved seats grouped by section, then by row within each section, with each row's
+ * seats sorted left to right by seat number — so the layout actually reads as a seat map instead
+ * of a flat wall of buttons in whatever order the API returned them. `renderSeat` supplies the
+ * interactive control per seat (buyer picker and organizer block panel each render it differently).
+ */
+export function SeatGrid({
+  seats,
+  renderSeat,
+  sectionExtra,
+}: {
+  seats: SeatResponse[];
+  renderSeat: (seat: SeatResponse) => ReactNode;
+  sectionExtra?: (section: string, sectionSeats: SeatResponse[]) => ReactNode;
+}) {
+  const bySection = new Map<string, SeatResponse[]>();
+  for (const seat of seats) {
+    const list = bySection.get(seat.section) ?? [];
+    list.push(seat);
+    bySection.set(seat.section, list);
+  }
+
+  return (
+    <>
+      {[...bySection.entries()].map(([section, sectionSeats]) => {
+        const byRow = new Map<string, SeatResponse[]>();
+        for (const seat of sectionSeats) {
+          const list = byRow.get(seat.row) ?? [];
+          list.push(seat);
+          byRow.set(seat.row, list);
+        }
+        const rows = [...byRow.entries()].sort((a, b) =>
+          a[0].localeCompare(b[0], undefined, { numeric: true }),
+        );
+
+        return (
+          <Card
+            key={section}
+            size="small"
+            title={section}
+            extra={sectionExtra?.(section, sectionSeats)}
+            style={{ marginBottom: 16 }}
+            styles={{ body: { padding: '18px 20px' } }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {rows.map(([row, rowSeats]) => (
+                <div key={row} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <Typography.Text
+                    type="secondary"
+                    style={{ width: 24, flexShrink: 0, textAlign: 'right', fontSize: 12 }}
+                  >
+                    {row}
+                  </Typography.Text>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {[...rowSeats]
+                      .sort((a, b) => a.number - b.number)
+                      .map((seat) => renderSeat(seat))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
+    </>
+  );
+}

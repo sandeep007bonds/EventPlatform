@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
-import { Empty, List, Pagination, Tag, Typography } from 'antd';
+import { Card, Empty, Pagination, Space, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import { listMyOrders, type OrderSummaryResponse } from '../../../services/ordering/orderingApi';
 import { ListSkeleton } from '../../../components/common/skeletons/ListSkeleton';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 
 const PAGE_SIZE = 10;
+
+const STATUS_COLOR: Record<OrderSummaryResponse['status'], string> = {
+  Pending: 'default',
+  AwaitingPayment: 'processing',
+  Confirmed: 'success',
+  Failed: 'error',
+  Refunded: 'default',
+};
 
 /** The buyer's own order history. */
 export function MyOrdersPage() {
@@ -40,42 +49,67 @@ export function MyOrdersPage() {
   }, [page]);
 
   if (loading) {
-    return <ListSkeleton />;
-  }
-
-  if (orders.length === 0) {
-    return <Empty description="No orders yet" />;
+    return (
+      <>
+        <PageHeader title="My orders" />
+        <ListSkeleton />
+      </>
+    );
   }
 
   return (
     <>
-      <List
-        dataSource={orders}
-        renderItem={(order) => (
-          <List.Item>
-            <Link
-              to={`/orders/${order.id}`}
-              style={{ width: '100%', display: 'flex', justifyContent: 'space-between' }}
-            >
-              <span>
-                <Tag color={order.status === 'Confirmed' ? 'green' : 'default'}>{order.status}</Tag>
-                {dayjs(order.createdAt).format('MMM D, YYYY')}
-              </span>
-              <Typography.Text strong>
-                {formatMoney(order.totalMinor, order.currency)}
-              </Typography.Text>
-            </Link>
-          </List.Item>
-        )}
-      />
-      <Pagination
-        style={{ marginTop: 16, textAlign: 'center' }}
-        current={page}
-        pageSize={PAGE_SIZE}
-        total={totalCount}
-        onChange={setPage}
-        showSizeChanger={false}
-      />
+      <PageHeader title="My orders" />
+      {orders.length === 0 ? (
+        <Empty description="No orders yet" style={{ margin: '64px 0' }} />
+      ) : (
+        <>
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            {orders.map((order) => (
+              <Link key={order.id} to={`/orders/${order.id}`}>
+                <Card
+                  hoverable
+                  styles={{ body: { padding: '16px 20px' } }}
+                  style={{ width: '100%' }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      flexWrap: 'wrap',
+                      gap: 12,
+                    }}
+                  >
+                    <Space direction="vertical" size={2}>
+                      <Space>
+                        <Tag color={STATUS_COLOR[order.status]}>{order.status}</Tag>
+                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                          #{order.id.slice(0, 8)}
+                        </Typography.Text>
+                      </Space>
+                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                        {dayjs(order.createdAt).format('MMM D, YYYY · h:mm A')}
+                      </Typography.Text>
+                    </Space>
+                    <Typography.Text strong style={{ fontSize: 16 }}>
+                      {formatMoney(order.totalMinor, order.currency)}
+                    </Typography.Text>
+                  </div>
+                </Card>
+              </Link>
+            ))}
+          </Space>
+          <Pagination
+            style={{ marginTop: 24, textAlign: 'center' }}
+            current={page}
+            pageSize={PAGE_SIZE}
+            total={totalCount}
+            onChange={setPage}
+            showSizeChanger={false}
+          />
+        </>
+      )}
     </>
   );
 }

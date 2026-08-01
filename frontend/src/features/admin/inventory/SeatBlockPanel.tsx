@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Space, Tag, Typography } from 'antd';
+import { Button, Card, Input, Space, Typography } from 'antd';
 import { getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
   blockSeats,
@@ -8,6 +8,21 @@ import {
   type SeatInventoryStatus,
 } from '../../../services/inventory/inventoryApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
+import { SeatChip } from '../../../components/common/seatmap/SeatChip';
+
+const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
+  Available: '#eef1f3',
+  Held: '#ffe1a8',
+  Sold: '#e2e2e2',
+  Blocked: '#ffccc7',
+};
+
+const LEGEND: { label: string; color: string }[] = [
+  { label: 'Available', color: '#eef1f3' },
+  { label: 'Blocked', color: '#ffccc7' },
+  { label: 'Held / Sold (locked)', color: '#e2e2e2' },
+];
 
 /** Organizer seat block/unblock — reuses the same per-seat-status endpoint the buyer picker uses. */
 export function SeatBlockPanel({ eventId }: { eventId: string }) {
@@ -87,40 +102,89 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   }
 
   return (
-    <Card title="Seat inventory">
-      <Space wrap style={{ marginBottom: 16 }}>
-        {seatMap.seats.map((seat) => {
+    <>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            Seat inventory
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+            Block seats to hold them back from sale (e.g. a kill or a restricted view).
+          </Typography.Text>
+        </div>
+        <Space size={16} wrap>
+          {LEGEND.map((item) => (
+            <Space key={item.label} size={6}>
+              <span
+                aria-hidden
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 4,
+                  background: item.color,
+                  display: 'inline-block',
+                  border: '1px solid rgba(0,0,0,0.08)',
+                }}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {item.label}
+              </Typography.Text>
+            </Space>
+          ))}
+        </Space>
+      </div>
+
+      <SeatGrid
+        seats={seatMap.seats}
+        renderSeat={(seat) => {
           const status = statuses.get(seat.id) ?? 'Sold';
-          const isSelected = selected.has(seat.id);
           return (
-            <Tag.CheckableTag
+            <SeatChip
               key={seat.id}
-              checked={isSelected}
-              onChange={() => toggleSeat(seat.id)}
-              style={{ opacity: status === 'Held' || status === 'Sold' ? 0.5 : 1 }}
-            >
-              {seat.label} · {status}
-            </Tag.CheckableTag>
+              label={String(seat.number)}
+              tooltip={`${seat.label} · ${status}`}
+              selected={selected.has(seat.id)}
+              disabled={status !== 'Available' && status !== 'Blocked'}
+              color={STATUS_COLOR[status]}
+              onClick={() => toggleSeat(seat.id)}
+            />
           );
-        })}
-      </Space>
+        }}
+      />
 
-      <Typography.Text type="secondary">{selected.size} seat(s) selected</Typography.Text>
-
-      <Space style={{ marginTop: 12, width: '100%' }}>
-        <Input
-          placeholder="Reason (optional)"
-          value={reason}
-          onChange={(event) => setReason(event.target.value)}
-          disabled={!canBlock}
-        />
-        <Button disabled={!canBlock} loading={submitting} onClick={() => void handleBlock()}>
-          Block
-        </Button>
-        <Button disabled={!canUnblock} loading={submitting} onClick={() => void handleUnblock()}>
-          Unblock
-        </Button>
-      </Space>
-    </Card>
+      <Card styles={{ body: { padding: '16px 20px' } }}>
+        <Space align="center" wrap style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Typography.Text type="secondary">{selected.size} seat(s) selected</Typography.Text>
+          <Space>
+            <Input
+              placeholder="Reason (optional)"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              disabled={!canBlock}
+              style={{ width: 220 }}
+            />
+            <Button disabled={!canBlock} loading={submitting} onClick={() => void handleBlock()}>
+              Block
+            </Button>
+            <Button
+              disabled={!canUnblock}
+              loading={submitting}
+              onClick={() => void handleUnblock()}
+            >
+              Unblock
+            </Button>
+          </Space>
+        </Space>
+      </Card>
+    </>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, List, Result, Typography } from 'antd';
+import { Button, Card, Progress, Result, Tag, Typography } from 'antd';
+import { ClockCircleOutlined } from '@ant-design/icons';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent } from '../../../services/catalog/catalogApi';
@@ -8,6 +9,8 @@ import { checkout } from '../../../services/ordering/orderingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+
+const HOLD_TTL_SECONDS_ESTIMATE = 120;
 
 interface CheckoutErrorBody {
   message?: string;
@@ -118,44 +121,81 @@ export function CheckoutPage() {
   }
 
   const expired = secondsLeft <= 0;
+  const nearlyExpired = secondsLeft > 0 && secondsLeft <= 30;
+  const countdownLabel = expired
+    ? 'Expired'
+    : `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`;
 
   return (
-    <Card title="Confirm your order">
-      <Typography.Text strong>
-        Time remaining:{' '}
-        {expired
-          ? 'expired'
-          : `${Math.floor(secondsLeft / 60)}:${String(secondsLeft % 60).padStart(2, '0')}`}
-      </Typography.Text>
-
-      <List
-        style={{ marginTop: 16 }}
-        dataSource={hold.lines}
-        renderItem={(line) => (
-          <List.Item>
-            <span>
-              {line.priceTier}
-              {line.generalAdmissionAllocationId ? ` × ${line.quantity}` : ''}
-            </span>
-            <span>{formatMoney(line.priceMinor, currency)}</span>
-          </List.Item>
-        )}
-      />
-
-      <Typography.Title level={4} style={{ marginTop: 16 }}>
-        Total: {formatMoney(hold.totalMinor, currency)}
-      </Typography.Title>
-
-      <Button
-        type="primary"
-        size="large"
-        block
-        disabled={expired}
-        loading={submitting}
-        onClick={() => void handleConfirm()}
+    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+      <Card
+        title="Confirm your order"
+        styles={{ body: { padding: 24 } }}
+        extra={
+          <Tag
+            icon={<ClockCircleOutlined />}
+            color={expired ? 'error' : nearlyExpired ? 'warning' : 'processing'}
+          >
+            {countdownLabel}
+          </Tag>
+        }
       >
-        Confirm purchase
-      </Button>
-    </Card>
+        <Progress
+          percent={Math.min(100, (secondsLeft / HOLD_TTL_SECONDS_ESTIMATE) * 100)}
+          showInfo={false}
+          size="small"
+          status={expired ? 'exception' : nearlyExpired ? 'active' : 'normal'}
+          style={{ marginBottom: 20 }}
+        />
+
+        <div>
+          {hold.lines.map((line, index) => (
+            <div
+              key={`${line.inventoryItemId ?? line.generalAdmissionAllocationId}-${index}`}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                borderBottom: '1px solid rgba(0,0,0,0.06)',
+              }}
+            >
+              <Typography.Text>
+                {line.priceTier}
+                {line.generalAdmissionAllocationId ? ` × ${line.quantity}` : ''}
+              </Typography.Text>
+              <Typography.Text>{formatMoney(line.priceMinor, currency)}</Typography.Text>
+            </div>
+          ))}
+        </div>
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginTop: 16,
+            marginBottom: 20,
+          }}
+        >
+          <Typography.Text strong style={{ fontSize: 16 }}>
+            Total
+          </Typography.Text>
+          <Typography.Title level={3} style={{ margin: 0 }}>
+            {formatMoney(hold.totalMinor, currency)}
+          </Typography.Title>
+        </div>
+
+        <Button
+          type="primary"
+          size="large"
+          block
+          disabled={expired}
+          loading={submitting}
+          onClick={() => void handleConfirm()}
+        >
+          {expired ? 'Hold expired' : 'Confirm purchase'}
+        </Button>
+      </Card>
+    </div>
   );
 }

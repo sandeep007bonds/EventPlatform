@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, Select, Space, Table, Tag, Typography } from 'antd';
+import { Button, Card, Input, Select, Table, Tag } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -8,6 +9,8 @@ import {
   type EventStatus,
 } from '../../../services/catalog/catalogApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
+import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
 
@@ -57,7 +60,12 @@ export function AdminEventsPage() {
   }, [page, status]);
 
   if (loading) {
-    return <TableSkeleton />;
+    return (
+      <>
+        <PageHeader title="Events" />
+        <TableSkeleton />
+      </>
+    );
   }
 
   const visibleEvents = titleFilter
@@ -66,26 +74,29 @@ export function AdminEventsPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Events
-        </Typography.Title>
-        <Link to="/admin/events/new">
-          <Button type="primary">Create event</Button>
-        </Link>
-      </div>
+      <PageHeader
+        title="Events"
+        description="Everything you're selling, from draft to completed."
+        extra={
+          <Link to="/admin/events/new">
+            <Button type="primary" icon={<PlusOutlined />}>
+              Create event
+            </Button>
+          </Link>
+        }
+      />
 
-      <Space style={{ marginBottom: 16 }}>
+      <Toolbar>
         <Input.Search
           placeholder="Search title"
           allowClear
           onChange={(event) => setTitleFilter(event.target.value)}
-          style={{ width: 220 }}
+          style={{ width: 240 }}
         />
         <Select<EventStatus | undefined>
           placeholder="All statuses"
           allowClear
-          style={{ width: 160 }}
+          style={{ width: 170 }}
           value={status}
           onChange={(value) => {
             setStatus(value);
@@ -93,44 +104,50 @@ export function AdminEventsPage() {
           }}
           options={STATUS_OPTIONS.map((option) => ({ value: option, label: option }))}
         />
-      </Space>
+      </Toolbar>
 
-      <Table<EventResponse>
-        rowKey="id"
-        dataSource={visibleEvents}
-        pagination={{
-          current: page,
-          pageSize: PAGE_SIZE,
-          total: totalCount,
-          onChange: setPage,
-          showSizeChanger: false,
-        }}
-        onRow={(record) => ({
-          onClick: () => void navigate(`/admin/events/${record.id}`),
-          style: { cursor: 'pointer' },
-        })}
-        columns={[
-          {
-            title: 'Title',
-            dataIndex: 'title',
-            sorter: (a, b) => a.title.localeCompare(b.title),
-          },
-          {
-            title: 'Status',
-            dataIndex: 'status',
-            render: (eventStatus: EventResponse['status']) => (
-              <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
-            ),
-          },
-          {
-            title: 'Starts',
-            dataIndex: 'startsAt',
-            sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
-            defaultSortOrder: 'ascend',
-            render: (startsAt: string) => dayjs(startsAt).format('MMM D, YYYY · h:mm A'),
-          },
-        ]}
-      />
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<EventResponse>
+          rowKey="id"
+          dataSource={visibleEvents}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: totalCount,
+            onChange: setPage,
+            showSizeChanger: false,
+          }}
+          onRow={(record) => ({
+            onClick: () => void navigate(`/admin/events/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={[
+            {
+              title: 'Title',
+              dataIndex: 'title',
+              sorter: (a, b) => a.title.localeCompare(b.title),
+            },
+            {
+              title: 'Status',
+              dataIndex: 'status',
+              render: (eventStatus: EventResponse['status']) => (
+                <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
+              ),
+            },
+            {
+              title: 'City',
+              dataIndex: 'city',
+            },
+            {
+              title: 'Starts',
+              dataIndex: 'startsAt',
+              sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
+              defaultSortOrder: 'ascend',
+              render: (startsAt: string) => dayjs(startsAt).format('MMM D, YYYY · h:mm A'),
+            },
+          ]}
+        />
+      </Card>
     </>
   );
 }

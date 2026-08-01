@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Col,
   DatePicker,
   Descriptions,
   Divider,
@@ -9,6 +10,7 @@ import {
   Input,
   InputNumber,
   Radio,
+  Row,
   Space,
   Tag,
   Typography,
@@ -32,6 +34,7 @@ import {
 import { uploadImage } from '../../../services/media/mediaApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
@@ -67,6 +70,8 @@ const DEFAULT_SEAT_MAP_SECTION: SeatMapSectionInput = {
   rows: 1,
   seatsPerRow: 1,
 };
+
+const SECTION_HEADING_STYLE = { marginTop: 0, marginBottom: 16 };
 
 /** Organizer's event detail: define seat map, publish, and (once published) block/unblock seats. */
 export function AdminEventDetailPage() {
@@ -195,41 +200,49 @@ export function AdminEventDetailPage() {
 
   return (
     <>
-      <Card>
-        <Typography.Title level={2}>{event.title}</Typography.Title>
-        <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
-        <Descriptions column={1} style={{ marginTop: 16 }}>
+      <PageHeader
+        title={
+          <Space align="center">
+            {event.title}
+            <Tag color={eventStatusColor[event.status]} style={{ marginLeft: 4 }}>
+              {event.status}
+            </Tag>
+          </Space>
+        }
+        extra={
+          <>
+            {event.status === 'Draft' && seatMap && (
+              <Button type="primary" loading={submitting} onClick={() => void handlePublish()}>
+                Publish
+              </Button>
+            )}
+            <Button onClick={() => void navigate('/admin')}>← Back to events</Button>
+          </>
+        }
+      />
+
+      <Card style={{ marginBottom: 24 }}>
+        <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
           <Descriptions.Item label="Starts">
-            {dayjs(event.startsAt).format('dddd, MMMM D, YYYY · h:mm A')}
+            {dayjs(event.startsAt).format('MMM D, YYYY · h:mm A')}
           </Descriptions.Item>
           <Descriptions.Item label="Ends">
-            {dayjs(event.endsAt).format('dddd, MMMM D, YYYY · h:mm A')}
+            {dayjs(event.endsAt).format('MMM D, YYYY · h:mm A')}
           </Descriptions.Item>
           <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
-          {seatMap && (
-            <Descriptions.Item label="Capacity">{seatMap.capacity} total</Descriptions.Item>
-          )}
+          <Descriptions.Item label="Capacity">
+            {seatMap ? `${seatMap.capacity} total` : '—'}
+          </Descriptions.Item>
         </Descriptions>
-
-        {event.status === 'Draft' && seatMap && (
-          <Button
-            type="primary"
-            style={{ marginTop: 16 }}
-            loading={submitting}
-            onClick={() => void handlePublish()}
-          >
-            Publish
-          </Button>
-        )}
         {event.status === 'Draft' && !seatMap && (
-          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
-            Define a seat map before publishing.
+          <Typography.Text type="warning" style={{ display: 'block', marginTop: 12 }}>
+            Define a seat map below before you can publish.
           </Typography.Text>
         )}
       </Card>
 
       {event.status === 'Draft' && (
-        <Card title="Event details" style={{ marginTop: 24 }}>
+        <Card title="Event details" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
           <Form<EventDetailsFormValues>
             form={detailsForm}
             layout="vertical"
@@ -237,103 +250,165 @@ export function AdminEventDetailPage() {
               void handleSaveDetails(values);
             }}
           >
-            <Form.Item name="description" label="Description">
-              <Input.TextArea rows={4} maxLength={4000} showCount />
-            </Form.Item>
-            <Form.Item name="category" label="Category">
-              <Input placeholder="e.g. Concert, Comedy" />
-            </Form.Item>
-            <Space wrap>
-              <Form.Item name="doorsOpenAt" label="Doors open">
-                <DatePicker showTime />
-              </Form.Item>
-              <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
-                <DatePicker showTime />
-              </Form.Item>
-              <Form.Item name="onSaleAt" label="On sale from">
-                <DatePicker showTime />
-              </Form.Item>
-              <Form.Item
-                name="bookingEndsAt"
-                label="Booking closes at"
-                tooltip="After this time, no new tickets can be held or sold for this event."
-              >
-                <DatePicker showTime />
-              </Form.Item>
-            </Space>
-            <Form.Item name="ageRestriction" label="Age restriction">
-              <Input placeholder="e.g. 18+, All ages" style={{ maxWidth: 240 }} />
-            </Form.Item>
-            <Form.Item name="videoUrl" label="Video URL (YouTube or Vimeo link)">
-              <Input placeholder="https://youtube.com/watch?v=..." />
-            </Form.Item>
-            <Form.Item name="bannerImageUrl" label="Banner image">
-              <Input type="hidden" />
-            </Form.Item>
-            <Form.Item shouldUpdate>
-              {() => {
-                const currentUrl: string | undefined = detailsForm.getFieldValue('bannerImageUrl');
-                return (
-                  <Space direction="vertical">
-                    {currentUrl && (
-                      <img
-                        src={currentUrl}
-                        alt="Current banner"
-                        style={{ maxWidth: 320, borderRadius: 8 }}
-                      />
-                    )}
-                    <Upload
-                      accept="image/png,image/jpeg,image/webp,image/gif"
-                      maxCount={1}
-                      showUploadList={false}
-                      customRequest={(options) => {
-                        const { file, onSuccess, onError } = options;
-                        uploadImage(file as File)
-                          .then(({ url }) => {
-                            detailsForm.setFieldValue('bannerImageUrl', url);
-                            onSuccess?.(url);
-                          })
-                          .catch((error: unknown) => {
-                            onError?.(error as Error);
-                            toast.error('Image upload failed.');
-                          });
-                      }}
-                    >
-                      <Button icon={<UploadOutlined />}>Upload banner image</Button>
-                    </Upload>
-                  </Space>
-                );
-              }}
-            </Form.Item>
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Basics
+            </Typography.Title>
+            <Row gutter={20}>
+              <Col span={24}>
+                <Form.Item name="description" label="Description">
+                  <Input.TextArea rows={4} maxLength={4000} showCount />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="category" label="Category">
+                  <Input placeholder="e.g. Concert, Comedy" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="ageRestriction" label="Age restriction">
+                  <Input placeholder="e.g. 18+, All ages" />
+                </Form.Item>
+              </Col>
+            </Row>
 
-            <Divider>
-              Contact details (overrides the tour's defaults; leave blank to use them)
-            </Divider>
-            <Form.Item name="contactPhone" label="Phone">
-              <Input />
-            </Form.Item>
-            <Form.Item name="contactMobile" label="Mobile">
-              <Input />
-            </Form.Item>
-            <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
-              <Input />
-            </Form.Item>
-            <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
-              <Input placeholder="https://..." />
-            </Form.Item>
+            <Divider />
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Schedule
+            </Typography.Title>
+            <Row gutter={20}>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item name="doorsOpenAt" label="Doors open">
+                  <DatePicker showTime style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
+                  <DatePicker showTime style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item name="onSaleAt" label="On sale from">
+                  <DatePicker showTime style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="bookingEndsAt"
+                  label="Booking closes at"
+                  tooltip="After this time, no new tickets can be held or sold for this event."
+                >
+                  <DatePicker showTime style={{ width: '100%' }} />
+                </Form.Item>
+              </Col>
+            </Row>
 
-            <Divider>Social links (overrides the tour's defaults)</Divider>
+            <Divider />
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Media
+            </Typography.Title>
+            <Row gutter={20}>
+              <Col xs={24} md={12}>
+                <Form.Item name="videoUrl" label="Video URL (YouTube or Vimeo link)">
+                  <Input placeholder="https://youtube.com/watch?v=..." />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item name="bannerImageUrl" label="Banner image" style={{ marginBottom: 0 }}>
+                  <Input type="hidden" />
+                </Form.Item>
+                <Form.Item shouldUpdate noStyle>
+                  {() => {
+                    const currentUrl: string | undefined =
+                      detailsForm.getFieldValue('bannerImageUrl');
+                    return (
+                      <Space align="center" style={{ marginBottom: 24 }}>
+                        {currentUrl && (
+                          <img
+                            src={currentUrl}
+                            alt="Current banner"
+                            style={{ height: 42, borderRadius: 6, objectFit: 'cover' }}
+                          />
+                        )}
+                        <Upload
+                          accept="image/png,image/jpeg,image/webp,image/gif"
+                          maxCount={1}
+                          showUploadList={false}
+                          customRequest={(options) => {
+                            const { file, onSuccess, onError } = options;
+                            uploadImage(file as File)
+                              .then(({ url }) => {
+                                detailsForm.setFieldValue('bannerImageUrl', url);
+                                onSuccess?.(url);
+                              })
+                              .catch((error: unknown) => {
+                                onError?.(error as Error);
+                                toast.error('Image upload failed.');
+                              });
+                          }}
+                        >
+                          <Button icon={<UploadOutlined />}>
+                            {currentUrl ? 'Replace banner image' : 'Upload banner image'}
+                          </Button>
+                        </Upload>
+                      </Space>
+                    );
+                  }}
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Divider />
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Contact details
+            </Typography.Title>
+            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+              Overrides the tour's defaults, if any — leave blank to use them.
+            </Typography.Text>
+            <Row gutter={20}>
+              <Col xs={24} sm={12}>
+                <Form.Item name="contactPhone" label="Phone">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="contactMobile" label="Mobile">
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12}>
+                <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
+                  <Input placeholder="https://..." />
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Divider />
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Social links
+            </Typography.Title>
             <SocialLinksEditor />
 
-            <Button type="primary" htmlType="submit" loading={savingDetails}>
-              Save details
-            </Button>
+            <Divider />
+            <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button type="primary" htmlType="submit" loading={savingDetails}>
+                Save details
+              </Button>
+            </Space>
           </Form>
         </Card>
       )}
 
       {!seatMap && event.status === 'Draft' && (
-        <Card title="Define seat map" style={{ marginTop: 24 }}>
+        <Card
+          title="Define seat map"
+          style={{ marginBottom: 24 }}
+          styles={{ body: { padding: 28 } }}
+        >
           <Form<SeatMapFormValues>
             layout="vertical"
             initialValues={{ sections: [DEFAULT_SEAT_MAP_SECTION] }}
@@ -342,104 +417,132 @@ export function AdminEventDetailPage() {
             }}
           >
             <Form.Item name="name" label="Seat map name" rules={[{ required: true }]}>
-              <Input placeholder="e.g. Main Floor" />
+              <Input placeholder="e.g. Main Floor" style={{ maxWidth: 360 }} />
             </Form.Item>
 
             <Form.List name="sections">
               {(fields, { add, remove }) => (
                 <>
-                  {fields.map((field) => (
-                    <Card key={field.key} size="small" style={{ marginBottom: 12 }}>
-                      <Space align="baseline" wrap>
-                        <Form.Item
-                          name={[field.name, 'name']}
-                          rules={[{ required: true, message: 'Required' }]}
-                        >
-                          <Input placeholder="Section (e.g. Orchestra)" />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, 'priceTier']}
-                          rules={[{ required: true, message: 'Required' }]}
-                        >
-                          <Input placeholder="Price tier" />
-                        </Form.Item>
-                        <Form.Item
-                          name={[field.name, 'priceAmount']}
-                          rules={[{ required: true, message: 'Required' }]}
-                        >
-                          <InputNumber min={0} placeholder="Price" />
-                        </Form.Item>
-                        <Form.Item name={[field.name, 'allocationType']} initialValue="Reserved">
-                          <Radio.Group>
-                            <Radio.Button value="Reserved">Reserved seating</Radio.Button>
-                            <Radio.Button value="GeneralAdmission">General admission</Radio.Button>
-                          </Radio.Group>
-                        </Form.Item>
-                        {fields.length > 1 && (
+                  {fields.map((field, index) => (
+                    <Card
+                      key={field.key}
+                      size="small"
+                      title={`Section ${index + 1}`}
+                      style={{ marginBottom: 16 }}
+                      extra={
+                        fields.length > 1 && (
                           <MinusCircleOutlined onClick={() => remove(field.name)} />
-                        )}
-                      </Space>
-                      <Form.Item shouldUpdate noStyle>
-                        {({ getFieldValue }) => {
-                          const allocationType: SeatMapSectionInput['allocationType'] =
-                            getFieldValue(['sections', field.name, 'allocationType']) ?? 'Reserved';
-                          return allocationType === 'Reserved' ? (
-                            <Space wrap>
-                              <Form.Item
-                                name={[field.name, 'rows']}
-                                rules={[{ required: true, message: 'Required' }]}
-                              >
-                                <InputNumber min={1} placeholder="Rows" />
-                              </Form.Item>
-                              <Form.Item
-                                name={[field.name, 'seatsPerRow']}
-                                rules={[{ required: true, message: 'Required' }]}
-                              >
-                                <InputNumber min={1} placeholder="Seats/row" />
-                              </Form.Item>
-                            </Space>
-                          ) : (
-                            <Form.Item
-                              name={[field.name, 'capacity']}
-                              rules={[{ required: true, message: 'Required' }]}
-                            >
-                              <InputNumber min={1} placeholder="Total capacity" />
-                            </Form.Item>
-                          );
-                        }}
-                      </Form.Item>
+                        )
+                      }
+                    >
+                      <Row gutter={16}>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name={[field.name, 'name']}
+                            label="Section name"
+                            rules={[{ required: true, message: 'Required' }]}
+                          >
+                            <Input placeholder="e.g. Orchestra" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name={[field.name, 'priceTier']}
+                            label="Price tier"
+                            rules={[{ required: true, message: 'Required' }]}
+                          >
+                            <Input placeholder="e.g. Gold" />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name={[field.name, 'priceAmount']}
+                            label="Price"
+                            rules={[{ required: true, message: 'Required' }]}
+                          >
+                            <InputNumber min={0} style={{ width: '100%' }} />
+                          </Form.Item>
+                        </Col>
+                        <Col span={24}>
+                          <Form.Item
+                            name={[field.name, 'allocationType']}
+                            label="Allocation"
+                            initialValue="Reserved"
+                          >
+                            <Radio.Group>
+                              <Radio.Button value="Reserved">Reserved seating</Radio.Button>
+                              <Radio.Button value="GeneralAdmission">
+                                General admission
+                              </Radio.Button>
+                            </Radio.Group>
+                          </Form.Item>
+                        </Col>
+                        <Form.Item shouldUpdate noStyle>
+                          {({ getFieldValue }) => {
+                            const allocationType: SeatMapSectionInput['allocationType'] =
+                              getFieldValue(['sections', field.name, 'allocationType']) ??
+                              'Reserved';
+                            return allocationType === 'Reserved' ? (
+                              <>
+                                <Col xs={12} sm={6}>
+                                  <Form.Item
+                                    name={[field.name, 'rows']}
+                                    label="Rows"
+                                    rules={[{ required: true, message: 'Required' }]}
+                                  >
+                                    <InputNumber min={1} style={{ width: '100%' }} />
+                                  </Form.Item>
+                                </Col>
+                                <Col xs={12} sm={6}>
+                                  <Form.Item
+                                    name={[field.name, 'seatsPerRow']}
+                                    label="Seats per row"
+                                    rules={[{ required: true, message: 'Required' }]}
+                                  >
+                                    <InputNumber min={1} style={{ width: '100%' }} />
+                                  </Form.Item>
+                                </Col>
+                              </>
+                            ) : (
+                              <Col xs={24} sm={12}>
+                                <Form.Item
+                                  name={[field.name, 'capacity']}
+                                  label="Total capacity"
+                                  rules={[{ required: true, message: 'Required' }]}
+                                >
+                                  <InputNumber min={1} style={{ width: '100%' }} />
+                                </Form.Item>
+                              </Col>
+                            );
+                          }}
+                        </Form.Item>
+                      </Row>
                     </Card>
                   ))}
-                  <Form.Item>
-                    <Button
-                      type="dashed"
-                      onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
-                      icon={<PlusOutlined />}
-                    >
-                      Add section
-                    </Button>
-                  </Form.Item>
+                  <Button
+                    type="dashed"
+                    block
+                    onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
+                    icon={<PlusOutlined />}
+                    style={{ marginBottom: 16 }}
+                  >
+                    Add section
+                  </Button>
                 </>
               )}
             </Form.List>
 
             <Divider />
-            <Button type="primary" htmlType="submit" loading={submitting}>
-              Create seat map
-            </Button>
+            <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button type="primary" htmlType="submit" loading={submitting}>
+                Create seat map
+              </Button>
+            </Space>
           </Form>
         </Card>
       )}
 
-      {event.status !== 'Draft' && id && (
-        <div style={{ marginTop: 24 }}>
-          <SeatBlockPanel eventId={id} />
-        </div>
-      )}
-
-      <Button type="link" onClick={() => void navigate('/admin')} style={{ marginTop: 16 }}>
-        ← Back to events
-      </Button>
+      {event.status !== 'Draft' && id && <SeatBlockPanel eventId={id} />}
     </>
   );
 }

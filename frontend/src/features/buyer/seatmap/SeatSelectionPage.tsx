@@ -1,19 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Card, InputNumber, Space, Tag, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { Button, Card, InputNumber, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  getEvent,
-  getSeatMap,
-  type SeatMapResponse,
-  type SeatResponse,
-} from '../../../services/catalog/catalogApi';
+import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
   getInventorySeats,
   placeHold,
   type SeatInventoryStatus,
 } from '../../../services/inventory/inventoryApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
+import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
+import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 
@@ -21,11 +19,17 @@ const MAX_SEATS = 10;
 const MAX_GENERAL_ADMISSION_QUANTITY = 10;
 
 const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
-  Available: '#f0f0f0',
-  Held: '#faad14',
-  Sold: '#d9d9d9',
-  Blocked: '#d9d9d9',
+  Available: '#eef1f3',
+  Held: '#ffe1a8',
+  Sold: '#e2e2e2',
+  Blocked: '#e2e2e2',
 };
+
+const LEGEND: { label: string; color: string }[] = [
+  { label: 'Available', color: '#eef1f3' },
+  { label: 'Held', color: '#ffe1a8' },
+  { label: 'Sold / Blocked', color: '#e2e2e2' },
+];
 
 interface ConflictBody {
   message?: string;
@@ -34,9 +38,9 @@ interface ConflictBody {
 }
 
 /**
- * Interactive picker: reserved sections render as a seat grid (per-seat availability, click to
- * select); general-admission sections render as a quantity stepper per tier. Both can be held
- * together in one request.
+ * Interactive picker: reserved sections render as a real seat grid (rows of seats, per-seat
+ * availability, click to select); general-admission sections render as a quantity stepper per
+ * tier. Both can be held together in one request, summarized in a sticky bottom bar.
  */
 export function SeatSelectionPage() {
   const { id: eventId } = useParams<{ id: string }>();
@@ -82,19 +86,6 @@ export function SeatSelectionPage() {
       cancelled = true;
     };
   }, [eventId]);
-
-  const sections = useMemo(() => {
-    if (!seatMap) {
-      return [];
-    }
-    const bySection = new Map<string, SeatResponse[]>();
-    for (const seat of seatMap.seats) {
-      const list = bySection.get(seat.section) ?? [];
-      list.push(seat);
-      bySection.set(seat.section, list);
-    }
-    return [...bySection.entries()];
-  }, [seatMap]);
 
   const toggleSeat = (seatId: string) => {
     if (statuses.get(seatId) !== 'Available') {
@@ -179,91 +170,134 @@ export function SeatSelectionPage() {
     0,
   );
   const selectedTotal = selectedSeatsTotal + gaTotal;
+  const gaCount = [...gaQuantities.values()].reduce((a, b) => a + b, 0);
   const hasSelection = selected.size > 0 || gaQuantities.size > 0;
 
   return (
-    <div>
-      <Typography.Title level={3}>{seatMap.name}</Typography.Title>
-
-      {sections.length > 0 && (
-        <>
-          <Space style={{ marginBottom: 16 }}>
-            <Tag color="default">Available</Tag>
-            <Tag color="gold">Held</Tag>
-            <Tag color="default" style={{ opacity: 0.5 }}>
-              Sold / Blocked
-            </Tag>
-          </Space>
-
-          {sections.map(([section, seats]) => (
-            <Card key={section} title={section} style={{ marginBottom: 16 }}>
-              <Space wrap>
-                {seats.map((seat) => {
-                  const status = statuses.get(seat.id) ?? 'Sold';
-                  const isSelected = selected.has(seat.id);
-                  return (
-                    <Button
-                      key={seat.id}
-                      disabled={status !== 'Available'}
-                      type={isSelected ? 'primary' : 'default'}
-                      style={
-                        isSelected
-                          ? undefined
-                          : { background: STATUS_COLOR[status], borderColor: STATUS_COLOR[status] }
-                      }
-                      onClick={() => toggleSeat(seat.id)}
-                      title={`${seat.priceTier} · ${formatMoney(seat.priceAmount * 100, currency)}`}
-                    >
-                      {seat.label}
-                    </Button>
-                  );
-                })}
+    <div style={{ paddingBottom: 96 }}>
+      <PageHeader
+        title={seatMap.name}
+        description="Pick your seats and/or general-admission quantity, then hold them to check out."
+        extra={
+          <Space size={16}>
+            {LEGEND.map((item) => (
+              <Space key={item.label} size={6}>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 4,
+                    background: item.color,
+                    display: 'inline-block',
+                    border: '1px solid rgba(0,0,0,0.08)',
+                  }}
+                />
+                <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                  {item.label}
+                </Typography.Text>
               </Space>
-            </Card>
-          ))}
-        </>
+            ))}
+          </Space>
+        }
+      />
+
+      {seatMap.seats.length > 0 && (
+        <SeatGrid
+          seats={seatMap.seats}
+          renderSeat={(seat) => {
+            const status = statuses.get(seat.id) ?? 'Sold';
+            return (
+              <SeatChip
+                key={seat.id}
+                label={String(seat.number)}
+                tooltip={`${seat.label} · ${seat.priceTier} · ${formatMoney(seat.priceAmount * 100, currency)}`}
+                selected={selected.has(seat.id)}
+                disabled={status !== 'Available'}
+                color={STATUS_COLOR[status]}
+                onClick={() => toggleSeat(seat.id)}
+              />
+            );
+          }}
+        />
       )}
 
       {seatMap.generalAdmissionSections.map((section) => (
         <Card
           key={section.id}
-          title={`${section.sectionName} · General Admission`}
           style={{ marginBottom: 16 }}
+          styles={{ body: { padding: '18px 20px' } }}
         >
-          <Space align="center">
-            <Typography.Text>
-              {section.priceTier} · {formatMoney(section.priceAmount * 100, currency)} per admission
-            </Typography.Text>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              gap: 16,
+            }}
+          >
+            <div>
+              <Typography.Text strong>{section.sectionName}</Typography.Text>
+              <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
+                General admission · {section.priceTier} ·{' '}
+                {formatMoney(section.priceAmount * 100, currency)} per admission
+              </Typography.Text>
+            </div>
             <InputNumber
               min={0}
               max={MAX_GENERAL_ADMISSION_QUANTITY}
               value={gaQuantities.get(section.id) ?? 0}
               onChange={(value) => setGaQuantity(section.id, value ?? 0)}
+              style={{ width: 88 }}
             />
-          </Space>
+          </div>
         </Card>
       ))}
 
-      <Card>
-        <Typography.Text strong>
-          {selected.size} seat{selected.size === 1 ? '' : 's'}
-          {gaQuantities.size > 0
-            ? ` + ${[...gaQuantities.values()].reduce((a, b) => a + b, 0)} general admission`
-            : ''}{' '}
-          selected
-        </Typography.Text>
-        <Button
-          type="primary"
-          size="large"
-          block
-          style={{ marginTop: 12 }}
-          disabled={!hasSelection}
-          loading={submitting}
-          onClick={() => void handleHold()}
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 20,
+          background: '#fff',
+          borderTop: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 -4px 16px rgba(0,0,0,0.06)',
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 1180,
+            margin: '0 auto',
+            padding: '16px 24px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16,
+            flexWrap: 'wrap',
+          }}
         >
-          Hold selection ({formatMoney(selectedTotal * 100, currency)})
-        </Button>
-      </Card>
+          <div>
+            <Typography.Text strong style={{ fontSize: 16 }}>
+              {formatMoney(selectedTotal * 100, currency)}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ display: 'block', fontSize: 13 }}>
+              {selected.size} seat{selected.size === 1 ? '' : 's'}
+              {gaCount > 0 ? ` + ${gaCount} general admission` : ''} selected
+            </Typography.Text>
+          </div>
+          <Button
+            type="primary"
+            size="large"
+            disabled={!hasSelection}
+            loading={submitting}
+            onClick={() => void handleHold()}
+          >
+            Hold selection
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

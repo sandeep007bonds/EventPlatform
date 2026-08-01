@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Descriptions, Space, Tag, Typography } from 'antd';
+import { Button, Card, Col, Descriptions, Row, Space, Tag, Typography, Divider } from 'antd';
+import {
+  CalendarOutlined,
+  ClockCircleOutlined,
+  EnvironmentOutlined,
+  GlobalOutlined,
+  MailOutlined,
+  PhoneOutlined,
+} from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
@@ -116,150 +124,246 @@ export function EventDetailPage() {
   }
 
   const embedUrl = event.videoUrl ? toEmbedUrl(event.videoUrl) : null;
+  const hasContact =
+    event.contactPhone ??
+    event.contactMobile ??
+    event.contactEmail ??
+    event.websiteUrl ??
+    event.socialLinks.length > 0;
+  const bookingClosed =
+    event.bookingEndsAt !== null && dayjs(event.bookingEndsAt).isBefore(dayjs());
 
   return (
-    <Card>
-      {event.bannerImageUrl && (
-        <img
-          src={event.bannerImageUrl}
-          alt={event.title}
+    <div>
+      {event.bannerImageUrl ? (
+        <div
           style={{
-            width: '100%',
-            borderRadius: 8,
-            marginBottom: 16,
-            maxHeight: 360,
-            objectFit: 'cover',
+            height: 320,
+            borderRadius: 16,
+            overflow: 'hidden',
+            marginBottom: 24,
+          }}
+        >
+          <img
+            src={event.bannerImageUrl}
+            alt={event.title}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
+        </div>
+      ) : (
+        <div
+          style={{
+            height: 200,
+            borderRadius: 16,
+            marginBottom: 24,
+            background: 'linear-gradient(135deg, rgba(62,168,196,0.35), rgba(28,43,48,0.75))',
           }}
         />
       )}
+
       {eventGroup && (
-        <Typography.Text type="secondary" style={{ display: 'block' }}>
-          Part of: {eventGroup.title}
+        <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 4 }}>
+          Part of:{' '}
+          <Typography.Text strong style={{ color: 'inherit' }}>
+            {eventGroup.title}
+          </Typography.Text>
         </Typography.Text>
       )}
-      <Typography.Title level={2}>{event.title}</Typography.Title>
-      <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
-      {event.category && <Tag>{event.category}</Tag>}
-      <Descriptions column={1} style={{ marginTop: 24 }}>
-        <Descriptions.Item label="Date">
-          {dayjs(event.startsAt).format('dddd, MMMM D, YYYY · h:mm A')}
-        </Descriptions.Item>
-        {event.doorsOpenAt && (
-          <Descriptions.Item label="Doors open">
-            {dayjs(event.doorsOpenAt).format('h:mm A')}
-          </Descriptions.Item>
-        )}
-        {event.endsAt && (
-          <Descriptions.Item label="Ends">{dayjs(event.endsAt).format('h:mm A')}</Descriptions.Item>
-        )}
-        <Descriptions.Item label="Venue">
-          {event.locationName} — {event.city}
-        </Descriptions.Item>
-        <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
-        {event.ageRestriction && (
-          <Descriptions.Item label="Age restriction">{event.ageRestriction}</Descriptions.Item>
-        )}
-        {seatMap && (
-          <Descriptions.Item label="Venue capacity">{seatMap.capacity} seats</Descriptions.Item>
-        )}
-        {availableCount !== null && (
-          <Descriptions.Item label="Seats provisioned">{availableCount}</Descriptions.Item>
-        )}
-      </Descriptions>
-      {event.bookingEndsAt && (
-        <Typography.Text type="warning" style={{ display: 'block', marginTop: 8 }}>
-          Booking closes on {dayjs(event.bookingEndsAt).format('MMMM D, YYYY · h:mm A')}
-        </Typography.Text>
-      )}
-      {event.description && (
-        <Typography.Paragraph style={{ marginTop: 16 }}>{event.description}</Typography.Paragraph>
-      )}
-      {(event.contactPhone ??
-        event.contactMobile ??
-        event.contactEmail ??
-        event.websiteUrl ??
-        event.socialLinks.length > 0) && (
-        <div style={{ marginTop: 16 }}>
-          <Typography.Title level={5}>Contact</Typography.Title>
-          <Space direction="vertical" size={4}>
-            {event.contactPhone && <Typography.Text>Phone: {event.contactPhone}</Typography.Text>}
-            {event.contactMobile && (
-              <Typography.Text>Mobile: {event.contactMobile}</Typography.Text>
-            )}
-            {event.contactEmail && (
-              <Typography.Text>
-                Email: <a href={`mailto:${event.contactEmail}`}>{event.contactEmail}</a>
-              </Typography.Text>
-            )}
-            {event.websiteUrl && (
-              <Typography.Link href={event.websiteUrl} target="_blank" rel="noreferrer">
-                {event.websiteUrl}
-              </Typography.Link>
-            )}
-            {event.socialLinks.length > 0 && (
-              <Space wrap>
-                {event.socialLinks.map((link) => (
-                  <Typography.Link
-                    key={link.platform + link.url}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {link.platform}
-                  </Typography.Link>
-                ))}
+      <Typography.Title level={2} style={{ marginTop: 0, marginBottom: 12 }}>
+        {event.title}
+      </Typography.Title>
+      <Space size={8} wrap style={{ marginBottom: 24 }}>
+        <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
+        {event.category && <Tag>{event.category}</Tag>}
+      </Space>
+
+      <Row gutter={32}>
+        <Col xs={24} lg={15}>
+          <Card styles={{ body: { padding: 24 } }}>
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <Space>
+                <CalendarOutlined style={{ color: '#3ea8c4' }} />
+                <Typography.Text>
+                  {dayjs(event.startsAt).format('dddd, MMMM D, YYYY · h:mm A')}
+                  {event.doorsOpenAt && ` · Doors ${dayjs(event.doorsOpenAt).format('h:mm A')}`}
+                </Typography.Text>
               </Space>
+              <Space align="start">
+                <EnvironmentOutlined style={{ color: '#3ea8c4' }} />
+                <Typography.Text>
+                  {event.locationName} — {event.addressLine1}, {event.city}
+                </Typography.Text>
+              </Space>
+              {bookingClosed && (
+                <Tag color="warning" style={{ width: 'fit-content' }}>
+                  Booking closed
+                </Tag>
+              )}
+              {!bookingClosed && event.bookingEndsAt && (
+                <Space>
+                  <ClockCircleOutlined style={{ color: '#faad14' }} />
+                  <Typography.Text type="warning">
+                    Booking closes {dayjs(event.bookingEndsAt).format('MMMM D, YYYY · h:mm A')}
+                  </Typography.Text>
+                </Space>
+              )}
+            </Space>
+
+            {event.description && (
+              <>
+                <Divider />
+                <Typography.Paragraph style={{ marginBottom: 0, whiteSpace: 'pre-line' }}>
+                  {event.description}
+                </Typography.Paragraph>
+              </>
             )}
-          </Space>
-        </div>
-      )}
-      {event.videoUrl &&
-        (embedUrl ? (
-          <div style={{ position: 'relative', paddingTop: '56.25%', marginTop: 16 }}>
-            <iframe
-              src={embedUrl}
-              title={`${event.title} video`}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                width: '100%',
-                height: '100%',
-                border: 0,
-              }}
-            />
-          </div>
-        ) : (
-          <Typography.Link href={event.videoUrl} target="_blank" rel="noreferrer">
-            Watch trailer ↗
-          </Typography.Link>
-        ))}
-      {seatMap ? (
-        <Button type="primary" size="large" style={{ marginTop: 16 }} onClick={handleSelectSeats}>
-          Select seats
-        </Button>
-      ) : (
-        <Typography.Text type="secondary" style={{ display: 'block', marginTop: 16 }}>
-          Seats aren't on sale yet.
-        </Typography.Text>
-      )}
-      {otherLegs.length > 0 && (
-        <div style={{ marginTop: 24 }}>
-          <Typography.Title level={4}>Other dates on this tour</Typography.Title>
-          <Space direction="vertical">
-            {otherLegs.map((leg) => (
-              <Link key={leg.id} to={`/events/${leg.id}`}>
-                {dayjs(leg.startsAt).format('MMM D, YYYY')} — {leg.city}
-              </Link>
-            ))}
-          </Space>
-        </div>
-      )}
-      <Link to="/" style={{ display: 'block', marginTop: 16 }}>
+
+            {(event.ageRestriction ?? seatMap ?? availableCount !== null) && (
+              <>
+                <Divider />
+                <Descriptions column={1} size="small">
+                  {event.ageRestriction && (
+                    <Descriptions.Item label="Age restriction">
+                      {event.ageRestriction}
+                    </Descriptions.Item>
+                  )}
+                  {seatMap && (
+                    <Descriptions.Item label="Venue capacity">
+                      {seatMap.capacity} total
+                    </Descriptions.Item>
+                  )}
+                  {availableCount !== null && (
+                    <Descriptions.Item label="Seats provisioned">
+                      {availableCount}
+                    </Descriptions.Item>
+                  )}
+                </Descriptions>
+              </>
+            )}
+
+            {event.videoUrl && (
+              <>
+                <Divider />
+                {embedUrl ? (
+                  <div style={{ position: 'relative', paddingTop: '56.25%' }}>
+                    <iframe
+                      src={embedUrl}
+                      title={`${event.title} video`}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '100%',
+                        border: 0,
+                        borderRadius: 10,
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <Typography.Link href={event.videoUrl} target="_blank" rel="noreferrer">
+                    Watch trailer ↗
+                  </Typography.Link>
+                )}
+              </>
+            )}
+
+            {hasContact && (
+              <>
+                <Divider />
+                <Typography.Title level={5} style={{ marginTop: 0 }}>
+                  Contact
+                </Typography.Title>
+                <Space direction="vertical" size={6}>
+                  {event.contactPhone && (
+                    <Typography.Text>
+                      <PhoneOutlined style={{ marginRight: 8 }} />
+                      {event.contactPhone}
+                    </Typography.Text>
+                  )}
+                  {event.contactMobile && (
+                    <Typography.Text>
+                      <PhoneOutlined style={{ marginRight: 8 }} />
+                      {event.contactMobile}
+                    </Typography.Text>
+                  )}
+                  {event.contactEmail && (
+                    <Typography.Text>
+                      <MailOutlined style={{ marginRight: 8 }} />
+                      <a href={`mailto:${event.contactEmail}`}>{event.contactEmail}</a>
+                    </Typography.Text>
+                  )}
+                  {event.websiteUrl && (
+                    <Typography.Text>
+                      <GlobalOutlined style={{ marginRight: 8 }} />
+                      <Typography.Link href={event.websiteUrl} target="_blank" rel="noreferrer">
+                        {event.websiteUrl}
+                      </Typography.Link>
+                    </Typography.Text>
+                  )}
+                  {event.socialLinks.length > 0 && (
+                    <Space wrap style={{ marginTop: 4 }}>
+                      {event.socialLinks.map((link) => (
+                        <Tag key={link.platform + link.url} style={{ margin: 0 }}>
+                          <Typography.Link href={link.url} target="_blank" rel="noreferrer">
+                            {link.platform}
+                          </Typography.Link>
+                        </Tag>
+                      ))}
+                    </Space>
+                  )}
+                </Space>
+              </>
+            )}
+
+            {otherLegs.length > 0 && (
+              <>
+                <Divider />
+                <Typography.Title level={5} style={{ marginTop: 0 }}>
+                  Other dates on this tour
+                </Typography.Title>
+                <Space direction="vertical" size={4}>
+                  {otherLegs.map((leg) => (
+                    <Link key={leg.id} to={`/events/${leg.id}`}>
+                      {dayjs(leg.startsAt).format('MMM D, YYYY')} — {leg.city}
+                    </Link>
+                  ))}
+                </Space>
+              </>
+            )}
+          </Card>
+        </Col>
+
+        <Col xs={24} lg={9}>
+          <Card style={{ position: 'sticky', top: 88 }} styles={{ body: { padding: 24 } }}>
+            <Typography.Title level={5} style={{ marginTop: 0 }}>
+              Get your tickets
+            </Typography.Title>
+            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+              {dayjs(event.startsAt).format('MMM D, YYYY')} · {event.currency}
+            </Typography.Text>
+            {seatMap ? (
+              <Button
+                type="primary"
+                size="large"
+                block
+                disabled={bookingClosed}
+                onClick={handleSelectSeats}
+              >
+                {bookingClosed ? 'Booking closed' : 'Select seats'}
+              </Button>
+            ) : (
+              <Typography.Text type="secondary">Seats aren't on sale yet.</Typography.Text>
+            )}
+          </Card>
+        </Col>
+      </Row>
+
+      <Link to="/" style={{ display: 'block', marginTop: 24 }}>
         ← Back to events
       </Link>
-    </Card>
+    </div>
   );
 }

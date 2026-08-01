@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, DatePicker, Divider, Form, Input, Space, Typography } from 'antd';
+import { Button, Card, Col, DatePicker, Divider, Form, Input, Row, Space } from 'antd';
 import type { Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -8,6 +8,7 @@ import {
   type SocialLinkInput,
 } from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 
 interface CreateEventGroupFormValues {
@@ -68,50 +69,71 @@ export function CreateEventGroupPage() {
   };
 
   return (
-    <Card style={{ maxWidth: 560 }}>
-      <Typography.Title level={3}>Create tour</Typography.Title>
-      <Form<CreateEventGroupFormValues>
-        layout="vertical"
-        onFinish={(values) => {
-          void handleSubmit(values);
-        }}
-      >
-        <Form.Item name="title" label="Title" rules={[{ required: true }]}>
-          <Input placeholder="e.g. Coldplay World Tour" />
-        </Form.Item>
+    <div style={{ maxWidth: 760 }}>
+      <PageHeader
+        title="Create tour"
+        description="Cluster multiple city/date legs under one promotional umbrella."
+      />
+      <Card styles={{ body: { padding: 28 } }}>
+        <Form<CreateEventGroupFormValues>
+          layout="vertical"
+          onFinish={(values) => {
+            void handleSubmit(values);
+          }}
+        >
+          <Row gutter={20}>
+            <Col span={24}>
+              <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+                <Input placeholder="e.g. Coldplay World Tour" size="large" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="startsAt" label="Overall starts at (optional)">
+                <DatePicker showTime style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="endsAt" label="Overall ends at (optional)">
+                <DatePicker showTime style={{ width: '100%' }} />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        <Space wrap>
-          <Form.Item name="startsAt" label="Overall starts at (optional)">
-            <DatePicker showTime />
-          </Form.Item>
-          <Form.Item name="endsAt" label="Overall ends at (optional)">
-            <DatePicker showTime />
-          </Form.Item>
-        </Space>
+          <Divider titlePlacement="left">Default contact details (each leg can override)</Divider>
+          <Row gutter={20}>
+            <Col xs={24} sm={12}>
+              <Form.Item name="contactPhone" label="Phone">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="contactMobile" label="Mobile">
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
+                <Input />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
+                <Input placeholder="https://..." />
+              </Form.Item>
+            </Col>
+          </Row>
 
-        <Divider>Default contact details (each leg can override)</Divider>
-        <Form.Item name="contactPhone" label="Phone">
-          <Input />
-        </Form.Item>
-        <Form.Item name="contactMobile" label="Mobile">
-          <Input />
-        </Form.Item>
-        <Form.Item name="contactEmail" label="Email" rules={[{ type: 'email' }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="websiteUrl" label="Website" rules={[{ type: 'url' }]}>
-          <Input placeholder="https://..." />
-        </Form.Item>
+          <Divider titlePlacement="left">Social links</Divider>
+          <SocialLinksEditor />
 
-        <Divider>Social links</Divider>
-        <SocialLinksEditor />
-
-        <Form.Item>
-          <Button type="primary" htmlType="submit" block loading={submitting}>
-            Create
-          </Button>
-        </Form.Item>
-      </Form>
-    </Card>
+          <Divider />
+          <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Button type="primary" htmlType="submit" size="large" loading={submitting}>
+              Create tour
+            </Button>
+          </Space>
+        </Form>
+      </Card>
+    </div>
   );
 }

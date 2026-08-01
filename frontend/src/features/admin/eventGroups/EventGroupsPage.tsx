@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Button, Input, Table, Typography } from 'antd';
+import { Button, Card, Input, Table } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 import { listEventGroups, type EventGroupResponse } from '../../../services/catalog/catalogApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
+import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { toast } from '../../../components/common/feedback/toast';
 
 const PAGE_SIZE = 20;
@@ -39,7 +42,12 @@ export function EventGroupsPage() {
   }, [page]);
 
   if (loading) {
-    return <TableSkeleton />;
+    return (
+      <>
+        <PageHeader title="Tours" />
+        <TableSkeleton />
+      </>
+    );
   }
 
   const visibleGroups = titleFilter
@@ -48,36 +56,47 @@ export function EventGroupsPage() {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          Tours
-        </Typography.Title>
-        <Link to="/admin/tours/new">
-          <Button type="primary">Create tour</Button>
-        </Link>
-      </div>
-
-      <Input.Search
-        placeholder="Search title"
-        allowClear
-        onChange={(event) => setTitleFilter(event.target.value)}
-        style={{ width: 220, marginBottom: 16 }}
+      <PageHeader
+        title="Tours"
+        description="Group multiple city/date legs under one promotional umbrella."
+        extra={
+          <Link to="/admin/tours/new">
+            <Button type="primary" icon={<PlusOutlined />}>
+              Create tour
+            </Button>
+          </Link>
+        }
       />
 
-      <Table<EventGroupResponse>
-        rowKey="id"
-        dataSource={visibleGroups}
-        pagination={{
-          current: page,
-          pageSize: PAGE_SIZE,
-          total: totalCount,
-          onChange: setPage,
-          showSizeChanger: false,
-        }}
-        columns={[
-          { title: 'Title', dataIndex: 'title', sorter: (a, b) => a.title.localeCompare(b.title) },
-        ]}
-      />
+      <Toolbar>
+        <Input.Search
+          placeholder="Search title"
+          allowClear
+          onChange={(event) => setTitleFilter(event.target.value)}
+          style={{ width: 240 }}
+        />
+      </Toolbar>
+
+      <Card styles={{ body: { padding: 0 } }}>
+        <Table<EventGroupResponse>
+          rowKey="id"
+          dataSource={visibleGroups}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: totalCount,
+            onChange: setPage,
+            showSizeChanger: false,
+          }}
+          columns={[
+            {
+              title: 'Title',
+              dataIndex: 'title',
+              sorter: (a, b) => a.title.localeCompare(b.title),
+            },
+          ]}
+        />
+      </Card>
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Tag, Typography } from 'antd';
+import { Card, Col, Empty, Input, Pagination, Row, Select, Tag, Typography } from 'antd';
+import { EnvironmentOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Link } from 'react-router-dom';
 import {
@@ -8,6 +9,8 @@ import {
   type EventStatus,
 } from '../../../services/catalog/catalogApi';
 import { CardSkeleton } from '../../../components/common/skeletons/CardSkeleton';
+import { PageHeader } from '../../../components/common/layout/PageHeader';
+import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
 
@@ -46,18 +49,25 @@ export function EventsListPage() {
     };
   }, [page, status]);
 
-  const filters = (
-    <Space style={{ marginBottom: 16 }}>
+  const header = (
+    <PageHeader
+      title="Discover live events"
+      description="Browse what's on sale and grab your tickets before they're gone."
+    />
+  );
+
+  const toolbar = (
+    <Toolbar>
       <Input.Search
-        placeholder="Search title"
+        placeholder="Search by title"
         allowClear
         onChange={(event) => setTitleFilter(event.target.value)}
-        style={{ width: 220 }}
+        style={{ width: 240 }}
       />
       <Select<EventStatus | undefined>
         placeholder="All statuses"
         allowClear
-        style={{ width: 160 }}
+        style={{ width: 170 }}
         value={status}
         onChange={(value) => {
           setStatus(value);
@@ -65,16 +75,17 @@ export function EventsListPage() {
         }}
         options={STATUS_OPTIONS.map((option) => ({ value: option, label: option }))}
       />
-    </Space>
+    </Toolbar>
   );
 
   if (loading) {
     return (
       <>
-        {filters}
-        <Row gutter={[16, 16]}>
+        {header}
+        {toolbar}
+        <Row gutter={[20, 20]}>
           {Array.from({ length: 6 }, (_, index) => (
-            <Col key={index} xs={24} sm={12} md={8}>
+            <Col key={index} xs={24} sm={12} lg={8}>
               <CardSkeleton />
             </Col>
           ))}
@@ -89,30 +100,55 @@ export function EventsListPage() {
 
   return (
     <>
-      {filters}
+      {header}
+      {toolbar}
       {visibleEvents.length === 0 ? (
-        <Empty description="No events found" />
+        <Empty description="No events found" style={{ margin: '64px 0' }} />
       ) : (
-        <Row gutter={[16, 16]}>
+        <Row gutter={[20, 20]}>
           {visibleEvents.map((event) => (
-            <Col key={event.id} xs={24} sm={12} md={8}>
-              <Link to={`/events/${event.id}`}>
+            <Col key={event.id} xs={24} sm={12} lg={8}>
+              <Link to={`/events/${event.id}`} style={{ display: 'block', height: '100%' }}>
                 <Card
                   hoverable
-                  title={event.title}
+                  styles={{ body: { padding: 18 } }}
+                  style={{ height: '100%', overflow: 'hidden' }}
                   cover={
                     event.bannerImageUrl ? (
-                      <img
-                        src={event.bannerImageUrl}
-                        alt={event.title}
-                        style={{ height: 160, objectFit: 'cover' }}
+                      <div style={{ height: 168, overflow: 'hidden' }}>
+                        <img
+                          src={event.bannerImageUrl}
+                          alt={event.title}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+                    ) : (
+                      <div
+                        style={{
+                          height: 168,
+                          background:
+                            'linear-gradient(135deg, rgba(62,168,196,0.35), rgba(28,43,48,0.65))',
+                        }}
                       />
-                    ) : undefined
+                    )
                   }
                 >
-                  <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
+                  <Tag color={eventStatusColor[event.status]} style={{ marginBottom: 8 }}>
+                    {event.status}
+                  </Tag>
+                  <Typography.Title
+                    level={5}
+                    style={{ margin: 0, lineHeight: 1.3 }}
+                    ellipsis={{ rows: 2 }}
+                  >
+                    {event.title}
+                  </Typography.Title>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                    {dayjs(event.startsAt).format('MMM D, YYYY · h:mm A')}
+                    {dayjs(event.startsAt).format('ddd, MMM D, YYYY · h:mm A')}
+                  </Typography.Text>
+                  <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
+                    <EnvironmentOutlined style={{ marginRight: 6 }} />
+                    {event.city}
                   </Typography.Text>
                 </Card>
               </Link>
@@ -121,7 +157,7 @@ export function EventsListPage() {
         </Row>
       )}
       <Pagination
-        style={{ marginTop: 24, textAlign: 'center' }}
+        style={{ marginTop: 32, textAlign: 'center' }}
         current={page}
         pageSize={PAGE_SIZE}
         total={totalCount}
