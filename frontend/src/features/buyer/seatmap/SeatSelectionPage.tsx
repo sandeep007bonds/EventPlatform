@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, InputNumber, Space, Typography } from 'antd';
+import { Alert, Button, Card, InputNumber, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
@@ -17,6 +17,12 @@ import { formatMoney } from '../../../utils/money';
 
 const MAX_SEATS = 10;
 const MAX_GENERAL_ADMISSION_QUANTITY = 10;
+
+// Inventory is provisioned asynchronously (pub/sub off Catalog's EventPublished, via the outbox
+// relay), so the per-seat status endpoint can briefly return an empty list right after a publish
+// — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
+const INVENTORY_POLL_INTERVAL_MS = 1500;
+const INVENTORY_POLL_MAX_ATTEMPTS = 6;
 
 const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
   Available: '#eef1f3',
@@ -52,6 +58,7 @@ export function SeatSelectionPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const refreshStatuses = async (evId: string) => {
@@ -65,15 +72,46 @@ export function SeatSelectionPage() {
     }
 
     let cancelled = false;
+    let attempts = 0;
 
-    Promise.all([getEvent(eventId), getSeatMap(eventId), getInventorySeats(eventId)])
-      .then(([event, map, seats]) => {
+    const pollStatuses = (map: SeatMapResponse) => {
+      getInventorySeats(eventId)
+        .then((seats) => {
+          if (cancelled) {
+            return;
+          }
+          if (seats.length > 0 || map.seats.length === 0) {
+            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+            setProvisioning(false);
+            return;
+          }
+          attempts += 1;
+          if (attempts >= INVENTORY_POLL_MAX_ATTEMPTS) {
+            setProvisioning(false);
+            return;
+          }
+          setProvisioning(true);
+          setTimeout(() => {
+            if (!cancelled) {
+              pollStatuses(map);
+            }
+          }, INVENTORY_POLL_INTERVAL_MS);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setProvisioning(false);
+          }
+        });
+    };
+
+    Promise.all([getEvent(eventId), getSeatMap(eventId)])
+      .then(([event, map]) => {
         if (cancelled) {
           return;
         }
         setCurrency(event.currency);
         setSeatMap(map);
-        setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+        pollStatuses(map);
       })
       .catch(() => toast.error('Could not load the seat map.'))
       .finally(() => {
@@ -218,25 +256,33 @@ export function SeatSelectionPage() {
         }
       />
 
-      {seatMap.seats.length > 0 && (
-        <SeatGrid
-          seats={seatMap.seats}
-          renderSeat={(seat) => {
-            const status = statuses.get(seat.id) ?? 'Sold';
-            return (
-              <SeatChip
-                key={seat.id}
-                label={String(seat.number)}
-                tooltip={`${seat.label} · ${seat.priceTier} · ${formatMoney(seat.priceAmount * 100, currency)}`}
-                selected={selected.has(seat.id)}
-                disabled={status !== 'Available'}
-                color={STATUS_COLOR[status]}
-                onClick={() => toggleSeat(seat.id)}
-              />
-            );
-          }}
-        />
-      )}
+      {seatMap.seats.length > 0 &&
+        (provisioning ? (
+          <Alert
+            type="info"
+            showIcon
+            message="Seats are still being set up — this can take a few seconds."
+            style={{ marginBottom: 16 }}
+          />
+        ) : (
+          <SeatGrid
+            seats={seatMap.seats}
+            renderSeat={(seat) => {
+              const status = statuses.get(seat.id) ?? 'Sold';
+              return (
+                <SeatChip
+                  key={seat.id}
+                  label={String(seat.number)}
+                  tooltip={`${seat.label} · ${seat.priceTier} · ${formatMoney(seat.priceAmount * 100, currency)}`}
+                  selected={selected.has(seat.id)}
+                  disabled={status !== 'Available'}
+                  color={STATUS_COLOR[status]}
+                  onClick={() => toggleSeat(seat.id)}
+                />
+              );
+            }}
+          />
+        ))}
 
       {seatMap.generalAdmissionSections.map((section) => (
         <Card
