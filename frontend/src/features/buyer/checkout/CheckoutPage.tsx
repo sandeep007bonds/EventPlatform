@@ -93,6 +93,11 @@ export function CheckoutPage() {
       return;
     }
 
+    if (buyerEmail.length > 320) {
+      toast.error('That email is too long (max 320 characters).');
+      return;
+    }
+
     setSubmitting(true);
     try {
       const result = await checkout(holdId, idempotencyKey.current, buyerEmail);
@@ -203,6 +208,7 @@ export function CheckoutPage() {
           type="email"
           placeholder="you@example.com"
           value={buyerEmail}
+          maxLength={320}
           onChange={(event) => setBuyerEmail(event.target.value)}
           style={{ marginBottom: 20 }}
         />

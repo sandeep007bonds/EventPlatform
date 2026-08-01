@@ -12,7 +12,7 @@ import {
   Select,
   Space,
 } from 'antd';
-import type { Dayjs } from 'dayjs';
+import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
 import { createEvent } from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
@@ -89,17 +89,44 @@ export function CreateEventPage() {
         >
           <Row gutter={20}>
             <Col span={24}>
-              <Form.Item name="title" label="Title" rules={[{ required: true }]}>
+              <Form.Item name="title" label="Title" rules={[{ required: true }, { max: 200 }]}>
                 <Input placeholder="e.g. Coldplay: Music of the Spheres" size="large" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
-              <Form.Item name="startsAt" label="Starts at" rules={[{ required: true }]}>
+              <Form.Item
+                name="startsAt"
+                label="Starts at"
+                rules={[
+                  { required: true },
+                  {
+                    validator: (_rule, value: Dayjs | undefined) =>
+                      !value || value.isAfter(dayjs())
+                        ? Promise.resolve()
+                        : Promise.reject(new Error('Starts at must be in the future.')),
+                  },
+                ]}
+              >
                 <DatePicker showTime style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
-              <Form.Item name="endsAt" label="Ends at" rules={[{ required: true }]}>
+              <Form.Item
+                name="endsAt"
+                label="Ends at"
+                dependencies={['startsAt']}
+                rules={[
+                  { required: true },
+                  ({ getFieldValue }) => ({
+                    validator: (_rule, value: Dayjs | undefined) => {
+                      const startsAt = getFieldValue('startsAt') as Dayjs | undefined;
+                      return !value || !startsAt || value.isAfter(startsAt)
+                        ? Promise.resolve()
+                        : Promise.reject(new Error('Ends at must be after Starts at.'));
+                    },
+                  }),
+                ]}
+              >
                 <DatePicker showTime style={{ width: '100%' }} />
               </Form.Item>
             </Col>
@@ -114,7 +141,11 @@ export function CreateEventPage() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
-              <Form.Item name="maxTicketsPerBuyer" label="Max tickets per buyer (optional)">
+              <Form.Item
+                name="maxTicketsPerBuyer"
+                label="Max tickets per buyer (optional)"
+                rules={[{ type: 'number', min: 1 }]}
+              >
                 <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
               </Form.Item>
             </Col>
@@ -123,32 +154,40 @@ export function CreateEventPage() {
           <Divider titlePlacement="left">Location</Divider>
           <Row gutter={20}>
             <Col xs={24} sm={12}>
-              <Form.Item name="locationName" label="Venue name" rules={[{ required: true }]}>
+              <Form.Item
+                name="locationName"
+                label="Venue name"
+                rules={[{ required: true }, { max: 200 }]}
+              >
                 <Input placeholder="e.g. Wankhede Stadium" />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="addressLine1" label="Address line 1" rules={[{ required: true }]}>
+              <Form.Item
+                name="addressLine1"
+                label="Address line 1"
+                rules={[{ required: true }, { max: 200 }]}
+              >
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="addressLine2" label="Address line 2">
+              <Form.Item name="addressLine2" label="Address line 2" rules={[{ max: 200 }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="city" label="City" rules={[{ required: true }]}>
+              <Form.Item name="city" label="City" rules={[{ required: true }, { max: 100 }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
-              <Form.Item name="region" label="State / region">
+              <Form.Item name="region" label="State / region" rules={[{ max: 100 }]}>
                 <Input />
               </Form.Item>
             </Col>
             <Col xs={24} sm={8}>
-              <Form.Item name="postalCode" label="Postal code">
+              <Form.Item name="postalCode" label="Postal code" rules={[{ max: 20 }]}>
                 <Input />
               </Form.Item>
             </Col>
@@ -162,12 +201,20 @@ export function CreateEventPage() {
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="latitude" label="Latitude (optional)">
+              <Form.Item
+                name="latitude"
+                label="Latitude (optional)"
+                rules={[{ type: 'number', min: -90, max: 90 }]}
+              >
                 <InputNumber min={-90} max={90} step={0.000001} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col xs={24} sm={12}>
-              <Form.Item name="longitude" label="Longitude (optional)">
+              <Form.Item
+                name="longitude"
+                label="Longitude (optional)"
+                rules={[{ type: 'number', min: -180, max: 180 }]}
+              >
                 <InputNumber min={-180} max={180} step={0.000001} style={{ width: '100%' }} />
               </Form.Item>
             </Col>
