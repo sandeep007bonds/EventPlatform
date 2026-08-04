@@ -89,16 +89,16 @@ public sealed class Event
     public DateTimeOffset? DoorsOpenAt { get; private set; }
 
     /// <summary>
-    /// Display-only sales-window start (UTC). Not enforced by <see cref="Publish"/> or any status
-    /// transition — purely informational on the public event page. Contrast with
-    /// <see cref="BookingEndsAt"/>, which is enforced.
+    /// Sales-window start (UTC) — before this time, Inventory rejects new holds for this event.
+    /// Catalog publishes it on <see cref="Publish"/> (via <c>EventPublished</c>) so Inventory can
+    /// check it at hold-placement time, the same way as <see cref="BookingEndsAt"/>.
     /// </summary>
     public DateTimeOffset? OnSaleAt { get; private set; }
 
     /// <summary>
-    /// Booking cutoff (UTC) — after this time, Inventory rejects new holds for this event. This is
-    /// a real, enforced invariant (unlike <see cref="OnSaleAt"/>): Catalog publishes it on
-    /// <see cref="Publish"/> so Inventory can check it at hold-placement time.
+    /// Booking cutoff (UTC) — after this time, Inventory rejects new holds for this event. Catalog
+    /// publishes it on <see cref="Publish"/> so Inventory can check it at hold-placement time, the
+    /// same way as <see cref="OnSaleAt"/>.
     /// </summary>
     public DateTimeOffset? BookingEndsAt { get; private set; }
 

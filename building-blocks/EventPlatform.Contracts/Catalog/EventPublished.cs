@@ -19,6 +19,10 @@ namespace EventPlatform.Contracts.Catalog;
 /// Maximum tickets a single buyer may hold for this event, if limited — Inventory enforces this
 /// at hold-placement time, summing the buyer's active and converted holds.
 /// </param>
+/// <param name="OnSaleAt">
+/// Enforced on-sale start (UTC), if set — Inventory rejects new holds for this event until this
+/// time. Cannot change after publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
+/// </param>
 public sealed record EventPublished(
     Guid EventId,
     DateTimeOffset OccurredAt,
@@ -27,4 +31,5 @@ public sealed record EventPublished(
     string Title,
     int SeatCount,
     DateTimeOffset? BookingEndsAt,
-    int? MaxTicketsPerBuyer = null) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    int? MaxTicketsPerBuyer = null,
+    DateTimeOffset? OnSaleAt = null) : IntegrationEvent(EventId, OccurredAt, TenantId);

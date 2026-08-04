@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, InputNumber, Space, Typography } from 'antd';
+import { Alert, Button, Card, InputNumber, Modal, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
+import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
@@ -14,6 +15,8 @@ import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+import { useAuth } from '../../../contexts/useAuth';
+import { OtpLoginFlow } from '../auth/OtpLoginFlow';
 
 const MAX_SEATS = 10;
 const MAX_GENERAL_ADMISSION_QUANTITY = 10;
@@ -51,15 +54,19 @@ interface ConflictBody {
 export function SeatSelectionPage() {
   const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [currency, setCurrency] = useState('USD');
+  const [maxTicketsPerBuyer, setMaxTicketsPerBuyer] = useState<number | null>(null);
+  const [onSaleAt, setOnSaleAt] = useState<string | null>(null);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
 
   const refreshStatuses = async (evId: string) => {
     const seats = await getInventorySeats(evId);
@@ -110,6 +117,8 @@ export function SeatSelectionPage() {
           return;
         }
         setCurrency(event.currency);
+        setMaxTicketsPerBuyer(event.maxTicketsPerBuyer);
+        setOnSaleAt(event.onSaleAt);
         setSeatMap(map);
         pollStatuses(map);
       })
@@ -140,6 +149,16 @@ export function SeatSelectionPage() {
         toast.error(`You can select up to ${MAX_SEATS} seats.`);
         return prev;
       }
+
+      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
+      if (maxTicketsPerBuyer !== null) {
+        const gaCount = [...gaQuantities.values()].reduce((a, b) => a + b, 0);
+        if (next.size + 1 + gaCount > maxTicketsPerBuyer) {
+          toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
+          return prev;
+        }
+      }
+
       next.add(seatId);
       return next;
     });
@@ -167,6 +186,15 @@ export function SeatSelectionPage() {
         return prev;
       }
 
+      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
+      if (
+        maxTicketsPerBuyer !== null &&
+        selected.size + otherSectionsTotal + quantity > maxTicketsPerBuyer
+      ) {
+        toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
+        return prev;
+      }
+
       const next = new Map(prev);
       next.set(allocationId, quantity);
       return next;
@@ -174,6 +202,12 @@ export function SeatSelectionPage() {
   };
 
   const handleHold = async () => {
+    if (!user) {
+      // The identity gate lives here, not an upfront login wall — a buyer picks seats freely
+      // and only verifies via OTP at the moment they actually claim scarce inventory (ADR-0016).
+      setOtpModalOpen(true);
+      return;
+    }
     if (!eventId || (selected.size === 0 && gaQuantities.size === 0)) {
       return;
     }
@@ -213,6 +247,16 @@ export function SeatSelectionPage() {
   if (!seatMap) {
     return (
       <Typography.Text type="secondary">No seat map is available for this event.</Typography.Text>
+    );
+  }
+
+  // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
+  // enforce the on-sale window here too. The server rejects the hold either way (OnSaleNotStarted).
+  if (onSaleAt !== null && dayjs(onSaleAt).isAfter(dayjs())) {
+    return (
+      <Typography.Text type="secondary">
+        Tickets go on sale {dayjs(onSaleAt).format('MMMM D, YYYY · h:mm A')}.
+      </Typography.Text>
     );
   }
 
@@ -360,6 +404,21 @@ export function SeatSelectionPage() {
           </Button>
         </div>
       </div>
+
+      <Modal
+        open={otpModalOpen}
+        onCancel={() => setOtpModalOpen(false)}
+        footer={null}
+        title="Log in to hold your seats"
+        destroyOnClose
+      >
+        <OtpLoginFlow
+          onVerified={() => {
+            setOtpModalOpen(false);
+            void handleHold();
+          }}
+        />
+      </Modal>
     </div>
   );
 }

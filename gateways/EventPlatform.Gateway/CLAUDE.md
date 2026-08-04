@@ -14,8 +14,10 @@ ADR-0015 and ADR-0016.
 
 - **No data store.** Stateless; owns no schema, no domain.
 - **Public API:** `POST /api/auth/dev-login` (Development only); everything
-  else is proxied under `/api/<service>/...` to the 5 backend services per
-  the explicit allowlist in `appsettings.json`'s `ReverseProxy` section.
+  else is proxied under `/api/<service>/...` to the 6 backend services per
+  the explicit allowlist in `appsettings.json`'s `ReverseProxy` section
+  (Payments and Communication have no routes — saga-internal/Dapr-invocation
+  only, never reachable through this gateway).
 - **Events published/consumed:** none — the gateway is an HTTP ingress
   concern only, not a Dapr participant.
 

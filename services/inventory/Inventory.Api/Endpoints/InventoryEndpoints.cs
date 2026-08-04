@@ -89,17 +89,11 @@ public static class InventoryEndpoints
 
     private static async Task<IResult> PlaceHoldAsync(
         PlaceHoldRequest request,
-        ITenantContext tenant,
         ClaimsPrincipal principal,
         HoldService holds,
         HoldOptions options,
         CancellationToken cancellationToken)
     {
-        if (tenant.TenantId is null)
-        {
-            return Results.Unauthorized();
-        }
-
         var userId = GetUserId(principal);
         if (userId is null)
         {
@@ -129,7 +123,6 @@ public static class InventoryEndpoints
         }
 
         var result = await holds.PlaceHoldAsync(
-            tenant.TenantId.Value,
             userId.Value,
             request.EventId,
             seatIds,
@@ -140,6 +133,8 @@ public static class InventoryEndpoints
         {
             PlaceHoldOutcome.Held =>
                 Results.Created($"/v1/holds/{result.HoldId}", new { holdId = result.HoldId, expiresAt = result.ExpiresAt }),
+            PlaceHoldOutcome.EventNotFound =>
+                Results.NotFound(new { message = "This event has not been provisioned yet." }),
             PlaceHoldOutcome.SeatNotFound =>
                 Results.NotFound(new { message = "One or more seats do not exist for this event." }),
             PlaceHoldOutcome.AllocationNotFound =>
@@ -155,6 +150,8 @@ public static class InventoryEndpoints
                 Results.Conflict(new { message = "The booking window for this event has closed." }),
             PlaceHoldOutcome.BuyerLimitExceeded =>
                 Results.Conflict(new { message = "This would exceed the maximum tickets allowed per buyer for this event." }),
+            PlaceHoldOutcome.OnSaleNotStarted =>
+                Results.Conflict(new { message = "Tickets are not on sale yet for this event." }),
             _ => Results.Problem("Unexpected hold outcome."),
         };
     }
@@ -259,6 +256,7 @@ public static class InventoryEndpoints
             @event.CatalogEventId,
             @event.BookingEndsAt,
             @event.MaxTicketsPerBuyer,
+            @event.OnSaleAt,
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Inventory.Provisioning");

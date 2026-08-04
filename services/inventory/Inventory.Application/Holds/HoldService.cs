@@ -16,7 +16,6 @@ public sealed class HoldService(
     HoldOptions options)
 {
     /// <summary>Places a hold over the requested seats and/or general-admission quantities.</summary>
-    /// <param name="tenantId">Owning tenant.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="eventId">The event the inventory belongs to.</param>
     /// <param name="seatIds">The requested seat ids, if any.</param>
@@ -24,7 +23,6 @@ public sealed class HoldService(
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The place-hold result.</returns>
     public async Task<PlaceHoldResult> PlaceHoldAsync(
-        Guid tenantId,
         Guid userId,
         Guid eventId,
         IReadOnlyList<Guid> seatIds,
@@ -44,12 +42,22 @@ public sealed class HoldService(
         }
 
         var settings = await inventory.GetEventInventorySettingsAsync(eventId, cancellationToken);
-        if (settings?.BookingEndsAt is { } bookingEndsAt && DateTimeOffset.UtcNow > bookingEndsAt)
+        if (settings is null)
+        {
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.EventNotFound);
+        }
+
+        if (settings.OnSaleAt is { } onSaleAt && DateTimeOffset.UtcNow < onSaleAt)
+        {
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.OnSaleNotStarted);
+        }
+
+        if (settings.BookingEndsAt is { } bookingEndsAt && DateTimeOffset.UtcNow > bookingEndsAt)
         {
             return PlaceHoldResult.Failed(PlaceHoldOutcome.BookingWindowClosed);
         }
 
-        if (settings?.MaxTicketsPerBuyer is { } maxTicketsPerBuyer)
+        if (settings.MaxTicketsPerBuyer is { } maxTicketsPerBuyer)
         {
             var requestedQuantity = distinctSeatIds.Count + gaSelections.Sum(selection => selection.Quantity);
             var alreadyCommitted = await inventory.GetBuyerCommittedQuantityAsync(eventId, userId, cancellationToken);
@@ -140,7 +148,7 @@ public sealed class HoldService(
         }
 
         var hold = Hold.Create(
-            tenantId,
+            settings.TenantId,
             eventId,
             userId,
             expiresAt,
@@ -152,7 +160,7 @@ public sealed class HoldService(
         events.Enqueue(new SeatHeld(
             Guid.CreateVersion7(),
             DateTimeOffset.UtcNow,
-            tenantId,
+            settings.TenantId,
             hold.Id,
             eventId,
             userId,

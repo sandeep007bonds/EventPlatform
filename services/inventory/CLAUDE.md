@@ -21,8 +21,8 @@ event, and enforces that event's booking cutoff.
   `SeatUnblocked` (via outbox) — seat-only today; general-admission holds don't
   yet appear on these events (no external consumer needs them this pass)
 - **Events consumed:** `EventPublished` (Catalog) → provision seat inventory and
-  general-admission allocations, and record the event's `BookingEndsAt` and
-  `MaxTicketsPerBuyer`
+  general-admission allocations, and record the event's `BookingEndsAt`,
+  `OnSaleAt`, and `MaxTicketsPerBuyer`
 
 ## General admission and the enforced booking cutoff
 
@@ -38,14 +38,20 @@ event, and enforces that event's booking cutoff.
   initialized, or was lost to a flush, reads as zero remaining rather than
   available. Safe either way because Postgres stays authoritative; GA capacity
   must be explicitly initialized at provisioning time, unlike seats.
-- **`EventInventorySettings`** holds the event's enforced `BookingEndsAt`,
-  learned from `EventPublished`. `HoldService.PlaceHoldAsync` rejects new holds
-  once `DateTimeOffset.UtcNow` passes it (`PlaceHoldOutcome.BookingWindowClosed`),
-  checked before touching Redis/Postgres. Changing the cutoff after an event is
-  published is out of scope for this pass (`UpdateEventDetails` on Catalog stays
-  Draft-only).
+- **`EventInventorySettings`** holds the event's enforced `BookingEndsAt` and
+  `OnSaleAt`, both learned from `EventPublished`. `HoldService.PlaceHoldAsync`
+  rejects new holds once `DateTimeOffset.UtcNow` passes `BookingEndsAt`
+  (`PlaceHoldOutcome.BookingWindowClosed`), and rejects them while
+  `DateTimeOffset.UtcNow` is still before `OnSaleAt`
+  (`PlaceHoldOutcome.OnSaleNotStarted`) — both checked before touching
+  Redis/Postgres. Changing either bound after an event is published is out of
+  scope for this pass (`UpdateEventDetails` on Catalog stays Draft-only).
+  **`EventInventorySettings.TenantId` is also the source of the tenant
+  stamped on a placed `Hold`** — `PlaceHoldAsync` no longer takes a
+  caller-supplied tenant; a buyer's own token may not carry one at all
+  (ADR-0022).
 - **`EventInventorySettings.MaxTicketsPerBuyer`** (per-buyer ticket limit, if
-  set — ADR-0021) is checked right after the booking-cutoff check.
+  set — ADR-0021) is checked right after the on-sale/booking-cutoff checks.
   `IInventoryRepository.GetBuyerCommittedQuantityAsync` sums the buyer's
   existing seat/GA commitment across their `Active` and `Converted` holds for
   the event (an explicit `HoldItem`/`HoldGeneralAdmissionItem` join to `Hold`,

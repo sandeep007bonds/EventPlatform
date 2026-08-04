@@ -1,0 +1,11 @@
+global using System.Text.Json.Serialization;
+global using EventPlatform.Hosting;
+global using Identity.Api.Endpoints;
+global using Identity.Application;
+global using Identity.Application.Abstractions;
+global using Identity.Application.Organizers;
+global using Identity.Application.Otp;
+global using Identity.Infrastructure;
+global using Identity.Infrastructure.Signing;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.IdentityModel.Tokens;

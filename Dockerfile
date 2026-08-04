@@ -21,6 +21,7 @@
 #   services/ticketing/Ticketing.Api/Ticketing.Api.csproj       -> Ticketing.Api
 #   services/communication/Communication.Api/Communication.Api.csproj -> Communication.Api
 #   services/media/Media.Api/Media.Api.csproj                   -> Media.Api
+#   services/identity/Identity.Api/Identity.Api.csproj           -> Identity.Api
 #   gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj -> EventPlatform.Gateway
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

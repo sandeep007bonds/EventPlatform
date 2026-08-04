@@ -20,17 +20,11 @@ public static class OrderingEndpoints
     private static async Task<IResult> CheckoutAsync(
         CheckoutRequest request,
         [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
-        ITenantContext tenant,
         ClaimsPrincipal principal,
         DaprWorkflowClient workflowClient,
         IOrderRepository orders,
         CancellationToken cancellationToken)
     {
-        if (tenant.TenantId is null)
-        {
-            return Results.Unauthorized();
-        }
-
         var userId = GetUserId(principal);
         if (userId is null)
         {
@@ -47,8 +41,10 @@ public static class OrderingEndpoints
             return Results.BadRequest(new { message = "A valid BuyerEmail is required." });
         }
 
-        // Idempotency: a prior attempt with this key wins before starting a new workflow.
-        var existing = await orders.GetByIdempotencyKeyAsync(tenant.TenantId.Value, idempotencyKey, cancellationToken);
+        // Idempotency: a prior attempt with this key (by this buyer) wins before starting a new
+        // workflow. Scoped by buyer, not tenant — a checkout attempt is a buyer action, and the
+        // buyer's own token may carry no tenant claim at all (ADR-0022).
+        var existing = await orders.GetByIdempotencyKeyAsync(userId.Value, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
             return existing.Status == OrderStatus.Confirmed
@@ -60,7 +56,7 @@ public static class OrderingEndpoints
         await workflowClient.ScheduleNewWorkflowAsync(
             nameof(CheckoutWorkflow),
             instanceId,
-            new CheckoutWorkflowInput(tenant.TenantId.Value, userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail));
+            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail));
 
         var state = await workflowClient.WaitForWorkflowCompletionAsync(
             instanceId,

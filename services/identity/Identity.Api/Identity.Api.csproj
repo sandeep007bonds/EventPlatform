@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Identity.Api</RootNamespace>
+    <UserSecretsId>eventplatform-identity</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
+    <ProjectReference Include="../Identity.Infrastructure/Identity.Infrastructure.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+  </ItemGroup>
+
+  <!-- No Dapr.AspNetCore reference — Identity has zero pub/sub subscriptions this pass; its one
+       Dapr use (calling Communication) is a plain Dapr.Client call from Identity.Infrastructure,
+       which needs no ASP.NET Core Dapr integration package. -->
+
+</Project>

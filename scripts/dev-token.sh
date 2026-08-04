@@ -6,6 +6,8 @@
 # Usage:
 #   export TOKEN=$(./scripts/dev-token.sh)
 #   export TOKEN=$(./scripts/dev-token.sh <user-guid>)   # override the buyer (sub claim)
+#   export TOKEN=$(TENANT_ID="" ./scripts/dev-token.sh)  # buyer token with no tenant_id claim
+#                                                         # (simulates a real buyer login — ADR-0022)
 set -euo pipefail
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -15,7 +17,9 @@ fi
 
 SUB="${1:-}"
 DEV_SIGNING_KEY="${DEV_SIGNING_KEY:-eventplatform-dev-hs256-signing-key-not-a-secret}"
-TENANT_ID="${TENANT_ID:-11111111-1111-1111-1111-111111111111}"
+# Note: `-` (not `:-`) so an explicitly empty TENANT_ID="" is preserved rather than
+# falling back to the default — that's the signal to omit the tenant_id claim below.
+TENANT_ID="${TENANT_ID-11111111-1111-1111-1111-111111111111}"
 
 DEV_SIGNING_KEY="$DEV_SIGNING_KEY" TENANT_ID="$TENANT_ID" SUB="$SUB" python3 - <<'PY'
 import base64, hmac, hashlib, json, os, time, uuid
@@ -32,9 +36,10 @@ payload = {
     "aud": "eventplatform",
     "iat": now,
     "exp": now + 3600,
-    "tenant_id": tenant,
     "sub": sub,
 }
+if tenant:
+    payload["tenant_id"] = tenant
 signing_input = b64(json.dumps(header).encode()) + b"." + b64(json.dumps(payload).encode())
 signature = b64(hmac.new(secret.encode(), signing_input, hashlib.sha256).digest())
 print((signing_input + b"." + signature).decode())

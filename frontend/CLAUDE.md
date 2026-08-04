@@ -7,8 +7,9 @@ here — this project has its own conventions, below.
 ## Responsibility
 
 The buyer + organizer web app: one React SPA, two Ant Design–themed
-sections (`BuyerLayout`, `AdminLayout`) sharing one login flow, one HTTP
-client, and one router. See ADR-0015.
+sections (`BuyerLayout`, `AdminLayout`), each with its own real login flow
+(buyer OTP, organizer email+password), sharing one HTTP client and one
+router. See ADR-0015, ADR-0016, ADR-0023.
 
 ## Owns
 
@@ -28,7 +29,8 @@ src/
                  treat them as one unit)
   services/
     http/        the ONE axios instance + interceptors + tokenStore
-    auth/        dev-login API client
+    auth/        identityApi (buyer OTP) + organizerApi (organizer
+                 email+password) API clients
     catalog/ inventory/ ordering/ ticketing/   typed API client per bounded
                  context, hand-written types mirroring the backend DTOs
   components/common/
@@ -38,13 +40,16 @@ src/
     feedback/    toast.ts + ToastHolder (stashes Ant's message/notification
                  instances so non-React code can call toast.*)
   layouts/       BuyerLayout, AdminLayout — each wraps its own <ConfigProvider>
-  pages/auth/    LoginPage (dev-login form), LogoutPage
+  pages/auth/    BuyerLoginPage (OTP flow), OrganizerLoginPage
+                 (email+password register/login), LogoutPage
   features/
     buyer/  events/ (list + detail) seatmap/ (interactive picker) checkout/
             (hold summary + countdown) orders/ (order+tickets, order history)
+            auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
             tickets/ (ScanTicketPage — check in a ticket by its scan token)
+            auth/ (OrganizerAuthFlow)
   utils/         formatMoney, eventStatusColor — small, shared across features
 ```
 
@@ -52,15 +57,23 @@ src/
 
 - **Only the gateway.** Never call a backend service's port directly —
   always `VITE_GATEWAY_BASE_URL` (the gateway). CORS only exists there.
-- **Auth is dev-login today, real auth later.** `AuthContext.loginWithDevCredentials`
-  calls the gateway's `POST /api/auth/dev-login` — a safe stand-in until
-  Identity (buyer OTP) and Entra External ID (organizer OIDC) exist (ADR-0015,
-  ADR-0016). Swapping it out should not require touching `ProtectedRoute` or
-  any page that calls `useAuth()`.
-- **`role` is UI routing, not security.** The dev-login `role` claim decides
-  which themed section a user lands in after login. It is not enforced by
-  any backend authorization check today — `ProtectedRoute` only checks "is
-  anyone logged in," never "is this the right role."
+- **Both roles have real login now — dev-login has no UI presence.**
+  `AuthContext.loginWithOtp` calls the gateway-routed Identity endpoints
+  (`POST /api/identity/v1/otp/request`/`verify`) — the buyer's real login
+  path (ADR-0016); the identity gate for buyers sits on the "Hold selection"
+  action (`SeatSelectionPage`), not an upfront login wall — see
+  `OtpLoginFlow`. `AuthContext.registerOrganizer`/`loginWithOrganizerCredentials`
+  call the gateway-routed Identity organizer endpoints
+  (`POST /api/identity/v1/organizers/register`/`login`) — the organizer's
+  real login path (ADR-0023); see `OrganizerAuthFlow`. `/login` (buyer) and
+  `/admin/login` (organizer) render different components accordingly. The
+  gateway's `POST /api/auth/dev-login` endpoint still exists for
+  curl/script testing (like `scripts/dev-token.sh`) but nothing in the
+  frontend calls it any more — `LoginPage.tsx`/`authApi.ts` were deleted.
+- **`role` is UI routing, not security.** The `role` claim on either token
+  decides which themed section a user lands in after login. It is not
+  enforced by any backend authorization check today — `ProtectedRoute` only
+  checks "is anyone logged in," never "is this the right role."
 - **Token storage: sessionStorage, explicitly, for now.** Scopes an XSS leak
   to the tab's lifetime. The hardened target — an httpOnly/Secure/SameSite
   cookie issued and read only by the gateway, plus CSRF protection — is
@@ -104,5 +117,6 @@ npm run build        # production build
 
 - Call a backend service directly — only the gateway.
 - Store a token in `localStorage` — `sessionStorage` only (see above).
-- Treat the dev-login `role` claim as a security boundary — it isn't one.
+- Treat the `role` claim as a security boundary — it isn't one.
+- Reintroduce a dev-login path into the UI — both roles have real login now.
 - Add a UI library beyond Ant Design without discussion.

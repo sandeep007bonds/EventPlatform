@@ -8,11 +8,15 @@
 // before a real production rollout, not before.
 const STORAGE_KEY = 'eventplatform.token';
 
-/** The resolved user a stored session was issued for. */
+/**
+ * The resolved user a stored session was issued for. `email`/`tenantId` are optional since an
+ * Identity-issued buyer token (OTP login) carries neither — only dev-login's organizer/buyer
+ * tokens do.
+ */
 export interface StoredUser {
   sub: string;
-  email: string;
-  tenantId: string;
+  email?: string;
+  tenantId?: string;
   role: 'buyer' | 'organizer' | null;
 }
 

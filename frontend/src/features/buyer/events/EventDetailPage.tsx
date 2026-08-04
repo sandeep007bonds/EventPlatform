@@ -24,13 +24,11 @@ import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkele
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toEmbedUrl } from '../../../utils/videoEmbed';
-import { useAuth } from '../../../contexts/useAuth';
 import { toast } from '../../../components/common/feedback/toast';
 
 /** Public event detail page — no login required to view (see ADR-0015). */
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
@@ -104,12 +102,14 @@ export function EventDetailPage() {
   }, [id]);
 
   const handleSelectSeats = () => {
-    if (!user) {
-      void navigate('/login');
-      return;
-    }
+    // No login gate here — a buyer picks seats freely and only verifies via OTP when they
+    // actually hold them (see SeatSelectionPage.tsx's handleHold, ADR-0016).
     if (!seatMap) {
       toast.error('This event has no seat map yet.');
+      return;
+    }
+    if (event?.onSaleAt && dayjs(event.onSaleAt).isAfter(dayjs())) {
+      toast.error('Tickets are not on sale yet for this event.');
       return;
     }
     void navigate(`/events/${id}/seats`);
@@ -132,6 +132,7 @@ export function EventDetailPage() {
     event.socialLinks.length > 0;
   const bookingClosed =
     event.bookingEndsAt !== null && dayjs(event.bookingEndsAt).isBefore(dayjs());
+  const notOnSaleYet = event.onSaleAt !== null && dayjs(event.onSaleAt).isAfter(dayjs());
 
   return (
     <div>
@@ -194,6 +195,11 @@ export function EventDetailPage() {
                   {event.locationName} — {event.addressLine1}, {event.city}
                 </Typography.Text>
               </Space>
+              {notOnSaleYet && (
+                <Tag color="blue" style={{ width: 'fit-content' }}>
+                  On sale {dayjs(event.onSaleAt).format('MMMM D, YYYY · h:mm A')}
+                </Tag>
+              )}
               {bookingClosed && (
                 <Tag color="warning" style={{ width: 'fit-content' }}>
                   Booking closed
@@ -354,10 +360,14 @@ export function EventDetailPage() {
                 type="primary"
                 size="large"
                 block
-                disabled={bookingClosed}
+                disabled={bookingClosed || notOnSaleYet}
                 onClick={handleSelectSeats}
               >
-                {bookingClosed ? 'Booking closed' : 'Select seats'}
+                {bookingClosed
+                  ? 'Booking closed'
+                  : notOnSaleYet
+                    ? 'Not on sale yet'
+                    : 'Select seats'}
               </Button>
             ) : (
               <Typography.Text type="secondary">Seats aren't on sale yet.</Typography.Text>

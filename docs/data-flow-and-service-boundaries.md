@@ -1,9 +1,9 @@
 # Data Flow & Service Boundaries
 
-Reference for how the six EventPlatform services divide responsibility and talk
+Reference for how the seven EventPlatform services divide responsibility and talk
 to each other — grounded in the actual code, not the original design docs (see
 [docs/design/](design/) for the pre-implementation architecture). Updated
-2026‑07‑28, branch `claude/enterprise-ticket-platform-w3opb0`.
+2026‑08‑01, branch `claude/enterprise-ticket-platform-w3opb0`.
 
 `docs/design/hld.md`'s pre-implementation sketch calls the `communication`
 service below "Notification" — `communication` is the as-built name (see
@@ -25,6 +25,7 @@ the lowercase names below.
 | `payments` | `Payment`, `ProcessedWebhookEvent` | `POST /v1/payments/webhooks/stripe` (public, signature-verified) | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
 | `ticketing` | `Ticket` | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}` | `TicketIssued` (nullable `SeatId`/`GeneralAdmissionAllocationId`) | `OrderConfirmed` |
 | `communication` | `DeliveryLogEntry`, `ProcessedNotificationEvent` | `POST /v1/notifications/send` (internal only, Dapr service invocation — not gateway-routed) | — | `OrderConfirmed`, `TicketIssued` (dedup-safe; delivery deferred, see below) |
+| `identity` | `PhoneVerification`, `BuyerAccount`, `SigningKey` | `POST /v1/otp/request` · `POST /v1/otp/verify` (gateway-routed, buyer-facing) · `GET /.well-known/openid-configuration` · `GET /.well-known/jwks.json` (server-to-server only, fetched by the other 6 services' own JWT validation — not gateway-routed) | — | — |
 
 `inventory`'s `POST /v1/holds/{id}/convert` and `/release`, `payments`'s
 `POST /v1/payments/charge` and `/refund`, and `communication`'s
@@ -47,7 +48,7 @@ attempted — see [ADR-0016](adr/0016-buyer-identity-and-notifications.md).
 | Mechanism | Protocol (actual hops) | Used for | Guarantee |
 |---|---|---|---|
 | **Sync, buyer/organizer-facing** | Plain HTTP/JSON (Minimal APIs, Scalar-documented) | Every `/v1/...` endpoint above | Request/response |
-| **Sync, service-to-service** (Dapr *service invocation*) | App → local sidecar (HTTP or gRPC depending on client) → **gRPC** sidecar-to-sidecar (fixed Dapr internal) → remote sidecar → remote app (HTTP) | `inventory`→`catalog` (read seat map while provisioning); `ordering`→`inventory` (validate/convert/release hold); `ordering`→`payments` (charge/refund); *future:* a not-yet-built Identity service→`communication` (OTP sends) | Synchronous; caller decides success/failure per response |
+| **Sync, service-to-service** (Dapr *service invocation*) | App → local sidecar (HTTP or gRPC depending on client) → **gRPC** sidecar-to-sidecar (fixed Dapr internal) → remote sidecar → remote app (HTTP) | `inventory`→`catalog` (read seat map while provisioning); `ordering`→`inventory` (validate/convert/release hold); `ordering`→`payments` (charge/refund); `identity`→`communication` (OTP sends) | Synchronous; caller decides success/failure per response |
 | **Async, event-driven** (Dapr *pub/sub*, outbox-backed) | Outbox row → `OutboxRelay` polls (2s) → Dapr pub/sub (Redis locally, Service Bus in Azure — same component name, zero code change) → subscriber's topic endpoint | `catalog`→`EventPublished`→`inventory`; `ordering`→`OrderConfirmed`→`ticketing`; `ordering`→`OrderConfirmed`→`communication` and `ticketing`→`TicketIssued`→`communication` (dedup-safe; delivery deferred) | At-least-once; outbox row id = CloudEvent id, so subscribers dedupe |
 | **Direct** (bypasses Dapr entirely) | `StackExchange.Redis` straight to Redis | `inventory`'s Lua atomic hold check-and-set — the actual flash-sale hot path | Sub-millisecond; this is *why* it skips the sidecar |
 | **External** | HTTPS, direct SDK / signed webhook | `payments`→Stripe (Stripe.net, outbound charge/refund); Stripe→`payments` (inbound webhook, `Stripe-Signature` verified) | Stripe's own idempotency (charge) + our dedupe ledger (webhook) |

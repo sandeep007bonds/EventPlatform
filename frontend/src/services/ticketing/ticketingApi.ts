@@ -31,6 +31,14 @@ export async function getOrderTickets(orderId: string): Promise<TicketResponse[]
   return response.data;
 }
 
+/** Fetches every ticket for a tenant's event — e.g. to overlay check-in status on a seat map. */
+export async function getEventTickets(eventId: string): Promise<TicketResponse[]> {
+  const response = await httpClient.get<TicketResponse[]>(
+    `/api/ticketing/v1/events/${eventId}/tickets`,
+  );
+  return response.data;
+}
+
 /**
  * Scans/checks in a ticket by its opaque token (as read from its QR code). Throws (via axios) on
  * `404` (no ticket matches that token) or `409` (already checked in, or void).

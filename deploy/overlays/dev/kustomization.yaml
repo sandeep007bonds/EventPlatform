@@ -45,6 +45,9 @@ images:
   - name: media-placeholder
     newName: REPLACE_ME.azurecr.io/media
     newTag: REPLACE_ME
+  - name: identity-placeholder
+    newName: REPLACE_ME.azurecr.io/identity
+    newTag: REPLACE_ME
   - name: gateway-placeholder
     newName: REPLACE_ME.azurecr.io/gateway
     newTag: REPLACE_ME

@@ -62,6 +62,7 @@ jobs:
             [ticketing]="services/ticketing"
             [communication]="services/communication"
             [media]="services/media"
+            [identity]="services/identity"
             [gateway]="gateways/EventPlatform.Gateway"
           )
           declare -A project_path=(
@@ -72,6 +73,7 @@ jobs:
             [ticketing]="services/ticketing/Ticketing.Api/Ticketing.Api.csproj"
             [communication]="services/communication/Communication.Api/Communication.Api.csproj"
             [media]="services/media/Media.Api/Media.Api.csproj"
+            [identity]="services/identity/Identity.Api/Identity.Api.csproj"
             [gateway]="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj"
           )
           declare -A assembly_name=(
@@ -82,11 +84,12 @@ jobs:
             [ticketing]="Ticketing.Api"
             [communication]="Communication.Api"
             [media]="Media.Api"
+            [identity]="Identity.Api"
             [gateway]="EventPlatform.Gateway"
           )
 
           entries="[]"
-          for svc in catalog inventory ordering payments ticketing communication media gateway; do
+          for svc in catalog inventory ordering payments ticketing communication media identity gateway; do
             include=false
             if [ "${shared_changed}" = true ]; then
               include=true

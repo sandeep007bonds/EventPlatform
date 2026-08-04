@@ -48,7 +48,8 @@ Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 ## Database schema — automatic in Development
 
 Nothing to run. Each service has its own Postgres **database** (`catalog`,
-`inventory`, `ordering`, `payments`, `ticketing`, `communication` — true database-per-service)
+`inventory`, `ordering`, `payments`, `ticketing`, `communication`, `identity`
+— true database-per-service)
 and creates it from its current EF Core model the first time it starts in
 Development (`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef`
 command, no `Migrations/` folder to generate or commit. Each service must have
@@ -179,6 +180,7 @@ been shared or pasted somewhere outside a secrets manager.
 | 5084 | Ticketing.Api |
 | 5085 | Communication.Api |
 | 5086 | Media.Api |
+| 5087 | Identity.Api |
 | 10000 | Azurite (blob) |
 
 `dev-up.sh` runs every service over plain HTTP on these ports (no dev TLS cert
