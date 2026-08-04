@@ -10,6 +10,7 @@ internal sealed class AspNetCorePasswordHasher(PasswordHasher<OrganizerAccount> 
 {
     // The default PasswordHasher<TUser> implementation never reads its `user` argument — hashing
     // happens before an OrganizerAccount exists (chicken-and-egg at registration), so null is safe here.
+
     /// <inheritdoc />
     public string Hash(string password) => inner.HashPassword(user: null!, password);
 

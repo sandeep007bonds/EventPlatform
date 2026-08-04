@@ -7,7 +7,7 @@ namespace Identity.Infrastructure.Signing;
 /// rationale and the multi-replica caveat below.
 /// </summary>
 /// <param name="scopeFactory">Used to resolve a scoped repository per generate-or-load call.</param>
-internal sealed class PersistedRsaSigningKeyProvider(IServiceScopeFactory scopeFactory) : ISigningKeyProvider
+internal sealed class PersistedRsaSigningKeyProvider(IServiceScopeFactory scopeFactory) : ISigningKeyProvider, IDisposable
 {
     // Instance-level cache + lock: this type is registered AddSingleton (see DependencyInjection.cs),
     // so exactly one instance exists per process — an instance field already gives the
@@ -62,5 +62,12 @@ internal sealed class PersistedRsaSigningKeyProvider(IServiceScopeFactory scopeF
     {
         var active = await GetActiveKeyAsync(cancellationToken);
         return [new PublicSigningKey(active.Kid, active.Rsa.ExportParameters(includePrivateParameters: false))];
+    }
+
+    /// <summary>Releases the init lock and the cached RSA key pair.</summary>
+    public void Dispose()
+    {
+        initLock.Dispose();
+        cachedActiveKey?.Rsa.Dispose();
     }
 }
