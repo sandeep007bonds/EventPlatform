@@ -8,16 +8,19 @@ namespace Identity.Application.Abstractions;
 public interface IOtpHasher
 {
     /// <summary>Generates a new random salt for a challenge.</summary>
+    /// <returns>A new random salt.</returns>
     string GenerateSalt();
 
     /// <summary>Computes the keyed-HMAC hash of a code, mixed with its per-challenge salt.</summary>
     /// <param name="code">The plaintext code.</param>
     /// <param name="salt">The per-challenge salt.</param>
+    /// <returns>The computed hash.</returns>
     string Hash(string code, string salt);
 
     /// <summary>Constant-time-compares a submitted code's hash against the stored one.</summary>
     /// <param name="code">The submitted plaintext code.</param>
     /// <param name="salt">The challenge's salt.</param>
     /// <param name="expectedHash">The stored hash to compare against.</param>
+    /// <returns><see langword="true"/> if the code matches.</returns>
     bool Verify(string code, string salt, string expectedHash);
 }

@@ -14,6 +14,7 @@ public sealed class RegisterOrganizerHandler(IOrganizerRepository repository, IP
     /// <summary>Handles a <see cref="RegisterOrganizerCommand"/>.</summary>
     /// <param name="command">The command.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The result of the registration attempt.</returns>
     public async Task<RegisterOrganizerResult> HandleAsync(RegisterOrganizerCommand command, CancellationToken cancellationToken)
     {
         if (!RegisterOrganizerValidator.IsValid(command))

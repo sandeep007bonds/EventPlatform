@@ -15,11 +15,13 @@ public interface IIdentityRepository
     /// <summary>Returns the most recently issued challenge for a phone number, if any.</summary>
     /// <param name="phoneNumber">The phone number.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The latest challenge, or <see langword="null"/>.</returns>
     Task<PhoneVerification?> GetLatestPhoneVerificationAsync(string phoneNumber, CancellationToken cancellationToken);
 
     /// <summary>Returns the buyer account for a phone number, if one has been created yet.</summary>
     /// <param name="phoneNumber">The phone number.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The buyer account, or <see langword="null"/>.</returns>
     Task<BuyerAccount?> GetBuyerAccountByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken);
 
     /// <summary>Registers a new buyer account to be persisted.</summary>
@@ -28,5 +30,6 @@ public interface IIdentityRepository
 
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when changes are saved.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

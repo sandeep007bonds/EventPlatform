@@ -18,9 +18,11 @@ public interface IOrganizerRepository
     /// <summary>Returns the organizer account for an email, if one is registered.</summary>
     /// <param name="email">The login email.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The organizer account, or <see langword="null"/>.</returns>
     Task<OrganizerAccount?> GetOrganizerByEmailAsync(string email, CancellationToken cancellationToken);
 
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when changes are saved.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken);
 }

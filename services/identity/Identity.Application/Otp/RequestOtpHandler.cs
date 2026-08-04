@@ -17,6 +17,7 @@ public sealed class RequestOtpHandler(IIdentityRepository repository, IOtpHasher
     /// <summary>Handles a <see cref="RequestOtpCommand"/>.</summary>
     /// <param name="command">The command.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The result of the request.</returns>
     public async Task<RequestOtpResult> HandleAsync(RequestOtpCommand command, CancellationToken cancellationToken)
     {
         if (!RequestOtpValidator.IsValid(command.PhoneNumber))
