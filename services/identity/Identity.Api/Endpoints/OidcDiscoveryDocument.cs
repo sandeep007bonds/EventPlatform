@@ -10,8 +10,8 @@ namespace Identity.Api.Endpoints;
 /// <param name="Issuer">The issuer identifier — must exactly match the <c>iss</c> claim on every minted token.</param>
 /// <param name="JwksUri">Where the JWKS document is published.</param>
 /// <param name="TokenEndpoint">Informational only — this service has no separate authorization-code flow; verification IS token issuance.</param>
-/// <param name="ResponseTypesSupported">OIDC-required field.</param>
-/// <param name="SubjectTypesSupported">OIDC-required field.</param>
+/// <param name="ResponseTypesSupported">OIDC-required field — the supported <c>response_type</c> values.</param>
+/// <param name="SubjectTypesSupported">OIDC-required field — the supported subject identifier types.</param>
 /// <param name="IdTokenSigningAlgValuesSupported">OIDC-required field — always <c>["RS256"]</c> here.</param>
 public sealed record OidcDiscoveryDocument(
     [property: JsonPropertyName("issuer")] string Issuer,

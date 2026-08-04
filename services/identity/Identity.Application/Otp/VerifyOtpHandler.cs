@@ -13,6 +13,7 @@ public sealed class VerifyOtpHandler(IIdentityRepository repository, IOtpHasher 
     /// <summary>Handles a <see cref="VerifyOtpCommand"/>.</summary>
     /// <param name="command">The command.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The result of the verification attempt.</returns>
     public async Task<VerifyOtpResult> HandleAsync(VerifyOtpCommand command, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;

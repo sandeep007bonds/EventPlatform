@@ -66,6 +66,7 @@ public sealed class OrganizerAccount
 
     /// <summary>Whether this account is currently locked out, as of <paramref name="now"/>.</summary>
     /// <param name="now">The current time.</param>
+    /// <returns><see langword="true"/> if the account is currently locked out.</returns>
     public bool IsLockedOut(DateTimeOffset now) => LockedUntil is { } lockedUntil && now < lockedUntil;
 
     /// <summary>Records a failed login attempt, locking the account once <see cref="MaxFailedAttempts"/> is reached.</summary>

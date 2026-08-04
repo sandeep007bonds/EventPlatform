@@ -15,9 +15,11 @@ public interface ISigningKeyProvider
 {
     /// <summary>Returns the key currently used to sign new tokens.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The active signing key.</returns>
     Task<ActiveSigningKey> GetActiveKeyAsync(CancellationToken cancellationToken);
 
     /// <summary>Returns every key whose public half should currently be published in the JWKS document.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The keys to publish.</returns>
     Task<IReadOnlyList<PublicSigningKey>> GetPublicKeysAsync(CancellationToken cancellationToken);
 }

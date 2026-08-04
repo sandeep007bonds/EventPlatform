@@ -14,5 +14,6 @@ public interface ITokenIssuer
     /// a buyer token, which is deliberately tenant-less (ADR-0022).
     /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The issued access token.</returns>
     Task<IssuedAccessToken> IssueAsync(Guid subjectId, string role, Guid? tenantId, CancellationToken cancellationToken);
 }

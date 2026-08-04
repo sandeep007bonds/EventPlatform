@@ -15,6 +15,7 @@ public sealed class LoginOrganizerHandler(IOrganizerRepository repository, IPass
     /// <summary>Handles a <see cref="LoginOrganizerCommand"/>.</summary>
     /// <param name="command">The command.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The result of the login attempt.</returns>
     public async Task<LoginOrganizerResult> HandleAsync(LoginOrganizerCommand command, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
