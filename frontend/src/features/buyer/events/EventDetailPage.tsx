@@ -24,13 +24,11 @@ import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkele
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toEmbedUrl } from '../../../utils/videoEmbed';
-import { useAuth } from '../../../contexts/useAuth';
 import { toast } from '../../../components/common/feedback/toast';
 
 /** Public event detail page — no login required to view (see ADR-0015). */
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
@@ -104,10 +102,8 @@ export function EventDetailPage() {
   }, [id]);
 
   const handleSelectSeats = () => {
-    if (!user) {
-      void navigate('/login');
-      return;
-    }
+    // No login gate here — a buyer picks seats freely and only verifies via OTP when they
+    // actually hold them (see SeatSelectionPage.tsx's handleHold, ADR-0016).
     if (!seatMap) {
       toast.error('This event has no seat map yet.');
       return;

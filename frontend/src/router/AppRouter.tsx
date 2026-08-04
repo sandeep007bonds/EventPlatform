@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom';
 import { BuyerLayout } from '../layouts/BuyerLayout';
 import { AdminLayout } from '../layouts/AdminLayout';
 import { LoginPage } from '../pages/auth/LoginPage';
+import { BuyerLoginPage } from '../pages/auth/BuyerLoginPage';
 import { LogoutPage } from '../pages/auth/LogoutPage';
 import { NotFoundPage } from '../components/common/errors/NotFoundPage';
 import { EventsListPage } from '../features/buyer/events/EventsListPage';
@@ -26,7 +27,7 @@ import { ProtectedRoute } from './ProtectedRoute';
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      <Route path="/login" element={<BuyerLoginPage />} />
       <Route path="/logout" element={<LogoutPage />} />
       <Route path="/admin/login" element={<LoginPage />} />
 
@@ -34,14 +35,9 @@ export function AppRouter() {
         {/* Public: no ProtectedRoute — anonymous browsing of published events (ADR-0015). */}
         <Route index element={<EventsListPage />} />
         <Route path="/events/:id" element={<EventDetailPage />} />
-        <Route
-          path="/events/:id/seats"
-          element={
-            <ProtectedRoute>
-              <SeatSelectionPage />
-            </ProtectedRoute>
-          }
-        />
+        {/* No ProtectedRoute — a buyer picks seats freely; the identity gate is the "Hold
+            selection" action itself (see SeatSelectionPage.tsx's handleHold, ADR-0016). */}
+        <Route path="/events/:id/seats" element={<SeatSelectionPage />} />
         <Route
           path="/checkout/:holdId"
           element={

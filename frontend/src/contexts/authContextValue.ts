@@ -4,8 +4,10 @@ import type { StoredUser } from '../services/http/tokenStore';
 export interface AuthContextValue {
   /** The logged-in user, or `null` if nobody is logged in. */
   user: StoredUser | null;
-  /** Logs in via the gateway's dev-login endpoint (stands in for real auth — see ADR-0015). */
+  /** Logs in via the gateway's dev-login endpoint — organizer-only now (see ADR-0015/0016). */
   loginWithDevCredentials: (email: string, role: 'buyer' | 'organizer') => Promise<void>;
+  /** Verifies a buyer's OTP code with Identity and mints their session on success (ADR-0016). */
+  loginWithOtp: (phoneNumber: string, code: string) => Promise<void>;
   logout: () => void;
 }
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, InputNumber, Space, Typography } from 'antd';
+import { Alert, Button, Card, InputNumber, Modal, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -15,6 +15,8 @@ import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+import { useAuth } from '../../../contexts/useAuth';
+import { OtpLoginFlow } from '../auth/OtpLoginFlow';
 
 const MAX_SEATS = 10;
 const MAX_GENERAL_ADMISSION_QUANTITY = 10;
@@ -52,6 +54,7 @@ interface ConflictBody {
 export function SeatSelectionPage() {
   const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [currency, setCurrency] = useState('USD');
@@ -63,6 +66,7 @@ export function SeatSelectionPage() {
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
 
   const refreshStatuses = async (evId: string) => {
     const seats = await getInventorySeats(evId);
@@ -198,6 +202,12 @@ export function SeatSelectionPage() {
   };
 
   const handleHold = async () => {
+    if (!user) {
+      // The identity gate lives here, not an upfront login wall — a buyer picks seats freely
+      // and only verifies via OTP at the moment they actually claim scarce inventory (ADR-0016).
+      setOtpModalOpen(true);
+      return;
+    }
     if (!eventId || (selected.size === 0 && gaQuantities.size === 0)) {
       return;
     }
@@ -394,6 +404,21 @@ export function SeatSelectionPage() {
           </Button>
         </div>
       </div>
+
+      <Modal
+        open={otpModalOpen}
+        onCancel={() => setOtpModalOpen(false)}
+        footer={null}
+        title="Log in to hold your seats"
+        destroyOnClose
+      >
+        <OtpLoginFlow
+          onVerified={() => {
+            setOtpModalOpen(false);
+            void handleHold();
+          }}
+        />
+      </Modal>
     </div>
   );
 }

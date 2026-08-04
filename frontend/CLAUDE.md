@@ -52,11 +52,15 @@ src/
 
 - **Only the gateway.** Never call a backend service's port directly —
   always `VITE_GATEWAY_BASE_URL` (the gateway). CORS only exists there.
-- **Auth is dev-login today, real auth later.** `AuthContext.loginWithDevCredentials`
-  calls the gateway's `POST /api/auth/dev-login` — a safe stand-in until
-  Identity (buyer OTP) and Entra External ID (organizer OIDC) exist (ADR-0015,
-  ADR-0016). Swapping it out should not require touching `ProtectedRoute` or
-  any page that calls `useAuth()`.
+- **Buyer auth is real Identity OTP; organizer/admin auth is still dev-login.**
+  `AuthContext.loginWithOtp` calls the gateway-routed Identity endpoints
+  (`POST /api/identity/v1/otp/request`/`verify`) — this is the buyer's real
+  login path (ADR-0016). `AuthContext.loginWithDevCredentials` (the gateway's
+  `POST /api/auth/dev-login`) remains organizer/admin-only until Entra
+  External ID exists. The identity gate for buyers sits on the "Hold
+  selection" action (`SeatSelectionPage`), not an upfront login wall — see
+  `OtpLoginFlow`. `/login` (buyer) and `/admin/login` (organizer) render
+  different components accordingly.
 - **`role` is UI routing, not security.** The dev-login `role` claim decides
   which themed section a user lands in after login. It is not enforced by
   any backend authorization check today — `ProtectedRoute` only checks "is

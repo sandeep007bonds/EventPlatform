@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { devLogin } from '../services/auth/authApi';
+import { verifyOtp } from '../services/auth/identityApi';
 import {
   clearSession,
   getSession,
@@ -31,14 +32,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const loginWithOtp = useCallback(async (phoneNumber: string, code: string) => {
+    const response = await verifyOtp({ phoneNumber, code });
+    const otpUser: StoredUser = { sub: response.buyerId, role: 'buyer' };
+
+    // response.expiresAt is already an absolute ISO timestamp — unlike dev-login's relative
+    // expiresIn, no Date.now() arithmetic is needed here.
+    setSession({
+      accessToken: response.accessToken,
+      expiresAtIso: response.expiresAt,
+      user: otpUser,
+    });
+    setUser(otpUser);
+  }, []);
+
   const logout = useCallback(() => {
     clearSession();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loginWithDevCredentials, logout }),
-    [user, loginWithDevCredentials, logout],
+    () => ({ user, loginWithDevCredentials, loginWithOtp, logout }),
+    [user, loginWithDevCredentials, loginWithOtp, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
