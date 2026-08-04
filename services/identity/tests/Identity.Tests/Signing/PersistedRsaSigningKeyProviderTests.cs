@@ -37,6 +37,16 @@ public sealed class PersistedRsaSigningKeyProviderTests : IAsyncLifetime
         (await secondDbContext.SigningKeys.CountAsync()).ShouldBe(1);
     }
 
+    private static PersistedRsaSigningKeyProvider CreateProvider(IdentityDbContext dbContext)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddScoped<ISigningKeyRepository, SigningKeyRepository>();
+        var provider = services.BuildServiceProvider();
+
+        return new PersistedRsaSigningKeyProvider(provider.GetRequiredService<IServiceScopeFactory>());
+    }
+
     private async Task<IdentityDbContext> CreateDbContextAsync(bool reuseSchema = false)
     {
         var options = new DbContextOptionsBuilder<IdentityDbContext>()
@@ -50,15 +60,5 @@ public sealed class PersistedRsaSigningKeyProviderTests : IAsyncLifetime
         }
 
         return dbContext;
-    }
-
-    private static PersistedRsaSigningKeyProvider CreateProvider(IdentityDbContext dbContext)
-    {
-        var services = new ServiceCollection();
-        services.AddSingleton(dbContext);
-        services.AddScoped<ISigningKeyRepository, SigningKeyRepository>();
-        var provider = services.BuildServiceProvider();
-
-        return new PersistedRsaSigningKeyProvider(provider.GetRequiredService<IServiceScopeFactory>());
     }
 }
