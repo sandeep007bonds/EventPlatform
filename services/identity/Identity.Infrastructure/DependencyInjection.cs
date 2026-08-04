@@ -60,7 +60,9 @@ public static class DependencyInjection
     {
         var issuer = configuration["Identity:Jwt:Issuer"]!;
         var audience = configuration["Identity:Jwt:Audience"] ?? "eventplatform";
-        var lifetimeDays = configuration.GetValue("Identity:Jwt:AccessTokenLifetimeDays", defaultValue: 7);
+        var lifetimeDays = int.TryParse(configuration["Identity:Jwt:AccessTokenLifetimeDays"], out var parsedLifetimeDays)
+            ? parsedLifetimeDays
+            : 7;
 
         services.AddSingleton<ITokenIssuer>(sp => new JwtTokenIssuer(
             issuer,
