@@ -20,12 +20,16 @@ public static class DependencyInjection
         services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
 
         services.AddScoped<IIdentityRepository, IdentityRepository>();
+        services.AddScoped<IOrganizerRepository, OrganizerRepository>();
         services.AddScoped<ISigningKeyRepository, SigningKeyRepository>();
 
         AddOtpHasher(services, configuration);
         AddSigningKeyProvider(services, configuration);
         AddTokenIssuer(services, configuration);
         services.AddSingleton<IOtpSender, DaprOtpSender>();
+
+        services.AddSingleton<PasswordHasher<OrganizerAccount>>();
+        services.AddSingleton<IPasswordHasher, AspNetCorePasswordHasher>();
 
         return services;
     }

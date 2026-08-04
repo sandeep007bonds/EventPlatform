@@ -51,7 +51,7 @@ public sealed class JwksRoundTripTests
         var signingKeyProvider = Substitute.For<ISigningKeyProvider>();
         signingKeyProvider.GetActiveKeyAsync(Arg.Any<CancellationToken>()).Returns(activeKey);
         var issuer = new JwtTokenIssuer("https://identity.example", "eventplatform", TimeSpan.FromDays(7), signingKeyProvider);
-        var issued = await issuer.IssueAsync(Guid.NewGuid(), CancellationToken.None);
+        var issued = await issuer.IssueAsync(Guid.NewGuid(), "buyer", null, CancellationToken.None);
 
         var handler = new JwtSecurityTokenHandler();
         var validationParameters = new TokenValidationParameters

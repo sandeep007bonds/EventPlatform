@@ -14,6 +14,7 @@ app.UseServiceDefaults();
 // Communication, from Identity.Infrastructure's DaprOtpSender).
 
 app.MapOtpEndpoints();
+app.MapOrganizerEndpoints();
 app.MapDiscoveryEndpoints();
 
 // DEV ONLY: create the schema from the current model on startup, so the service runs against

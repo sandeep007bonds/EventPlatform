@@ -14,7 +14,7 @@ public sealed class JwtTokenIssuerTests
         var issuer = new JwtTokenIssuer("https://identity.example", "eventplatform", TimeSpan.FromDays(7), signingKeyProvider);
         var buyerId = Guid.NewGuid();
 
-        var issued = await issuer.IssueAsync(buyerId, CancellationToken.None);
+        var issued = await issuer.IssueAsync(buyerId, "buyer", null, CancellationToken.None);
 
         var handler = new JwtSecurityTokenHandler();
         var token = handler.ReadJwtToken(issued.AccessToken);
@@ -28,5 +28,30 @@ public sealed class JwtTokenIssuerTests
 
         // The whole point of ADR-0022: a buyer token must never carry a tenant claim.
         token.Claims.ShouldNotContain(c => c.Type == "tenant_id");
+    }
+
+    [Fact]
+    public async Task IssueAsync_ForAnOrganizer_CarriesATenantIdClaim()
+    {
+        using var rsa = RSA.Create(2048);
+        var activeKey = new ActiveSigningKey("test-kid", rsa);
+
+        var signingKeyProvider = Substitute.For<ISigningKeyProvider>();
+        signingKeyProvider.GetActiveKeyAsync(Arg.Any<CancellationToken>()).Returns(activeKey);
+
+        var issuer = new JwtTokenIssuer("https://identity.example", "eventplatform", TimeSpan.FromDays(7), signingKeyProvider);
+        var organizerId = Guid.NewGuid();
+        var tenantId = Guid.NewGuid();
+
+        var issued = await issuer.IssueAsync(organizerId, "organizer", tenantId, CancellationToken.None);
+
+        var handler = new JwtSecurityTokenHandler();
+        var token = handler.ReadJwtToken(issued.AccessToken);
+
+        token.Subject.ShouldBe(organizerId.ToString());
+        token.Claims.ShouldContain(c => c.Type == "role" && c.Value == "organizer");
+
+        // ADR-0023: unlike a buyer token, an organizer token carries the tenant it belongs to.
+        token.Claims.ShouldContain(c => c.Type == "tenant_id" && c.Value == tenantId.ToString());
     }
 }

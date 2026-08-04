@@ -48,6 +48,10 @@
          not just validate. MIT-licensed, no licence conflict. -->
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.4.0" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.4.0" />
+    <!-- PasswordHasher<TUser> only — NOT the full Microsoft.AspNetCore.Identity cookie/UI/EF-store
+         stack (ADR-0023). Part of the MIT-licensed ASP.NET Core repo, versioned to match the
+         10.0.0 shared framework. -->
+    <PackageVersion Include="Microsoft.Extensions.Identity.Core" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup Label="Platform / infra">

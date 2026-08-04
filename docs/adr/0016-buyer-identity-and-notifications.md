@@ -14,8 +14,10 @@ record for two related-but-separate concerns: real buyer authentication
 Buyer Identity was originally **Deferred**, per that section, and gets its
 own decision content in "Decision (Identity)" below, per this ADR's own
 stated intent to extend rather than supersede itself when Identity landed.
-Organizer auth via Entra External ID remains separately deferred (build-order
-step 9) — untouched by either half of this ADR.
+Organizer auth (build-order step 9) is untouched by either half of this ADR
+— it was originally planned as Entra External ID, but that plan was
+superseded by an in-house email+password path added to the Identity service
+instead; see ADR-0023.
 
 `docs/design/hld.md`'s pre-implementation sketch calls this component
 "Notification." **Communication** is the as-built name — see

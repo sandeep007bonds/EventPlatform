@@ -1,8 +1,8 @@
 import { Route, Routes } from 'react-router-dom';
 import { BuyerLayout } from '../layouts/BuyerLayout';
 import { AdminLayout } from '../layouts/AdminLayout';
-import { LoginPage } from '../pages/auth/LoginPage';
 import { BuyerLoginPage } from '../pages/auth/BuyerLoginPage';
+import { OrganizerLoginPage } from '../pages/auth/OrganizerLoginPage';
 import { LogoutPage } from '../pages/auth/LogoutPage';
 import { NotFoundPage } from '../components/common/errors/NotFoundPage';
 import { EventsListPage } from '../features/buyer/events/EventsListPage';
@@ -29,7 +29,7 @@ export function AppRouter() {
     <Routes>
       <Route path="/login" element={<BuyerLoginPage />} />
       <Route path="/logout" element={<LogoutPage />} />
-      <Route path="/admin/login" element={<LoginPage />} />
+      <Route path="/admin/login" element={<OrganizerLoginPage />} />
 
       <Route element={<BuyerLayout />}>
         {/* Public: no ProtectedRoute — anonymous browsing of published events (ADR-0015). */}

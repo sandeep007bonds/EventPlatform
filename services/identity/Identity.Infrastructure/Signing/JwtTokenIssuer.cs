@@ -1,13 +1,15 @@
 namespace Identity.Infrastructure.Signing;
 
 /// <summary>
-/// Builds and signs the buyer access token. Claims: <c>sub</c> (the buyer id), <c>iss</c>/<c>aud</c>
-/// (from config — <c>aud</c> must equal <c>"eventplatform"</c>, the value every one of the 5
-/// existing services already expects, so no change is needed on their side), <c>iat</c>/<c>nbf</c>/
-/// <c>exp</c>, and <c>role: "buyer"</c> (parity with dev-login's role claim — not enforced by any
-/// authorization policy today). Deliberately OMITS <c>tenant_id</c> (ADR-0022): buyers aren't
-/// tenant-scoped, and the two endpoints that used to require that claim were already reworked to
-/// derive tenant from the resource instead, specifically so a token like this one can work.
+/// Builds and signs an access token, for either a buyer or an organizer subject. Claims:
+/// <c>sub</c> (the subject id), <c>iss</c>/<c>aud</c> (from config — <c>aud</c> must equal
+/// <c>"eventplatform"</c>, the value every one of the 5 existing services already expects, so no
+/// change is needed on their side), <c>iat</c>/<c>nbf</c>/<c>exp</c>, <c>role</c> (parity with
+/// dev-login's role claim — not enforced by any authorization policy today), and — for an
+/// organizer only — <c>tenant_id</c>. A buyer token deliberately OMITS <c>tenant_id</c>
+/// (ADR-0022): buyers aren't tenant-scoped, and the two endpoints that used to require that claim
+/// were already reworked to derive tenant from the resource instead. An organizer token carries it
+/// because organizers genuinely are tenant-scoped (ADR-0023).
 /// </summary>
 /// <param name="issuer">The <c>iss</c> claim value — must exactly match the discovery document's <c>issuer</c> field.</param>
 /// <param name="audience">The <c>aud</c> claim value.</param>
@@ -16,13 +18,23 @@ namespace Identity.Infrastructure.Signing;
 internal sealed class JwtTokenIssuer(string issuer, string audience, TimeSpan lifetime, ISigningKeyProvider signingKeyProvider) : ITokenIssuer
 {
     /// <inheritdoc />
-    public async Task<IssuedAccessToken> IssueAsync(Guid buyerId, CancellationToken cancellationToken)
+    public async Task<IssuedAccessToken> IssueAsync(Guid subjectId, string role, Guid? tenantId, CancellationToken cancellationToken)
     {
         var activeKey = await signingKeyProvider.GetActiveKeyAsync(cancellationToken);
         var credentials = new SigningCredentials(new RsaSecurityKey(activeKey.Rsa) { KeyId = activeKey.Kid }, SecurityAlgorithms.RsaSha256);
 
         var now = DateTime.UtcNow;
         var expires = now.Add(lifetime);
+
+        var claims = new List<Claim>
+        {
+            new(JwtRegisteredClaimNames.Sub, subjectId.ToString()),
+            new("role", role),
+        };
+        if (tenantId is not null)
+        {
+            claims.Add(new Claim("tenant_id", tenantId.Value.ToString()));
+        }
 
         var descriptor = new SecurityTokenDescriptor
         {
@@ -32,11 +44,7 @@ internal sealed class JwtTokenIssuer(string issuer, string audience, TimeSpan li
             NotBefore = now,
             Expires = expires,
             SigningCredentials = credentials,
-            Subject = new ClaimsIdentity(
-            [
-                new Claim(JwtRegisteredClaimNames.Sub, buyerId.ToString()),
-                new Claim("role", "buyer"),
-            ]),
+            Subject = new ClaimsIdentity(claims),
         };
 
         var handler = new JwtSecurityTokenHandler();

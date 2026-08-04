@@ -73,7 +73,7 @@ public sealed class VerifyOtpHandlerTests
         hasher.Verify(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>()).Returns(true);
 
         var issuedToken = new IssuedAccessToken("token", DateTimeOffset.UtcNow.AddDays(7));
-        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(issuedToken);
+        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>()).Returns(issuedToken);
 
         var result = await handler.HandleAsync(new VerifyOtpCommand("+15550000000", "123456"), CancellationToken.None);
 
@@ -91,7 +91,7 @@ public sealed class VerifyOtpHandlerTests
         repository.GetLatestPhoneVerificationAsync("+15550000000", Arg.Any<CancellationToken>()).Returns(firstChallenge);
         repository.GetBuyerAccountByPhoneNumberAsync("+15550000000", Arg.Any<CancellationToken>()).Returns((BuyerAccount?)null);
         hasher.Verify(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>()).Returns(true);
-        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(new IssuedAccessToken("token-1", DateTimeOffset.UtcNow.AddDays(7)));
 
         var firstResult = await handler.HandleAsync(new VerifyOtpCommand("+15550000000", "123456"), CancellationToken.None);
@@ -104,7 +104,7 @@ public sealed class VerifyOtpHandlerTests
         var secondChallenge = PhoneVerification.Issue("+15550000000", "hash", "salt", TimeSpan.FromMinutes(5));
         repository.GetLatestPhoneVerificationAsync("+15550000000", Arg.Any<CancellationToken>()).Returns(secondChallenge);
         repository.GetBuyerAccountByPhoneNumberAsync("+15550000000", Arg.Any<CancellationToken>()).Returns(createdAccount);
-        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+        tokenIssuer.IssueAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<Guid?>(), Arg.Any<CancellationToken>())
             .Returns(new IssuedAccessToken("token-2", DateTimeOffset.UtcNow.AddDays(7)));
 
         var secondResult = await handler.HandleAsync(new VerifyOtpCommand("+15550000000", "654321"), CancellationToken.None);

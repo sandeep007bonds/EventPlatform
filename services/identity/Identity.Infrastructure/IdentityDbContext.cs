@@ -13,6 +13,12 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     /// <summary>Durable buyer identities.</summary>
     public DbSet<BuyerAccount> BuyerAccounts => Set<BuyerAccount>();
 
+    /// <summary>Organizations, created via self-service organizer registration.</summary>
+    public DbSet<Tenant> Tenants => Set<Tenant>();
+
+    /// <summary>Durable organizer identities (email+password, tenant-scoped).</summary>
+    public DbSet<OrganizerAccount> OrganizerAccounts => Set<OrganizerAccount>();
+
     /// <summary>Persisted RSA signing keys.</summary>
     internal DbSet<SigningKey> SigningKeys => Set<SigningKey>();
 

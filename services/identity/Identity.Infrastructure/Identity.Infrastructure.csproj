@@ -20,6 +20,7 @@
     <PackageReference Include="Dapr.Client" />
     <PackageReference Include="Microsoft.IdentityModel.Tokens" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+    <PackageReference Include="Microsoft.Extensions.Identity.Core" />
   </ItemGroup>
 
   <!-- Lets Identity.Tests exercise the internal repository/signing classes directly. -->

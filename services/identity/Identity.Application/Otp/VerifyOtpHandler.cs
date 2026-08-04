@@ -52,7 +52,7 @@ public sealed class VerifyOtpHandler(IIdentityRepository repository, IOtpHasher 
 
         await repository.SaveChangesAsync(cancellationToken);
 
-        var token = await tokenIssuer.IssueAsync(buyer.Id, cancellationToken);
+        var token = await tokenIssuer.IssueAsync(buyer.Id, "buyer", null, cancellationToken);
         return new VerifyOtpResult(VerifyOtpOutcome.Verified, token, buyer.Id);
     }
 }

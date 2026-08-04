@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { devLogin } from '../services/auth/authApi';
 import { verifyOtp } from '../services/auth/identityApi';
+import {
+  loginOrganizer,
+  registerOrganizer as registerOrganizerRequest,
+} from '../services/auth/organizerApi';
 import {
   clearSession,
   getSession,
@@ -21,17 +24,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, onSessionExpired);
   }, []);
 
-  const loginWithDevCredentials = useCallback(
-    async (email: string, role: 'buyer' | 'organizer') => {
-      const response = await devLogin({ email, role });
-      const expiresAtIso = new Date(Date.now() + response.expiresIn * 1000).toISOString();
-
-      setSession({ accessToken: response.accessToken, expiresAtIso, user: response.user });
-      setUser(response.user);
-    },
-    [],
-  );
-
   const loginWithOtp = useCallback(async (phoneNumber: string, code: string) => {
     const response = await verifyOtp({ phoneNumber, code });
     const otpUser: StoredUser = { sub: response.buyerId, role: 'buyer' };
@@ -46,14 +38,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(otpUser);
   }, []);
 
+  const registerOrganizer = useCallback(
+    async (organizationName: string, email: string, password: string) => {
+      const response = await registerOrganizerRequest({ organizationName, email, password });
+      const organizerUser: StoredUser = {
+        sub: response.organizerId,
+        email,
+        tenantId: response.tenantId,
+        role: 'organizer',
+      };
+
+      setSession({
+        accessToken: response.accessToken,
+        expiresAtIso: response.expiresAt,
+        user: organizerUser,
+      });
+      setUser(organizerUser);
+    },
+    [],
+  );
+
+  const loginWithOrganizerCredentials = useCallback(async (email: string, password: string) => {
+    const response = await loginOrganizer({ email, password });
+    const organizerUser: StoredUser = {
+      sub: response.organizerId,
+      email,
+      tenantId: response.tenantId,
+      role: 'organizer',
+    };
+
+    setSession({
+      accessToken: response.accessToken,
+      expiresAtIso: response.expiresAt,
+      user: organizerUser,
+    });
+    setUser(organizerUser);
+  }, []);
+
   const logout = useCallback(() => {
     clearSession();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, loginWithDevCredentials, loginWithOtp, logout }),
-    [user, loginWithDevCredentials, loginWithOtp, logout],
+    () => ({ user, loginWithOtp, registerOrganizer, loginWithOrganizerCredentials, logout }),
+    [user, loginWithOtp, registerOrganizer, loginWithOrganizerCredentials, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
