@@ -14,9 +14,13 @@ clashes with its namespace.
 
 - **Data store:** PostgreSQL `ticketing` DB (this service only)
 - **Public API:** `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}`,
-  `POST /v1/tickets/scan` (tenant-owned, body `{ token }` — looks up by the
-  opaque scan token, calls `Ticket.CheckIn()`; 404 unknown token, 409
-  already-checked-in/void)
+  `GET /v1/events/{id}/tickets`, `POST /v1/tickets/scan` (tenant-owned, body
+  `{ token, eventId, gateId? }` — looks up by the opaque scan token; 404 on
+  an unknown token *or* a token whose `Ticket.CatalogEventId` doesn't match
+  `eventId` (same shape, deliberately — a wrong-event scan shouldn't reveal
+  the token is valid elsewhere); 409 outside the event's check-in window,
+  presented at the wrong gate, or already-checked-in/void; otherwise calls
+  `Ticket.CheckIn()` (see ADR-0024)
 - **Events published:** `TicketIssued` (via outbox, one per ticket — unchanged),
   `OrderTicketsIssued` (via outbox, one per order, enqueued once all of the
   order's tickets are minted — see ADR-0021)
@@ -44,12 +48,26 @@ clashes with its namespace.
   carrying the buyer's email and the full ticket list — Communication renders
   and sends this directly, rather than reconstructing "all tickets issued" by
   counting per-ticket `TicketIssued` events (ADR-0021).
+- **Scan-time window/gate checks are live cross-service reads, not
+  propagated data.** `ICatalogEventClient`/`DaprCatalogEventClient` (this
+  service's first *outbound* Dapr call — it was previously a pub/sub
+  subscriber only) reads Catalog's `GET /v1/events/{id}` (check-in window:
+  `DoorsOpenAt` falling back to `StartsAt`, through `EndsAt`) and
+  `GET /v1/events/{id}/seatmap` (per-section entry-gate restriction) at scan
+  time, mirroring `Inventory.Infrastructure/DaprSeatMapClient.cs`'s pattern.
+  For a general-admission ticket, `IInventoryGaClient`/`DaprInventoryGaClient`
+  resolves `Ticket.GeneralAdmissionAllocationId` to Catalog's section id via
+  Inventory's existing anonymous `GET /v1/events/{id}/inventory/general-admission`
+  endpoint. Deliberately not denormalized locally — a scan is low-frequency
+  and latency-tolerant, unlike the hold-placement hot path Inventory
+  optimizes for (see ADR-0024).
 
 ## Structure
 
 `Ticketing.Api` (host + endpoints + Dapr subscription) · `Ticketing.Application`
 (issuing + ports) · `Ticketing.Domain` (`Ticket` + invariants) ·
-`Ticketing.Infrastructure` (EF Core + Postgres, outbox). `tests/` to follow.
+`Ticketing.Infrastructure` (EF Core + Postgres, outbox, the scan-time Catalog/
+Inventory Dapr clients). `tests/` to follow.
 
 ## Local run
 

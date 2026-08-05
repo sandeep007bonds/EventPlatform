@@ -54,6 +54,16 @@ public interface IEventRepository
         int pageSize,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Lists every leg (event) belonging to a tour, at any status, regardless of tenant visibility
+    /// — used only for cross-leg date-range validation (containment in the tour's range, no
+    /// overlap between siblings), never exposed to a caller directly.
+    /// </summary>
+    /// <param name="eventGroupId">The tour/series id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The tour's legs.</returns>
+    Task<IReadOnlyList<Event>> ListLegsForEventGroupAsync(Guid eventGroupId, CancellationToken cancellationToken);
+
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>

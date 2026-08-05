@@ -21,6 +21,8 @@ public static class DependencyInjection
 
         services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<ITicketRepository, TicketRepository>();
+        services.AddScoped<ICatalogEventClient, DaprCatalogEventClient>();
+        services.AddScoped<IInventoryGaClient, DaprInventoryGaClient>();
         services.AddOutbox<TicketingDbContext>();
 
         return services;

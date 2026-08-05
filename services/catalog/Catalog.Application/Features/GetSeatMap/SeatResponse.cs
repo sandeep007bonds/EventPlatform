@@ -8,6 +8,7 @@ namespace Catalog.Application.Features.GetSeatMap;
 /// <param name="Row">Row label.</param>
 /// <param name="Number">Seat number within the row.</param>
 /// <param name="Label">Human-readable seat label.</param>
+/// <param name="EntryGateId">The entry gate this seat's section is restricted to, if any.</param>
 public sealed record SeatResponse(
     Guid Id,
     string Section,
@@ -15,4 +16,5 @@ public sealed record SeatResponse(
     decimal PriceAmount,
     string Row,
     int Number,
-    string Label);
+    string Label,
+    Guid? EntryGateId);

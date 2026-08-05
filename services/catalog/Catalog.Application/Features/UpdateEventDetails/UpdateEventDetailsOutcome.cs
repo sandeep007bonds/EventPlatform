@@ -11,4 +11,13 @@ public enum UpdateEventDetailsOutcome
 
     /// <summary>The event is not a draft, so its details can no longer be changed.</summary>
     NotDraft,
+
+    /// <summary>The booking cutoff would be later than the event's own start time.</summary>
+    BookingCutoffAfterStart,
+
+    /// <summary>The new end time would fall outside the owning tour's advertised date range.</summary>
+    OutsideEventGroupRange,
+
+    /// <summary>The new date range would overlap another leg of the same tour.</summary>
+    OverlapsExistingLeg,
 }

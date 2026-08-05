@@ -312,6 +312,11 @@ public sealed class Event
             throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must be after the on-sale time.");
         }
 
+        if (bookingEndsAt is not null && bookingEndsAt > StartsAt)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must not be later than the event's start time.");
+        }
+
         Description = description;
         Category = category;
         EndsAt = endsAt;

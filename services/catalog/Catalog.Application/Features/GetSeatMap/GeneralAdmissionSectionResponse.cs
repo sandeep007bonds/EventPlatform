@@ -6,9 +6,11 @@ namespace Catalog.Application.Features.GetSeatMap;
 /// <param name="PriceTier">Price tier name.</param>
 /// <param name="PriceAmount">Price in the event's currency.</param>
 /// <param name="Capacity">Total number of admissions sellable in this section.</param>
+/// <param name="EntryGateId">The entry gate this section is restricted to, if any.</param>
 public sealed record GeneralAdmissionSectionResponse(
     Guid Id,
     string SectionName,
     string PriceTier,
     decimal PriceAmount,
-    int Capacity);
+    int Capacity,
+    Guid? EntryGateId);

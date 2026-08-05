@@ -36,4 +36,4 @@ public sealed record CreateEventCommand(
     double? Latitude,
     double? Longitude,
     Guid? EventGroupId,
-    int? MaxTicketsPerBuyer = null) : IRequest<Guid>;
+    int? MaxTicketsPerBuyer = null) : IRequest<CreateEventResult>;

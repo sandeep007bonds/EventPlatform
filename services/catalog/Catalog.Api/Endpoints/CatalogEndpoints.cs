@@ -52,8 +52,17 @@ public static class CatalogEndpoints
             request.EventGroupId,
             request.MaxTicketsPerBuyer);
 
-        var id = await sender.Send(command, cancellationToken);
-        return Results.Created($"/v1/events/{id}", new { id });
+        var result = await sender.Send(command, cancellationToken);
+        return result.Outcome switch
+        {
+            CreateEventOutcome.Created => Results.Created($"/v1/events/{result.EventId}", new { id = result.EventId }),
+            CreateEventOutcome.EventGroupNotFound => Results.NotFound(new { message = "No matching tour exists." }),
+            CreateEventOutcome.OutsideEventGroupRange =>
+                Results.Conflict(new { message = "The event's dates fall outside the tour's advertised date range." }),
+            CreateEventOutcome.OverlapsExistingLeg =>
+                Results.Conflict(new { message = "The event's dates overlap another leg of the same tour." }),
+            _ => Results.Problem("Unexpected create-event outcome."),
+        };
     }
 
     private static async Task<IResult> ListEventsAsync(
@@ -121,7 +130,7 @@ public static class CatalogEndpoints
         }
 
         var sections = request.Sections
-            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.AllocationType, s.Rows, s.SeatsPerRow, s.Capacity))
+            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.AllocationType, s.Rows, s.SeatsPerRow, s.Capacity, s.EntryGateId))
             .ToList();
 
         var command = new DefineSeatMapCommand(id, tenant.TenantId.Value, request.Name, sections);
@@ -136,6 +145,8 @@ public static class CatalogEndpoints
                 Results.Conflict(new { message = "The event is not a draft; its seat map can no longer be changed." }),
             DefineSeatMapOutcome.AlreadyDefined =>
                 Results.Conflict(new { message = "A seat map already exists for this event." }),
+            DefineSeatMapOutcome.EntryGateNotFound =>
+                Results.BadRequest(new { message = "One or more sections reference an entry gate that doesn't exist for this event." }),
             _ => Results.Problem("Unexpected seat-map outcome."),
         };
     }
@@ -188,6 +199,12 @@ public static class CatalogEndpoints
             UpdateEventDetailsOutcome.NotFound => Results.NotFound(),
             UpdateEventDetailsOutcome.NotDraft =>
                 Results.Conflict(new { message = "Only a draft event's details can be changed." }),
+            UpdateEventDetailsOutcome.BookingCutoffAfterStart =>
+                Results.Conflict(new { message = "The booking cutoff must not be later than the event's start time." }),
+            UpdateEventDetailsOutcome.OutsideEventGroupRange =>
+                Results.Conflict(new { message = "The event's dates fall outside the tour's advertised date range." }),
+            UpdateEventDetailsOutcome.OverlapsExistingLeg =>
+                Results.Conflict(new { message = "The event's dates overlap another leg of the same tour." }),
             _ => Results.Problem("Unexpected update-details outcome."),
         };
     }

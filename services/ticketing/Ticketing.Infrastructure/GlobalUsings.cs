@@ -1,3 +1,4 @@
+global using Dapr.Client;
 global using EventPlatform.Messaging;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;

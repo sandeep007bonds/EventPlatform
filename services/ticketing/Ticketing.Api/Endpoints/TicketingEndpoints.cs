@@ -103,6 +103,8 @@ public static class TicketingEndpoints
         ScanTicketRequest request,
         ITenantContext tenant,
         ITicketRepository repository,
+        ICatalogEventClient catalogEventClient,
+        IInventoryGaClient inventoryGaClient,
         CancellationToken cancellationToken)
     {
         if (tenant.TenantId is null)
@@ -114,6 +116,40 @@ public static class TicketingEndpoints
         if (ticket is null || ticket.TenantId != tenant.TenantId)
         {
             return Results.NotFound(new { message = "No ticket matches that token." });
+        }
+
+        // Same 404 shape as an unknown token — a wrong-event scan shouldn't reveal the token is
+        // valid for some other event.
+        if (ticket.CatalogEventId != request.EventId)
+        {
+            return Results.NotFound(new { message = "This ticket is not for the selected event." });
+        }
+
+        var scanContext = await catalogEventClient.GetScanContextAsync(request.EventId, cancellationToken);
+        var now = DateTimeOffset.UtcNow;
+        var opensAt = scanContext.DoorsOpenAt ?? scanContext.StartsAt;
+        if (now < opensAt || now > scanContext.EndsAt)
+        {
+            return Results.Conflict(new { message = "Outside the event's check-in window." });
+        }
+
+        Guid? resolvedGateId;
+        if (ticket.SeatId is { } seatId)
+        {
+            scanContext.EntryGateIdBySeatId.TryGetValue(seatId, out resolvedGateId);
+        }
+        else
+        {
+            var catalogSectionId = await inventoryGaClient.GetCatalogSectionIdAsync(
+                request.EventId, ticket.GeneralAdmissionAllocationId!.Value, cancellationToken);
+            resolvedGateId = catalogSectionId is { } sectionId && scanContext.EntryGateIdByCatalogSectionId.TryGetValue(sectionId, out var gateId)
+                ? gateId
+                : null;
+        }
+
+        if (resolvedGateId is not null && request.GateId is not null && resolvedGateId != request.GateId)
+        {
+            return Results.Conflict(new { message = "This ticket must enter through a different gate." });
         }
 
         try

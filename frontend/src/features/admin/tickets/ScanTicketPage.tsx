@@ -1,14 +1,27 @@
-import { useState } from 'react';
-import { Alert, Button, Card, Descriptions, Input, Space, Tag, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { Alert, Button, Card, Descriptions, Input, Select, Space, Tag, Typography } from 'antd';
 import { QrcodeOutlined } from '@ant-design/icons';
 import type { AxiosError } from 'axios';
 import dayjs from 'dayjs';
+import {
+  listEntryGates,
+  listEvents,
+  type EntryGateResponse,
+} from '../../../services/catalog/catalogApi';
 import { scanTicket, type TicketResponse } from '../../../services/ticketing/ticketingApi';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
+import { toast } from '../../../components/common/feedback/toast';
 
 interface ScanErrorBody {
   message?: string;
 }
+
+interface EventOption {
+  id: string;
+  title: string;
+}
+
+const ANY_GATE_OPTION = '__any__';
 
 const STATUS_COLOR: Record<TicketResponse['status'], string> = {
   Issued: 'default',
@@ -16,15 +29,50 @@ const STATUS_COLOR: Record<TicketResponse['status'], string> = {
   Void: 'error',
 };
 
-/** Gate scan: paste (or wedge-scan) a ticket's token, check it in, and see a clear result. */
+/**
+ * Gate scan: pick which event and (optionally) which physical gate this device represents, then
+ * paste (or wedge-scan) a ticket's token to check it in. "Any gate" is an unscoped supervisor
+ * scanner that bypasses a section's gate restriction, if it has one.
+ */
 export function ScanTicketPage() {
+  const [events, setEvents] = useState<EventOption[]>([]);
+  const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventId, setEventId] = useState<string | undefined>();
+  const [gates, setGates] = useState<EntryGateResponse[]>([]);
+  const [gateId, setGateId] = useState<string>(ANY_GATE_OPTION);
   const [token, setToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<TicketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    listEvents({ mine: true, page: 1, pageSize: 100 })
+      .then((response) => setEvents(response.events.map((e) => ({ id: e.id, title: e.title }))))
+      .catch(() => toast.error('Could not load your events.'))
+      .finally(() => setEventsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchGates = eventId ? listEntryGates(eventId) : Promise.resolve([]);
+
+    fetchGates
+      .then((fetched) => {
+        if (cancelled) {
+          return;
+        }
+        setGateId(ANY_GATE_OPTION);
+        setGates(fetched);
+      })
+      .catch(() => toast.error('Could not load this event’s entry gates.'));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
   const handleScan = async () => {
-    if (!token.trim()) {
+    if (!eventId || !token.trim()) {
       return;
     }
 
@@ -32,7 +80,11 @@ export function ScanTicketPage() {
     setResult(null);
     setError(null);
     try {
-      const ticket = await scanTicket(token.trim());
+      const ticket = await scanTicket(
+        token.trim(),
+        eventId,
+        gateId === ANY_GATE_OPTION ? undefined : gateId,
+      );
       setResult(ticket);
       setToken('');
     } catch (caught) {
@@ -41,7 +93,7 @@ export function ScanTicketPage() {
       const message = axiosError.response?.data?.message;
 
       if (status === 404) {
-        setError('No ticket matches that token.');
+        setError(message ?? 'No ticket matches that token.');
       } else if (status === 409) {
         setError(message ?? 'This ticket has already been checked in (or voided).');
       } else {
@@ -56,15 +108,38 @@ export function ScanTicketPage() {
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <PageHeader
         title="Scan tickets"
-        description="Paste or scan a ticket's token to check it in at the gate."
+        description="Pick the event and gate this device is scanning for, then paste or scan a ticket's token to check it in."
       />
       <Card styles={{ body: { padding: 24 } }}>
+        <Space direction="vertical" style={{ width: '100%', marginBottom: 20 }}>
+          <Select
+            placeholder="Select event"
+            loading={eventsLoading}
+            value={eventId}
+            onChange={setEventId}
+            options={events.map((e) => ({ value: e.id, label: e.title }))}
+            style={{ width: '100%' }}
+          />
+          <Select
+            placeholder="Gate"
+            disabled={!eventId}
+            value={eventId ? gateId : undefined}
+            onChange={setGateId}
+            options={[
+              { value: ANY_GATE_OPTION, label: 'Any gate (supervisor)' },
+              ...gates.map((gate) => ({ value: gate.id, label: gate.name })),
+            ]}
+            style={{ width: '100%' }}
+          />
+        </Space>
+
         <Space.Compact style={{ width: '100%', marginBottom: 20 }}>
           <Input
             size="large"
             prefix={<QrcodeOutlined />}
             placeholder="Ticket token"
             value={token}
+            disabled={!eventId}
             onChange={(event) => setToken(event.target.value)}
             onPressEnter={() => void handleScan()}
             autoFocus
@@ -72,6 +147,7 @@ export function ScanTicketPage() {
           <Button
             type="primary"
             size="large"
+            disabled={!eventId}
             loading={submitting}
             onClick={() => void handleScan()}
           >
@@ -104,7 +180,9 @@ export function ScanTicketPage() {
 
         {!error && !result && (
           <Typography.Text type="secondary">
-            Waiting for a ticket token — scan a QR code or paste it above.
+            {eventId
+              ? 'Waiting for a ticket token — scan a QR code or paste it above.'
+              : 'Select an event to start scanning.'}
           </Typography.Text>
         )}
       </Card>

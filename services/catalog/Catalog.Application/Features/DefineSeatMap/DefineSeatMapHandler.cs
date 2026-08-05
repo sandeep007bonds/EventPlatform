@@ -6,9 +6,11 @@ namespace Catalog.Application.Features.DefineSeatMap;
 /// </summary>
 /// <param name="eventRepository">The event repository.</param>
 /// <param name="seatMapRepository">The seat-map repository.</param>
+/// <param name="entryGateRepository">The entry-gate repository, to validate section gate references.</param>
 internal sealed class DefineSeatMapHandler(
     IEventRepository eventRepository,
-    ISeatMapRepository seatMapRepository)
+    ISeatMapRepository seatMapRepository,
+    IEntryGateRepository entryGateRepository)
     : IRequestHandler<DefineSeatMapCommand, DefineSeatMapResult>
 {
     /// <inheritdoc />
@@ -31,6 +33,20 @@ internal sealed class DefineSeatMapHandler(
             return new DefineSeatMapResult(DefineSeatMapOutcome.AlreadyDefined, existing.Id);
         }
 
+        var requestedGateIds = request.Sections
+            .Where(s => s.EntryGateId is not null)
+            .Select(s => s.EntryGateId!.Value)
+            .ToHashSet();
+        if (requestedGateIds.Count > 0)
+        {
+            var eventGates = await entryGateRepository.ListForEventAsync(request.EventId, cancellationToken);
+            var knownGateIds = eventGates.Select(g => g.Id).ToHashSet();
+            if (requestedGateIds.Any(id => !knownGateIds.Contains(id)))
+            {
+                return new DefineSeatMapResult(DefineSeatMapOutcome.EntryGateNotFound, null);
+            }
+        }
+
         var seatMap = SeatMap.Create(request.EventId, request.TenantId, request.Name);
         foreach (var section in request.Sections)
         {
@@ -41,11 +57,17 @@ internal sealed class DefineSeatMapHandler(
                     section.PriceTier,
                     section.PriceAmount,
                     section.Rows!.Value,
-                    section.SeatsPerRow!.Value);
+                    section.SeatsPerRow!.Value,
+                    section.EntryGateId);
             }
             else
             {
-                seatMap.AddGeneralAdmissionSection(section.Name, section.PriceTier, section.PriceAmount, section.Capacity!.Value);
+                seatMap.AddGeneralAdmissionSection(
+                    section.Name,
+                    section.PriceTier,
+                    section.PriceAmount,
+                    section.Capacity!.Value,
+                    section.EntryGateId);
             }
         }
 

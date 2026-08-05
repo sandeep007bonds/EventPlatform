@@ -75,6 +75,13 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
     }
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Event>> ListLegsForEventGroupAsync(Guid eventGroupId, CancellationToken cancellationToken) =>
+        await dbContext.Events
+            .AsNoTracking()
+            .Where(e => e.EventGroupId == eventGroupId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }

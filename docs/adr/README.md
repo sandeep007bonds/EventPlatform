@@ -35,6 +35,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0021](0021-ticket-delivery-checkin-and-buyer-limits.md) | Ticket delivery email, check-in/scan, and per-buyer ticket limits | Accepted |
 | [0022](0022-buyer-tenant-derivation.md) | Buyer-facing checkout: derive tenant from the resource, not the caller's claim | Accepted |
 | [0023](0023-organizer-auth-in-house-identity.md) | Organizer auth: in-house email+password via Identity, superseding Entra External ID | Accepted |
+| [0024](0024-scan-hardening-tour-dates-entry-gates.md) | Scan hardening, tour/leg date invariants, and entry gates | Accepted |
 
 ## Format
 

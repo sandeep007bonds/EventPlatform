@@ -1,11 +1,13 @@
 global using Catalog.Api.Endpoints;
 global using Catalog.Application;
+global using Catalog.Application.Features.CreateEntryGate;
 global using Catalog.Application.Features.CreateEvent;
 global using Catalog.Application.Features.CreateEventGroup;
 global using Catalog.Application.Features.DefineSeatMap;
 global using Catalog.Application.Features.GetEvent;
 global using Catalog.Application.Features.GetEventGroup;
 global using Catalog.Application.Features.GetSeatMap;
+global using Catalog.Application.Features.ListEntryGates;
 global using Catalog.Application.Features.ListEventGroups;
 global using Catalog.Application.Features.ListEvents;
 global using Catalog.Application.Features.PublishEvent;

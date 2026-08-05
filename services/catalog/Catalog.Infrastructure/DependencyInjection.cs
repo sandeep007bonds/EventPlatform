@@ -23,6 +23,7 @@ public static class DependencyInjection
         services.AddScoped<IEventRepository, EventRepository>();
         services.AddScoped<ISeatMapRepository, SeatMapRepository>();
         services.AddScoped<IEventGroupRepository, EventGroupRepository>();
+        services.AddScoped<IEntryGateRepository, EntryGateRepository>();
         services.AddOutbox<CatalogDbContext>();
 
         return services;

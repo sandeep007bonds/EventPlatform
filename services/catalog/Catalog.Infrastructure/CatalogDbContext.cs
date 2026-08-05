@@ -14,6 +14,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>The event groups (tours) table.</summary>
     public DbSet<EventGroup> EventGroups => Set<EventGroup>();
 
+    /// <summary>The entry gates table.</summary>
+    public DbSet<EntryGate> EntryGates => Set<EntryGate>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

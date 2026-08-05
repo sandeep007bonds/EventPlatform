@@ -14,7 +14,8 @@ public sealed class GeneralAdmissionSection
         string sectionName,
         string priceTier,
         decimal priceAmount,
-        int capacity)
+        int capacity,
+        Guid? entryGateId)
     {
         Id = id;
         SeatMapId = seatMapId;
@@ -22,6 +23,7 @@ public sealed class GeneralAdmissionSection
         PriceTier = priceTier;
         PriceAmount = priceAmount;
         Capacity = capacity;
+        EntryGateId = entryGateId;
     }
 
     // Parameterless ctor for EF Core materialization.
@@ -46,4 +48,11 @@ public sealed class GeneralAdmissionSection
 
     /// <summary>Total number of admissions sellable in this section.</summary>
     public int Capacity { get; private set; }
+
+    /// <summary>
+    /// The <see cref="EntryGate"/> this section is restricted to, if any — set once when the
+    /// section is defined; <see langword="null"/> means no restriction (any gate). See
+    /// <see cref="SeatMap.AddGeneralAdmissionSection"/>.
+    /// </summary>
+    public Guid? EntryGateId { get; private set; }
 }

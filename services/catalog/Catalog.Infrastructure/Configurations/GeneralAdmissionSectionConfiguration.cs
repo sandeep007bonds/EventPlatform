@@ -14,6 +14,7 @@ internal sealed class GeneralAdmissionSectionConfiguration : IEntityTypeConfigur
         builder.Property(s => s.PriceTier).HasMaxLength(50).IsRequired();
         builder.Property(s => s.PriceAmount).HasPrecision(18, 2);
         builder.Property(s => s.Capacity).IsRequired();
+        builder.Property(s => s.EntryGateId);
 
         builder.HasIndex(s => new { s.SeatMapId, s.SectionName }).IsUnique();
     }

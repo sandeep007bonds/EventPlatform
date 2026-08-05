@@ -13,7 +13,8 @@ context: **Catalog** (ADR-0008).
 
 - **Data store:** PostgreSQL `catalog` DB (this service only)
 - **Public API:** REST `/v1/events`, `/v1/events/{id}/seatmap`,
-  `/v1/events/{id}/details`, `/v1/event-groups`. `GET /v1/events` (list) and
+  `/v1/events/{id}/details`, `/v1/event-groups`, `/v1/events/{id}/entry-gates`.
+  `GET /v1/events` (list) and
   `GET /v1/events/{id}` and `/seatmap` are `.AllowAnonymous()` —
   anonymous and cross-tenant callers only ever see non-draft events; a caller's
   own tenant additionally sees its drafts (`Event.IsVisibleTo`). `GET /v1/events?mine=true`
@@ -34,7 +35,11 @@ context: **Catalog** (ADR-0008).
   concept of `EventGroup` at all. `EventGroup` also holds tour-wide date-range
   and contact/social defaults (`StartsAt`/`EndsAt`, `ContactPhone`/`ContactMobile`/
   `ContactEmail`/`WebsiteUrl`, an open `SocialLinks` list) that a leg's own
-  values (if any) override entirely (see ADR-0020).
+  values (if any) override entirely (see ADR-0020). `CreateEvent`/
+  `UpdateEventDetails` both reject (409) a leg whose `[StartsAt, EndsAt]`
+  falls outside its tour's own advertised range, or overlaps a sibling leg's
+  dates; `CreateEvent` also rejects (404) an `EventGroupId` that doesn't
+  belong to the caller's tenant (ADR-0024).
 - **`Event.EndsAt` is required** (set at creation, alongside `StartsAt`) — every
   leg has a real date range, not just a start instant. **`Event.BookingEndsAt`**
   (renamed from the old, display-only `OffSaleAt`) and **`Event.OnSaleAt`** are
@@ -42,7 +47,8 @@ context: **Catalog** (ADR-0008).
   `EventPublished` so Inventory can reject new holds outside that window
   (before `OnSaleAt`, after `BookingEndsAt`). Neither can change after publish
   in this pass (`UpdateEventDetails` is Draft-only, same as every other detail
-  field).
+  field). `BookingEndsAt` also can never be later than the leg's own
+  `StartsAt` (ADR-0024).
 - **`Event.MaxTicketsPerBuyer`** (nullable — `null` means no limit), settable
   at `Create`/editable via `UpdateDetails` (Draft-only, same lifecycle as
   `BookingEndsAt`). Propagated to Inventory via `EventPublished`, which
@@ -55,6 +61,14 @@ context: **Catalog** (ADR-0008).
   a single event can have both kinds side by side. `GetSeatMapResponse`
   (the hand-off Inventory reads) carries both `Seats` and
   `GeneralAdmissionSections` lists.
+- **Entry gates.** `EntryGate` (`Id`, `EventId`, `Name`) — an organizer defines
+  named physical entry points for an event's location, then restricts a
+  seat-map section to one at `DefineSeatMap` time (`Seat.EntryGateId`/
+  `GeneralAdmissionSection.EntryGateId`, set once, immutable after — a
+  section with no gate set may be entered through any gate). No update/delete
+  slice this pass. Ticketing resolves gate eligibility live at scan time via
+  Dapr service invocation against `GET /v1/events/{id}/seatmap` — Catalog
+  does not enforce anything itself (see ADR-0024).
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
   `MaxTicketsPerBuyer`), `EventUpdated`
 - **Events consumed:** —
