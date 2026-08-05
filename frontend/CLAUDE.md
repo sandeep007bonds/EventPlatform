@@ -48,8 +48,12 @@ src/
             auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
-            tickets/ (ScanTicketPage — check in a ticket by its scan token)
+            tickets/ (ScanTicketPage — check in a ticket by its scan token,
+                      manual/hardware-wedge input plus BarcodeDetector/jsQR
+                      camera scanning)
             auth/ (OrganizerAuthFlow)
+  types/         ambient declarations not yet in TS's bundled DOM lib
+                 (barcode-detector.d.ts)
   utils/         formatMoney, eventStatusColor — small, shared across features
 ```
 

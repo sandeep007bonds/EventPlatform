@@ -16,6 +16,14 @@ public static class TicketingEndpoints
             .WithName("OnOrderConfirmed")
             .ExcludeFromDescription();
 
+        // Dapr pub/sub: warm the local scan cache when Catalog publishes an event — the check-in
+        // window and every gate-restricted seat/allocation, resolved once so ScanTicketAsync never
+        // needs a live cross-service call (ADR-0025).
+        app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
+            .WithTopic("pubsub", nameof(EventPublished))
+            .WithName("OnEventPublished")
+            .ExcludeFromDescription();
+
         app.MapGet("/v1/orders/{orderId:guid}/tickets", GetOrderTicketsAsync)
             .WithName("GetOrderTickets")
             .WithTags("Tickets");
@@ -30,6 +38,10 @@ public static class TicketingEndpoints
 
         app.MapPost("/v1/tickets/scan", ScanTicketAsync)
             .WithName("ScanTicket")
+            .WithTags("Tickets");
+
+        app.MapGet("/v1/tickets/{id:guid}/qrcode", GetTicketQrCodeAsync)
+            .WithName("GetTicketQrCode")
             .WithTags("Tickets");
 
         return app;
@@ -61,6 +73,34 @@ public static class TicketingEndpoints
         }
 
         // Ack so Dapr does not redeliver; issuance is idempotent if it does.
+        return Results.Ok();
+    }
+
+    private static async Task<IResult> OnEventPublishedAsync(
+        EventPublished @event,
+        EventScanContextProvisioningService provisioning,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var provisioned = await provisioning.ProvisionAsync(
+            @event.TenantId,
+            @event.CatalogEventId,
+            @event.DoorsOpenAt,
+            @event.StartsAt,
+            @event.EndsAt,
+            cancellationToken);
+
+        var logger = loggerFactory.CreateLogger("Ticketing.ScanContext");
+        if (provisioned)
+        {
+            logger.LogInformation("Warmed scan cache for event {EventId}.", @event.CatalogEventId);
+        }
+        else
+        {
+            logger.LogInformation("Event {EventId} scan cache already warmed; skipped.", @event.CatalogEventId);
+        }
+
+        // Ack so Dapr does not redeliver; provisioning is idempotent if it does.
         return Results.Ok();
     }
 
@@ -103,8 +143,7 @@ public static class TicketingEndpoints
         ScanTicketRequest request,
         ITenantContext tenant,
         ITicketRepository repository,
-        ICatalogEventClient catalogEventClient,
-        IInventoryGaClient inventoryGaClient,
+        IEventScanContextRepository scanContexts,
         CancellationToken cancellationToken)
     {
         if (tenant.TenantId is null)
@@ -125,27 +164,17 @@ public static class TicketingEndpoints
             return Results.NotFound(new { message = "This ticket is not for the selected event." });
         }
 
-        var scanContext = await catalogEventClient.GetScanContextAsync(request.EventId, cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-        var opensAt = scanContext.DoorsOpenAt ?? scanContext.StartsAt;
-        if (now < opensAt || now > scanContext.EndsAt)
+        // Every read below is local to Ticketing's own database — no cross-service call — because
+        // the scan cache was already warmed once, at publish time (ADR-0025).
+        var scanContext = await scanContexts.GetContextAsync(request.EventId, cancellationToken);
+        if (scanContext is not null && !scanContext.IsWithinCheckInWindow(DateTimeOffset.UtcNow))
         {
             return Results.Conflict(new { message = "Outside the event's check-in window." });
         }
 
-        Guid? resolvedGateId;
-        if (ticket.SeatId is { } seatId)
-        {
-            scanContext.EntryGateIdBySeatId.TryGetValue(seatId, out resolvedGateId);
-        }
-        else
-        {
-            var catalogSectionId = await inventoryGaClient.GetCatalogSectionIdAsync(
-                request.EventId, ticket.GeneralAdmissionAllocationId!.Value, cancellationToken);
-            resolvedGateId = catalogSectionId is { } sectionId && scanContext.EntryGateIdByCatalogSectionId.TryGetValue(sectionId, out var gateId)
-                ? gateId
-                : null;
-        }
+        var resolvedGateId = ticket.SeatId is { } seatId
+            ? await scanContexts.GetGateForSeatAsync(seatId, cancellationToken)
+            : await scanContexts.GetGateForGaAllocationAsync(ticket.GeneralAdmissionAllocationId!.Value, cancellationToken);
 
         if (resolvedGateId is not null && request.GateId is not null && resolvedGateId != request.GateId)
         {
@@ -163,6 +192,42 @@ public static class TicketingEndpoints
 
         await repository.SaveChangesAsync(cancellationToken);
         return Results.Ok(Map(ticket));
+    }
+
+    private static async Task<IResult> GetTicketQrCodeAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        ITenantContext tenant,
+        ITicketRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var ticket = await repository.GetByIdAsync(id, cancellationToken);
+        if (ticket is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Opaque not-found on a mismatch — same "never reveal existence" pattern used elsewhere
+        // (e.g. DefineSeatMap) — rather than a 403 that confirms the ticket exists.
+        var userId = GetUserId(principal);
+        var isOwner = userId is not null && ticket.UserId == userId;
+        var isOwningTenant = tenant.TenantId is not null && ticket.TenantId == tenant.TenantId;
+        if (!isOwner && !isOwningTenant)
+        {
+            return Results.NotFound();
+        }
+
+        using var generator = new QRCodeGenerator();
+        using var qrData = generator.CreateQrCode(ticket.Token, QRCodeGenerator.ECCLevel.Q);
+        var png = new PngByteQRCode(qrData).GetGraphic(20);
+
+        return Results.File(png, "image/png");
+    }
+
+    private static Guid? GetUserId(ClaimsPrincipal principal)
+    {
+        var value = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(value, out var id) ? id : null;
     }
 
     private static TicketResponse Map(Ticket ticket) =>

@@ -3,7 +3,11 @@ import { Card, Col, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { CheckCircleFilled } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import { getOrder, type OrderResponse } from '../../../services/ordering/orderingApi';
-import { getOrderTickets, type TicketResponse } from '../../../services/ticketing/ticketingApi';
+import {
+  getOrderTickets,
+  getTicketQrCodeUrl,
+  type TicketResponse,
+} from '../../../services/ticketing/ticketingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { formatMoney } from '../../../utils/money';
@@ -29,6 +33,7 @@ export function OrderPage() {
 
   const [order, setOrder] = useState<OrderResponse | null>(null);
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
+  const [qrUrls, setQrUrls] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [ticketsPending, setTicketsPending] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -92,6 +97,41 @@ export function OrderPage() {
       cancelled = true;
     };
   }, [orderId]);
+
+  // Fetch each ticket's QR image as an authenticated blob once tickets are known — a plain
+  // <img src="..."> can't carry the bearer token the endpoint requires.
+  useEffect(() => {
+    if (tickets.length === 0) {
+      return;
+    }
+
+    let cancelled = false;
+    Promise.all(
+      tickets.map((ticket) =>
+        getTicketQrCodeUrl(ticket.id).then((url) => [ticket.id, url] as const),
+      ),
+    )
+      .then((pairs) => {
+        if (!cancelled) {
+          setQrUrls(new Map(pairs));
+        }
+      })
+      .catch(() => {
+        // Not fatal — the raw token text below still lets the ticket be scanned manually.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tickets]);
+
+  // Blob URLs are only valid for this tab's lifetime — revoke them once replaced or on unmount.
+  useEffect(
+    () => () => {
+      qrUrls.forEach((url) => URL.revokeObjectURL(url));
+    },
+    [qrUrls],
+  );
 
   if (loading) {
     return <DetailSkeleton />;
@@ -195,6 +235,15 @@ export function OrderPage() {
                     {ticket.status}
                   </Tag>
                 </div>
+                {qrUrls.has(ticket.id) && (
+                  <div style={{ textAlign: 'center', marginBottom: 12 }}>
+                    <img
+                      src={qrUrls.get(ticket.id)}
+                      alt="Ticket QR code"
+                      style={{ width: 160, height: 160 }}
+                    />
+                  </div>
+                )}
                 <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   Scan token
                 </Typography.Text>

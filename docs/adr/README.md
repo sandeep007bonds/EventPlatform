@@ -36,6 +36,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0022](0022-buyer-tenant-derivation.md) | Buyer-facing checkout: derive tenant from the resource, not the caller's claim | Accepted |
 | [0023](0023-organizer-auth-in-house-identity.md) | Organizer auth: in-house email+password via Identity, superseding Entra External ID | Accepted |
 | [0024](0024-scan-hardening-tour-dates-entry-gates.md) | Scan hardening, tour/leg date invariants, and entry gates | Accepted |
+| [0025](0025-scan-cache-and-qr-scanning.md) | Warm-once local scan cache, real QR codes, and camera scanning | Accepted |
 
 ## Format
 

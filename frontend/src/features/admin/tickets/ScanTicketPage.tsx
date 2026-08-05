@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Button, Card, Descriptions, Input, Select, Space, Tag, Typography } from 'antd';
-import { QrcodeOutlined } from '@ant-design/icons';
+import { CameraOutlined, QrcodeOutlined } from '@ant-design/icons';
 import type { AxiosError } from 'axios';
 import dayjs from 'dayjs';
+import jsQR from 'jsqr';
 import {
   listEntryGates,
   listEvents,
@@ -31,8 +32,15 @@ const STATUS_COLOR: Record<TicketResponse['status'], string> = {
 
 /**
  * Gate scan: pick which event and (optionally) which physical gate this device represents, then
- * paste (or wedge-scan) a ticket's token to check it in. "Any gate" is an unscoped supervisor
- * scanner that bypasses a section's gate restriction, if it has one.
+ * either paste/wedge-scan a ticket's token, or point a camera at its QR code. "Any gate" is an
+ * unscoped supervisor scanner that bypasses a section's gate restriction, if it has one.
+ *
+ * Camera decoding prefers the native Barcode Detection API where available (hardware-accelerated,
+ * no extra JS work) and falls back to jsQR (pure JS) elsewhere. For sustained, high-volume gate
+ * throughput, a dedicated hardware handheld/turnstile scanner wired in as a keyboard-wedge device
+ * (already supported by the token field below) remains the more reliable mechanism — the camera
+ * path here is best suited to staff walking the line with a phone/tablet, not the primary answer
+ * to extreme concurrent check-in volume (see ADR-0025).
  */
 export function ScanTicketPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
@@ -44,6 +52,13 @@ export function ScanTicketPage() {
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<TicketResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     listEvents({ mine: true, page: 1, pageSize: 100 })
@@ -71,8 +86,22 @@ export function ScanTicketPage() {
     };
   }, [eventId]);
 
-  const handleScan = async () => {
-    if (!eventId || !token.trim()) {
+  const stopCamera = () => {
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraActive(false);
+  };
+
+  // Stop the camera if the user navigates away mid-scan.
+  useEffect(() => stopCamera, []);
+
+  const handleScan = async (tokenOverride?: string) => {
+    const scanToken = (tokenOverride ?? token).trim();
+    if (!eventId || !scanToken) {
       return;
     }
 
@@ -81,7 +110,7 @@ export function ScanTicketPage() {
     setError(null);
     try {
       const ticket = await scanTicket(
-        token.trim(),
+        scanToken,
         eventId,
         gateId === ANY_GATE_OPTION ? undefined : gateId,
       );
@@ -101,6 +130,82 @@ export function ScanTicketPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const onDecoded = (decodedValue: string) => {
+    stopCamera();
+    setToken(decodedValue);
+    void handleScan(decodedValue);
+  };
+
+  const decodeWithBarcodeDetector = async () => {
+    if (!videoRef.current || !streamRef.current) {
+      return;
+    }
+    try {
+      const detector = new BarcodeDetector({ formats: ['qr_code'] });
+      const barcodes = await detector.detect(videoRef.current);
+      if (barcodes.length > 0) {
+        onDecoded(barcodes[0].rawValue);
+        return;
+      }
+    } catch {
+      // Transient detect failures (e.g. a mid-frame read) — keep trying.
+    }
+    rafRef.current = requestAnimationFrame(() => void decodeWithBarcodeDetector());
+  };
+
+  const decodeWithJsQr = () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (video && canvas && video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+        const decoded = jsQR(imageData.data, imageData.width, imageData.height);
+        if (decoded?.data) {
+          onDecoded(decoded.data);
+          return;
+        }
+      }
+    }
+    rafRef.current = requestAnimationFrame(decodeWithJsQr);
+  };
+
+  const startCamera = async () => {
+    setCameraError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraActive(true);
+
+      if ('BarcodeDetector' in window) {
+        void decodeWithBarcodeDetector();
+      } else {
+        rafRef.current = requestAnimationFrame(decodeWithJsQr);
+      }
+    } catch {
+      setCameraError(
+        'Could not access the camera — check permissions, or use the token field below.',
+      );
+    }
+  };
+
+  const toggleCamera = () => {
+    if (cameraActive) {
+      stopCamera();
+    } else {
+      void startCamera();
     }
   };
 
@@ -132,6 +237,29 @@ export function ScanTicketPage() {
             style={{ width: '100%' }}
           />
         </Space>
+
+        <Button
+          icon={<CameraOutlined />}
+          disabled={!eventId}
+          onClick={() => void toggleCamera()}
+          style={{ width: '100%', marginBottom: 12 }}
+        >
+          {cameraActive ? 'Stop camera' : 'Scan with camera'}
+        </Button>
+
+        {cameraError && (
+          <Alert type="warning" showIcon message={cameraError} style={{ marginBottom: 12 }} />
+        )}
+
+        <div style={{ display: cameraActive ? 'block' : 'none', marginBottom: 12 }}>
+          <video
+            ref={videoRef}
+            muted
+            playsInline
+            style={{ width: '100%', borderRadius: 8, backgroundColor: '#000' }}
+          />
+        </div>
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
 
         <Space.Compact style={{ width: '100%', marginBottom: 20 }}>
           <Input

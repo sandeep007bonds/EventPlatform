@@ -40,6 +40,19 @@ export async function getEventTickets(eventId: string): Promise<TicketResponse[]
 }
 
 /**
+ * Fetches a ticket's QR code as a PNG and returns a local blob URL for it (suitable for an
+ * `<img src>`). The endpoint requires auth (the ticket's own buyer, or the owning tenant), so this
+ * goes through the shared `httpClient` — a plain `<img>` tag can't attach the bearer token itself.
+ * Callers should `URL.revokeObjectURL` the result once it's no longer needed.
+ */
+export async function getTicketQrCodeUrl(ticketId: string): Promise<string> {
+  const response = await httpClient.get(`/api/ticketing/v1/tickets/${ticketId}/qrcode`, {
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(response.data as Blob);
+}
+
+/**
  * Scans/checks in a ticket by its opaque token (as read from its QR code), for the given event
  * and (optionally) a specific physical gate — omitting `gateId` means an unscoped "master"
  * scanner that bypasses any section-level gate restriction. Throws (via axios) on `404` (no
