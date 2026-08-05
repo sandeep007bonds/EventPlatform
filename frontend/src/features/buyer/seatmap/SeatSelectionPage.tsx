@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
+  getGeneralAdmissionAllocations,
   getInventorySeats,
   placeHold,
   type SeatInventoryStatus,
@@ -63,14 +64,26 @@ export function SeatSelectionPage() {
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
+  // Catalog's seat map only knows its own section id — Inventory provisions each general-admission
+  // allocation with its own separately-generated id (only linked via a CatalogSectionId foreign
+  // field), so a hold request must reference *this* map's values, never seatMap.generalAdmissionSections[].id.
+  const [gaAllocationIdsBySection, setGaAllocationIdsBySection] = useState<Map<string, string>>(
+    new Map(),
+  );
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [otpModalOpen, setOtpModalOpen] = useState(false);
 
   const refreshStatuses = async (evId: string) => {
-    const seats = await getInventorySeats(evId);
+    const [seats, allocations] = await Promise.all([
+      getInventorySeats(evId),
+      getGeneralAdmissionAllocations(evId),
+    ]);
     setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+    setGaAllocationIdsBySection(
+      new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
+    );
   };
 
   useEffect(() => {
@@ -82,18 +95,32 @@ export function SeatSelectionPage() {
     let attempts = 0;
 
     const pollStatuses = (map: SeatMapResponse) => {
-      getInventorySeats(eventId)
-        .then((seats) => {
+      Promise.all([getInventorySeats(eventId), getGeneralAdmissionAllocations(eventId)])
+        .then(([seats, allocations]) => {
           if (cancelled) {
             return;
           }
-          if (seats.length > 0 || map.seats.length === 0) {
+
+          const seatsReady = seats.length > 0 || map.seats.length === 0;
+          const allocationsReady =
+            allocations.length > 0 || map.generalAdmissionSections.length === 0;
+
+          if (seatsReady && allocationsReady) {
             setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+            setGaAllocationIdsBySection(
+              new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
+            );
             setProvisioning(false);
             return;
           }
+
           attempts += 1;
           if (attempts >= INVENTORY_POLL_MAX_ATTEMPTS) {
+            // Set whatever came back even if incomplete — better than leaving stale/empty state.
+            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+            setGaAllocationIdsBySection(
+              new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
+            );
             setProvisioning(false);
             return;
           }
@@ -164,11 +191,14 @@ export function SeatSelectionPage() {
     });
   };
 
-  const setGaQuantity = (allocationId: string, quantity: number) => {
+  // gaQuantities is keyed by Catalog's section id (what the seat-map UI naturally has on hand) —
+  // never Inventory's own allocationId. Translated to the real allocation id only when building the
+  // hold request, via gaAllocationIdsBySection (see handleHold).
+  const setGaQuantity = (catalogSectionId: string, quantity: number) => {
     setGaQuantities((prev) => {
       if (quantity <= 0) {
         const next = new Map(prev);
-        next.delete(allocationId);
+        next.delete(catalogSectionId);
         return next;
       }
 
@@ -176,7 +206,7 @@ export function SeatSelectionPage() {
       // (HoldOptions.MaxGeneralAdmissionQuantityPerHold) — each section's own stepper only clamps
       // that section individually, so the total must be checked here too.
       const otherSectionsTotal = [...prev].reduce(
-        (sum, [id, existingQuantity]) => (id === allocationId ? sum : sum + existingQuantity),
+        (sum, [id, existingQuantity]) => (id === catalogSectionId ? sum : sum + existingQuantity),
         0,
       );
       if (otherSectionsTotal + quantity > MAX_GENERAL_ADMISSION_QUANTITY) {
@@ -196,7 +226,7 @@ export function SeatSelectionPage() {
       }
 
       const next = new Map(prev);
-      next.set(allocationId, quantity);
+      next.set(catalogSectionId, quantity);
       return next;
     });
   };
@@ -217,10 +247,14 @@ export function SeatSelectionPage() {
       const result = await placeHold({
         eventId,
         seatIds: [...selected],
-        generalAdmissionSelections: [...gaQuantities].map(([allocationId, quantity]) => ({
-          allocationId,
-          quantity,
-        })),
+        generalAdmissionSelections: [...gaQuantities]
+          .map(([catalogSectionId, quantity]) => ({
+            allocationId: gaAllocationIdsBySection.get(catalogSectionId),
+            quantity,
+          }))
+          .filter((selection): selection is { allocationId: string; quantity: number } =>
+            Boolean(selection.allocationId),
+          ),
       });
       void navigate(`/checkout/${result.holdId}`);
     } catch (error) {
