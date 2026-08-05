@@ -27,6 +27,13 @@ public static class InventoryEndpoints
             .WithTags("Inventory")
             .AllowAnonymous();
 
+        // Same anonymous posture as the seat-status endpoint above — a buyer needs the real
+        // allocation id (not Catalog's section id) to place a general-admission hold.
+        app.MapGet("/v1/events/{eventId:guid}/inventory/general-admission", GetGeneralAdmissionAllocationsAsync)
+            .WithName("GetGeneralAdmissionAllocations")
+            .WithTags("Inventory")
+            .AllowAnonymous();
+
         // Organizer seat blocking (e.g. a kill or a restricted view) — separate from the buyer-facing
         // hold path. No RBAC yet (tracked separately): any authenticated caller in the tenant can
         // block/unblock their own tenant's seats, same as other organizer-facing endpoints today.
@@ -294,5 +301,17 @@ public static class InventoryEndpoints
         var items = await repository.ListForEventAsync(eventId, cancellationToken);
         var seats = items.Select(i => new InventorySeatResponse(i.SeatId, i.Status.ToString())).ToList();
         return Results.Ok(seats);
+    }
+
+    private static async Task<IResult> GetGeneralAdmissionAllocationsAsync(
+        Guid eventId,
+        IInventoryRepository repository,
+        CancellationToken cancellationToken)
+    {
+        var allocations = await repository.ListGeneralAdmissionForEventAsync(eventId, cancellationToken);
+        var response = allocations
+            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.CatalogSectionId, a.RemainingCapacity, a.TotalCapacity))
+            .ToList();
+        return Results.Ok(response);
     }
 }

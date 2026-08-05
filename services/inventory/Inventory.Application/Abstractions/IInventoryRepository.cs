@@ -121,6 +121,12 @@ public interface IInventoryRepository
         IReadOnlyCollection<Guid> allocationIds,
         CancellationToken cancellationToken);
 
+    /// <summary>Returns every general-admission allocation for an event.</summary>
+    /// <param name="eventId">The event id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The event's general-admission allocations.</returns>
+    Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForEventAsync(Guid eventId, CancellationToken cancellationToken);
+
     /// <summary>Loads the event inventory settings for an event, if provisioned.</summary>
     /// <param name="eventId">The event id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>

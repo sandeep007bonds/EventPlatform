@@ -17,6 +17,24 @@ export async function getInventorySeats(eventId: string): Promise<InventorySeatR
   return response.data;
 }
 
+/** One general-admission allocation's current status, keyed by the Catalog section id a buyer already has. */
+export interface GeneralAdmissionAllocationResponse {
+  allocationId: string;
+  catalogSectionId: string;
+  remaining: number;
+  totalCapacity: number;
+}
+
+/** Fetches every general-admission allocation for an event — the real ids a hold request must reference. */
+export async function getGeneralAdmissionAllocations(
+  eventId: string,
+): Promise<GeneralAdmissionAllocationResponse[]> {
+  const response = await httpClient.get<GeneralAdmissionAllocationResponse[]>(
+    `/api/inventory/v1/events/${eventId}/inventory/general-admission`,
+  );
+  return response.data;
+}
+
 /** Provisioned seat count for an event. */
 export async function getInventoryCount(
   eventId: string,

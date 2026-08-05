@@ -137,6 +137,13 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
+        await dbContext.GeneralAdmissionAllocations
+            .AsNoTracking()
+            .Where(a => a.EventId == eventId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<EventInventorySettings?> GetEventInventorySettingsAsync(Guid eventId, CancellationToken cancellationToken) =>
         dbContext.EventInventorySettings.FirstOrDefaultAsync(s => s.EventId == eventId, cancellationToken);
 
