@@ -47,7 +47,11 @@ services:
 
   azurite:
     image: mcr.microsoft.com/azure-storage/azurite:latest
-    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000"
+    # --skipApiVersionCheck: the pinned Azure.Storage.Blobs SDK sends a newer x-ms-version than
+    # this Azurite build recognizes ("API version ... is not supported by Azurite"), since Azurite
+    # trails the newest Azure REST API releases. Local-emulator-only flag — real Azure Blob Storage
+    # in prod has no such check to skip.
+    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000 --skipApiVersionCheck"
     ports:
       - "10000:10000"
 
