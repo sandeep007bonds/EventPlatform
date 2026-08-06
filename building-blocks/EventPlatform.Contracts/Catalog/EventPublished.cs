@@ -30,6 +30,12 @@ namespace EventPlatform.Contracts.Catalog;
 /// Doors-open time (UTC), if set — Ticketing's check-in window opens here, falling back to
 /// <see cref="StartsAt"/> when absent.
 /// </param>
+/// <param name="RequiresQueue">
+/// Whether this event gates seat holds behind the Queue service's virtual waiting room. Consumed
+/// by both Inventory (to require a valid admission token at hold-placement time) and Queue (to
+/// provision its per-event settings as enabled or an immediate-admit no-op). Cannot change after
+/// publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
+/// </param>
 public sealed record EventPublished(
     Guid EventId,
     DateTimeOffset OccurredAt,
@@ -42,4 +48,5 @@ public sealed record EventPublished(
     DateTimeOffset EndsAt,
     int? MaxTicketsPerBuyer = null,
     DateTimeOffset? OnSaleAt = null,
-    DateTimeOffset? DoorsOpenAt = null) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    DateTimeOffset? DoorsOpenAt = null,
+    bool RequiresQueue = false) : IntegrationEvent(EventId, OccurredAt, TenantId);

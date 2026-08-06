@@ -47,7 +47,8 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
             request.Latitude,
             request.Longitude,
             request.EventGroupId,
-            request.MaxTicketsPerBuyer);
+            request.MaxTicketsPerBuyer,
+            request.RequiresQueue);
 
         repository.Add(@event);
         await repository.SaveChangesAsync(cancellationToken);

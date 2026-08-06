@@ -63,7 +63,7 @@ fi
 echo "==> Building the solution once (avoids a concurrent-build race on shared projects)..."
 dotnet build "$repo_root/EventPlatform.slnx"
 
-echo "==> Starting the gateway, Media.Api, all seven services and their Dapr sidecars (Ctrl+C stops everything)..."
+echo "==> Starting the gateway, Media.Api, all eight services and their Dapr sidecars (Ctrl+C stops everything)..."
 echo "    Gateway       http://localhost:5090/scalar/v1"
 echo "    Catalog       http://localhost:5080/scalar/v1"
 echo "    Inventory     http://localhost:5081/scalar/v1"
@@ -73,6 +73,7 @@ echo "    Ticketing     http://localhost:5084/scalar/v1"
 echo "    Communication http://localhost:5085/scalar/v1"
 echo "    Media         http://localhost:5086/scalar/v1"
 echo "    Identity      http://localhost:5087/scalar/v1"
+echo "    Queue         http://localhost:5088/scalar/v1"
 echo "    Jaeger UI     http://localhost:16686"
 echo "    Mint a dev auth token in another terminal: ./scripts/dev-token.sh"
 echo "    Or call the gateway's dev-login: POST http://localhost:5090/api/auth/dev-login"
@@ -171,5 +172,7 @@ sleep 3
 start_service communication 5085 "$repo_root/services/communication/Communication.Api"
 sleep 3
 start_service identity 5087 "$repo_root/services/identity/Identity.Api"
+sleep 3
+start_service queue 5088 "$repo_root/services/queue/Queue.Api"
 
 wait

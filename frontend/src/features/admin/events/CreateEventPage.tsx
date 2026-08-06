@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Divider,
@@ -35,6 +36,7 @@ interface CreateEventFormValues {
   longitude?: number;
   eventGroupId?: string;
   maxTicketsPerBuyer?: number;
+  requiresQueue?: boolean;
 }
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR'];
@@ -97,6 +99,7 @@ export function CreateEventPage() {
         longitude: values.longitude ?? null,
         eventGroupId: values.eventGroupId ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
+        requiresQueue: values.requiresQueue ?? false,
       });
       toast.success('Event created.');
       void navigate(`/admin/events/${result.id}`);
@@ -199,6 +202,16 @@ export function CreateEventPage() {
                 rules={[{ type: 'number', min: 1 }]}
               >
                 <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item
+                name="requiresQueue"
+                label=" "
+                valuePropName="checked"
+                tooltip="Gates seat selection behind a virtual waiting room for high-demand on-sales."
+              >
+                <Checkbox>Requires queue (waiting room)</Checkbox>
               </Form.Item>
             </Col>
           </Row>

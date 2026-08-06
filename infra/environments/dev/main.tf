@@ -150,6 +150,23 @@ resource "azurerm_key_vault_secret" "jwt_dev_signing_key" {
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }
 
+# Shared secret between Inventory and Queue — Queue signs a waiting-room
+# admission token, Inventory verifies it locally (no call back to Queue at
+# hold-placement time, ADR-0026). Generated once here, same reasoning as
+# jwt_dev_signing_key above: two services need the identical value.
+resource "random_password" "queue_admission_hmac_key" {
+  length           = 64
+  override_special = "!#$%&*()-_=+[]{}<>:?"
+}
+
+resource "azurerm_key_vault_secret" "queue_admission_hmac_key" {
+  name         = "queue-admission-hmac-key"
+  value        = random_password.queue_admission_hmac_key.result
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
 # StackExchange.Redis connection string — only Inventory's hold hot path
 # connects to Redis directly (bypassing Dapr); see deploy/base/inventory.
 resource "azurerm_key_vault_secret" "redis_connection_string" {

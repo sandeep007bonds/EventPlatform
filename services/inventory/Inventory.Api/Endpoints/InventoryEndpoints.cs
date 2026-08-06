@@ -134,6 +134,7 @@ public static class InventoryEndpoints
             request.EventId,
             seatIds,
             gaSelections.Select(selection => (selection.AllocationId, selection.Quantity)).ToList(),
+            request.QueueAdmissionToken,
             cancellationToken);
 
         return result.Outcome switch
@@ -159,6 +160,8 @@ public static class InventoryEndpoints
                 Results.Conflict(new { message = "This would exceed the maximum tickets allowed per buyer for this event." }),
             PlaceHoldOutcome.OnSaleNotStarted =>
                 Results.Conflict(new { message = "Tickets are not on sale yet for this event." }),
+            PlaceHoldOutcome.QueueAdmissionRequired =>
+                Results.Conflict(new { message = "This event requires joining the queue first." }),
             _ => Results.Problem("Unexpected hold outcome."),
         };
     }
@@ -264,6 +267,7 @@ public static class InventoryEndpoints
             @event.BookingEndsAt,
             @event.MaxTicketsPerBuyer,
             @event.OnSaleAt,
+            @event.RequiresQueue,
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Inventory.Provisioning");

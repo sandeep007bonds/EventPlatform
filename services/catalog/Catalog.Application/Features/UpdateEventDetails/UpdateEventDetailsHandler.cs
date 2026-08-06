@@ -62,6 +62,7 @@ internal sealed class UpdateEventDetailsHandler(
             request.OnSaleAt,
             request.BookingEndsAt,
             request.MaxTicketsPerBuyer,
+            request.RequiresQueue,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

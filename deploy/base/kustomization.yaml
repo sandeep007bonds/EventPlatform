@@ -9,4 +9,5 @@ resources:
   - communication
   - media
   - identity
+  - queue
   - gateway

@@ -16,6 +16,7 @@ import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+import { getValidAdmissionToken } from '../../../utils/queueAdmission';
 import { useAuth } from '../../../contexts/useAuth';
 import { OtpLoginFlow } from '../auth/OtpLoginFlow';
 
@@ -143,6 +144,12 @@ export function SeatSelectionPage() {
         if (cancelled) {
           return;
         }
+        // Covers a direct URL hit bypassing EventDetailPage's own redirect — a buyer with no
+        // valid (unexpired) admission token must go through the waiting room first.
+        if (event.requiresQueue && !getValidAdmissionToken(eventId)) {
+          void navigate(`/events/${eventId}/queue`, { replace: true });
+          return;
+        }
         setCurrency(event.currency);
         setMaxTicketsPerBuyer(event.maxTicketsPerBuyer);
         setOnSaleAt(event.onSaleAt);
@@ -159,7 +166,7 @@ export function SeatSelectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, navigate]);
 
   const toggleSeat = (seatId: string) => {
     if (statuses.get(seatId) !== 'Available') {
@@ -255,10 +262,18 @@ export function SeatSelectionPage() {
           .filter((selection): selection is { allocationId: string; quantity: number } =>
             Boolean(selection.allocationId),
           ),
+        queueAdmissionToken: getValidAdmissionToken(eventId) ?? undefined,
       });
       void navigate(`/checkout/${result.holdId}`);
     } catch (error) {
       const body = (error as AxiosError<ConflictBody>).response?.data;
+      // The admission token expired between being admitted and actually holding — send the
+      // buyer back to rejoin the queue rather than just showing a dead-end error.
+      if (body?.message?.includes('requires joining the queue')) {
+        toast.error('Your place in the queue has expired — please rejoin.');
+        void navigate(`/events/${eventId}/queue`, { replace: true });
+        return;
+      }
       toast.error(
         body?.seatId
           ? `Seat ${body.seatId} is no longer available — please pick again.`

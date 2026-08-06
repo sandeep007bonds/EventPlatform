@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Descriptions,
@@ -43,6 +44,7 @@ import { toast } from '../../../components/common/feedback/toast';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 import { EntryGatesPanel } from './EntryGatesPanel';
+import { QueueSettingsPanel } from './QueueSettingsPanel';
 
 interface SeatMapFormValues {
   name: string;
@@ -57,6 +59,7 @@ interface EventDetailsFormValues {
   onSaleAt?: Dayjs;
   bookingEndsAt?: Dayjs;
   maxTicketsPerBuyer?: number;
+  requiresQueue?: boolean;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -131,6 +134,7 @@ export function AdminEventDetailPage() {
       onSaleAt: event.onSaleAt ? dayjs(event.onSaleAt) : undefined,
       bookingEndsAt: event.bookingEndsAt ? dayjs(event.bookingEndsAt) : undefined,
       maxTicketsPerBuyer: event.maxTicketsPerBuyer ?? undefined,
+      requiresQueue: event.requiresQueue,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -172,6 +176,7 @@ export function AdminEventDetailPage() {
         onSaleAt: values.onSaleAt?.toISOString() ?? null,
         bookingEndsAt: values.bookingEndsAt?.toISOString() ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
+        requiresQueue: values.requiresQueue ?? false,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -356,6 +361,16 @@ export function AdminEventDetailPage() {
                   rules={[{ type: 'number', min: 1 }]}
                 >
                   <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="requiresQueue"
+                  label=" "
+                  valuePropName="checked"
+                  tooltip="Gates seat selection behind a virtual waiting room for high-demand on-sales."
+                >
+                  <Checkbox>Requires queue (waiting room)</Checkbox>
                 </Form.Item>
               </Col>
             </Row>
@@ -672,6 +687,7 @@ export function AdminEventDetailPage() {
       )}
 
       {event.status !== 'Draft' && id && <SeatBlockPanel eventId={id} />}
+      {event.status !== 'Draft' && event.requiresQueue && id && <QueueSettingsPanel eventId={id} />}
     </>
   );
 }

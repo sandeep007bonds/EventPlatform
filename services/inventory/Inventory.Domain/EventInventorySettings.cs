@@ -12,13 +12,20 @@ public sealed class EventInventorySettings
     {
     }
 
-    private EventInventorySettings(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer, DateTimeOffset? onSaleAt)
+    private EventInventorySettings(
+        Guid eventId,
+        Guid tenantId,
+        DateTimeOffset? bookingEndsAt,
+        int? maxTicketsPerBuyer,
+        DateTimeOffset? onSaleAt,
+        bool requiresQueue)
     {
         EventId = eventId;
         TenantId = tenantId;
         BookingEndsAt = bookingEndsAt;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         OnSaleAt = onSaleAt;
+        RequiresQueue = requiresQueue;
     }
 
     /// <summary>The event these settings belong to (primary key).</summary>
@@ -45,30 +52,47 @@ public sealed class EventInventorySettings
     /// </summary>
     public DateTimeOffset? OnSaleAt { get; private set; }
 
+    /// <summary>
+    /// Whether a buyer must present a valid Queue-service admission token to place a hold for this
+    /// event — <c>HoldService.PlaceHoldAsync</c> rejects a hold request with no/invalid/expired
+    /// token when this is <see langword="true"/>. Verified locally (HMAC), never via a call to the
+    /// Queue service (ADR-0026).
+    /// </summary>
+    public bool RequiresQueue { get; private set; }
+
     /// <summary>Creates the settings row for an event.</summary>
     /// <param name="eventId">The event.</param>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC), if any.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit, if any.</param>
     /// <param name="onSaleAt">Enforced on-sale start (UTC), if any.</param>
+    /// <param name="requiresQueue">Whether a Queue admission token is required at hold time.</param>
     /// <returns>A new <see cref="EventInventorySettings"/>.</returns>
-    public static EventInventorySettings Create(Guid eventId, Guid tenantId, DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer, DateTimeOffset? onSaleAt) =>
-        new(eventId, tenantId, bookingEndsAt, maxTicketsPerBuyer, onSaleAt);
+    public static EventInventorySettings Create(
+        Guid eventId,
+        Guid tenantId,
+        DateTimeOffset? bookingEndsAt,
+        int? maxTicketsPerBuyer,
+        DateTimeOffset? onSaleAt,
+        bool requiresQueue) =>
+        new(eventId, tenantId, bookingEndsAt, maxTicketsPerBuyer, onSaleAt, requiresQueue);
 
     /// <summary>
-    /// Updates the booking cutoff, per-buyer ticket limit, and on-sale start — called on
-    /// redelivery of <c>EventPublished</c>, keeping this idempotent alongside the existing
-    /// per-event provisioning guard. Unreachable today: <c>InventoryProvisioningService.ProvisionAsync</c>
+    /// Updates the booking cutoff, per-buyer ticket limit, on-sale start, and queue requirement —
+    /// called on redelivery of <c>EventPublished</c>, keeping this idempotent alongside the
+    /// existing per-event provisioning guard. Unreachable today: <c>InventoryProvisioningService.ProvisionAsync</c>
     /// short-circuits on <c>ExistsForEventAsync</c> before this would ever run — kept symmetrical
     /// for when post-publish updates are supported.
     /// </summary>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC), if any.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit, if any.</param>
     /// <param name="onSaleAt">Enforced on-sale start (UTC), if any.</param>
-    public void Update(DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer, DateTimeOffset? onSaleAt)
+    /// <param name="requiresQueue">Whether a Queue admission token is required at hold time.</param>
+    public void Update(DateTimeOffset? bookingEndsAt, int? maxTicketsPerBuyer, DateTimeOffset? onSaleAt, bool requiresQueue)
     {
         BookingEndsAt = bookingEndsAt;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         OnSaleAt = onSaleAt;
+        RequiresQueue = requiresQueue;
     }
 }

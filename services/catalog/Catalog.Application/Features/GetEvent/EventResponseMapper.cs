@@ -32,6 +32,7 @@ public static class EventResponseMapper
             @event.OnSaleAt,
             @event.BookingEndsAt,
             @event.MaxTicketsPerBuyer,
+            @event.RequiresQueue,
             @event.AgeRestriction,
             @event.BannerImageUrl,
             @event.VideoUrl,

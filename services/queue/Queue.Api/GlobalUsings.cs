@@ -1,0 +1,9 @@
+global using EventPlatform.Contracts.Catalog;
+global using EventPlatform.Hosting;
+global using Microsoft.EntityFrameworkCore;
+global using Queue.Api.Endpoints;
+global using Queue.Application;
+global using Queue.Application.Abstractions;
+global using Queue.Application.Provisioning;
+global using Queue.Application.Queueing;
+global using Queue.Infrastructure;

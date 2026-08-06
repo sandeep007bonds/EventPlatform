@@ -8,6 +8,7 @@ import { NotFoundPage } from '../components/common/errors/NotFoundPage';
 import { EventsListPage } from '../features/buyer/events/EventsListPage';
 import { EventDetailPage } from '../features/buyer/events/EventDetailPage';
 import { SeatSelectionPage } from '../features/buyer/seatmap/SeatSelectionPage';
+import { QueueWaitingRoomPage } from '../features/buyer/queue/QueueWaitingRoomPage';
 import { CheckoutPage } from '../features/buyer/checkout/CheckoutPage';
 import { OrderPage } from '../features/buyer/orders/OrderPage';
 import { MyOrdersPage } from '../features/buyer/orders/MyOrdersPage';
@@ -38,6 +39,8 @@ export function AppRouter() {
         {/* No ProtectedRoute — a buyer picks seats freely; the identity gate is the "Hold
             selection" action itself (see SeatSelectionPage.tsx's handleHold, ADR-0016). */}
         <Route path="/events/:id/seats" element={<SeatSelectionPage />} />
+        {/* Public, anonymous — the virtual waiting room for events with RequiresQueue set (ADR-0026). */}
+        <Route path="/events/:id/queue" element={<QueueWaitingRoomPage />} />
         <Route
           path="/checkout/:holdId"
           element={

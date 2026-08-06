@@ -54,6 +54,12 @@ context: **Catalog** (ADR-0008).
   `BookingEndsAt`). Propagated to Inventory via `EventPublished`, which
   enforces it cumulatively across a buyer's holds at hold-placement time —
   Catalog itself does not enforce anything (see ADR-0021).
+- **`Event.RequiresQueue`** (bool, default `false`), settable at `Create`/
+  editable via `UpdateDetails` (Draft-only, same lifecycle as
+  `BookingEndsAt`) — the single on/off switch for gating a buyer's hold
+  behind the Queue service's virtual waiting room. Propagated via
+  `EventPublished` to both Inventory (enforcement) and Queue (provisioning);
+  Catalog itself does not enforce anything (see ADR-0026).
 - **Seat maps mix Reserved and General-Admission sections.** `DefineSeatMap`'s
   section input carries an `AllocationType`: `Reserved` sections generate
   individual `Seat` rows (rows × seats-per-row) exactly as before;
