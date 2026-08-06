@@ -95,6 +95,8 @@ local development. Update this with each meaningful change.
   - ⬜ Replay/one-time-use enforcement on an admission token — not built; a hold's own capacity/limit checks are the accepted backstop this pass
   - ⬜ A dedicated Redis instance for Queue in production (dev shares Inventory's) — flagged, not built
   - ⬜ Bot/automation defense at the queue-join step (rate-limiting, CAPTCHA) — not built, a real hardening gap for a genuine high-demand on-sale
+  - ⬜ Randomized queue-position ordering — current implementation is strict FIFO only; the enterprise requirements doc asks for an option to randomize positions at queue-open (e.g. to avoid rewarding whoever scripts the fastest join), not built
+  - ⬜ Abandoned-waiting-session expiry — `SessionTtlSeconds` only expires an *admitted* session's token; a session that joins the waiting sorted set and never returns has no TTL at all today and sits in Redis indefinitely, unlike Inventory's `Hold`, which has `ExpiredHoldReaper` for exactly this kind of abandonment
 
 ---
 
@@ -114,6 +116,8 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | C8 | Azure Front Door + WAF + bot management (edge) | Phase 3 |
 | C9 | Observability backend (Azure Monitor / managed Grafana) | Observability |
 | C10 | Multi-AZ + DR runbook (RTO < 15m / RPO < 1m) | Phase 3 |
+| C11 | Multi-region / geographic distribution — beyond C10's single-region Multi-AZ scope | Enterprise requirements doc |
+| C12 | Backup/restore automation + a tested restore procedure (distinct from C10's DR-runbook-as-a-document) | Enterprise requirements doc |
 
 ## ⏸️ Deferred — GitHub / ops actions (need repo owner)
 
@@ -135,6 +139,39 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | P1 | **Virtual waiting room / queue system** for high-demand on-sales (Ticketmaster/AXS/Queue-it-style) | **Done** — see the ✅ Virtual waiting-room Queue service bullet above (ADR-0026). |
 | P2 | **Buyer flow: browse/select fully anonymous, OTP-gate only at "hold seats," OTP verification *is* login** | Refines how the now-built Identity service (phone+OTP, see the ✅ bullet above) should be wired into the buyer frontend — the backend half (`POST /v1/otp/request`/`verify` issuing a real JWT, `HoldService.PlaceHoldAsync` already taking a `userId`) is done; this entry is the still-pending **frontend** UX decision. Decision: `EventsListPage`/`EventDetailPage` stay anonymous (already true today); `SeatSelectionPage` (currently behind `ProtectedRoute`) should *also* become reachable without a prior login — a buyer picks seats/GA quantities freely. The identity gate moves to the **hold action** itself (clicking "Hold selection"), not a separate upfront login wall and not deferred all the way to checkout: placing a hold claims real, scarce inventory, so it's the natural point to require a lightweight phone+OTP check anyway — this doubles as abuse prevention against anonymous hold-spam/seat-hoarding, which a no-login flow would otherwise leave wide open. A successful OTP verification mints the session/JWT on the spot (that *is* the login, no separate account-creation step); that identity then owns the hold through checkout and ticket issuance. "Complete your profile" (name, email, etc.) becomes an optional post-purchase prompt, never a blocker. Frontend implication: move the `ProtectedRoute` wrapper off `/events/:id/seats` and trigger OTP verification from the "Hold selection" button instead (e.g. an inline modal), not a route-level redirect to `/login` — this is the same work tracked as build-order step 10 (`AuthContext` swap). **Done** — see the ✅ Identity/frontend bullets above. |
 | P3 | **Archive/purge consumed tickets** — design only, nothing built (ADR-0021) | Once a ticket is scanned (checked in), its hot-table row is rarely needed again, but purging it immediately is unsafe (same-day disputes/re-entry). Phased design: **Phase 1** a same-DB `ticket_archive` table plus an organizer-triggered "archive this event's tickets" action (copy then delete from the hot `ticket` table) — the trigger is time-based-by-event, **not** per-ticket-at-scan-time. **Phase 2** an automatic sweep via a `BackgroundService` (`PeriodicTimer` + scoped `IServiceScopeFactory` + try/catch-continue, the exact shape `ExpiredHoldReaper` already establishes), triggered by a retention window past `Event.EndsAt` — needs `EndsAt` denormalized onto `Ticket` at issuance to avoid N cross-service calls to Catalog per sweep. **Phase 3** swaps the archive table for real blob/cold storage once storage cost (not just live-table size) justifies it — the same port-plus-swappable-adapter pattern already used for `IPaymentGateway`/`IEmailSender`, so it's a drop-in adapter later, not a rewrite. Not started. |
+| P4 | **Promo codes / discounts / offers** | No pricing-adjustment mechanism anywhere — `OrderLine.UnitPriceMinor` always comes straight from Catalog's `PriceAmount`. Needs a discount entity (Catalog or a new pricing concern), validation at checkout, and threading through `CreateOrderActivity`/`OrderConfirmed`. Not started. |
+| P5 | **Ticket cancellation & refund workflow (buyer-initiated)** | Payments already has a raw Stripe refund API capability (`IPaymentGateway`'s gateway-level refund), but nothing wires a buyer-facing "cancel my order" action to it — no endpoint, no saga step, no seat/GA-capacity release back to Inventory, no ticket voiding in Ticketing. Not started. |
+| P6 | **Admin pause/resume sales** | A live organizer toggle to halt/resume new holds for an event on demand, distinct from the existing static `OnSaleAt`/`BookingEndsAt` window fields (which are fixed at publish/pre-publish time, not flippable mid-sale). Not started. |
+| P7 | **Admin: issue complimentary tickets** | No path for an organizer to mint a ticket outside the normal hold→checkout→confirm flow (e.g. press comps, giveaways). Not started. |
+| P8 | **Admin: manage users & permissions** | No RBAC beyond the unenforced `role` claim (see the Security & abuse-prevention table below) and no multi-organizer-per-tenant/invite flow (flagged as out of scope when organizer auth shipped, ADR-0023). Not started. |
+| P9 | **Shopping cart across multiple events** | Checkout today is single-hold-at-a-time (`POST /v1/checkout` takes one `holdId`) — no way to buy tickets to several different events, or bundle multiple legs of a tour (ADR-0019's explicitly deferred "complete package" purchase), in one order. Not started. |
+
+---
+
+## ⏸️ Deferred — Security & abuse prevention
+
+| # | Item | Notes |
+|---|------|-------|
+| S1 | Bot/CAPTCHA defense at signup, OTP-request, and queue-join endpoints | `RequestOtpHandler` has a per-phone resend cooldown but no CAPTCHA/bot-scoring; the queue's join endpoint has no rate-limiting either (see the Queue bullet's own ⬜ sub-items above) |
+| S2 | General API rate limiting | No rate-limiting middleware anywhere in the gateway or any service today |
+| S3 | Fraud detection | No mechanism anywhere — payment/booking-pattern anomaly detection is entirely unbuilt |
+| S4 | Real RBAC enforcement | The `role` claim (`buyer`/`organizer`) is UI-routing only — `ProtectedRoute`/`AdminLayout` check "is anyone logged in," never "is this the right role" or "does this organizer have this permission." Explicitly documented as not a security boundary in `frontend/CLAUDE.md` |
+| S5 | Hardened token storage (httpOnly/Secure/SameSite cookie + CSRF) | Currently sessionStorage-held bearer tokens for both buyer and organizer sessions — flagged as required before a real production rollout since ADR-0015, still not built |
+| S6 | Unified security/audit log (login attempts, admin actions) | Distinct from the per-service domain ledgers that already exist (Inventory's `LedgerEntry`, Payments' `ProcessedWebhookEvent`) — no cross-cutting "who did what, when" trail for auth events or admin actions today |
+
+---
+
+## ⏸️ Deferred — Reporting & analytics
+
+| # | Item | Notes |
+|---|------|-------|
+| R1 | Sales/revenue reporting | No reporting endpoint or read model anywhere — organizers can only see raw order/ticket lists, no aggregation |
+| R2 | Event performance reporting | No per-event dashboard (sell-through rate, sales velocity, etc.) |
+| R3 | Queue statistics & peak-traffic reporting | Queue service has no admin-facing view of queue depth/throughput over time — only the buyer-facing live position/ETA is built (flagged as a follow-up in the Queue bullet's own scope-cut list above) |
+| R4 | Booking trends | No time-series/cohort view of booking activity |
+| R5 | Payment success/failure rate reporting | Payments logs every webhook event (`ProcessedWebhookEvent`) but exposes no aggregated success/failure-rate view |
+| R6 | User analytics | No buyer-behavior analytics (funnel drop-off, repeat-purchase rate, etc.) |
+| R7 | Business-metrics pipeline + dashboards | Distinct from/complementary to C9's infra-focused observability backend (Azure Monitor/Grafana) — this is business-metric aggregation, not infrastructure telemetry |
 
 ---
 
@@ -154,6 +191,8 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | T10 | Seat-map read path returns all seats inline | fine at Phase-1 dev scale; page/stream `GET /seatmap` (and the Inventory hand-off) before large-venue maps (50k+ seats). `PublishEvent` also loads seats just to count — swap for a `COUNT(*)` |
 | T11 | Money as minor units assumes 2-decimal currency | Inventory `ToMinor` does `amount × 100`; refine per ISO 4217 exponent (JPY = 0, etc.) before multi-currency |
 | T12 | Order currency is defaulted to `USD` | `CheckoutOptions.DefaultCurrency`; derive from the Catalog event instead (Order → Catalog client) |
+| T13 | Real EF Core migrations across all services, not just Catalog | T8 only tracks Catalog specifically — Inventory, Ordering, Payments, Ticketing, Communication, Identity, and Queue all still run on `EnsureCreatedAsync()` at startup rather than versioned migrations |
+| T14 | Automated test projects for the 5 original services | Only Communication, Identity, and Queue have `tests/` projects today — Catalog, Inventory, Ordering, Payments, and Ticketing still have none |
 
 ---
 
