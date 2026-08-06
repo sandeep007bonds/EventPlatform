@@ -17,7 +17,7 @@ import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { getValidAdmissionToken } from '../../../utils/queueAdmission';
-import { useAuth } from '../../../contexts/useAuth';
+import { getSession } from '../../../services/http/tokenStore';
 import { OtpLoginFlow } from '../auth/OtpLoginFlow';
 
 const MAX_SEATS = 10;
@@ -56,7 +56,6 @@ interface ConflictBody {
 export function SeatSelectionPage() {
   const { id: eventId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [currency, setCurrency] = useState('USD');
@@ -239,7 +238,12 @@ export function SeatSelectionPage() {
   };
 
   const handleHold = async () => {
-    if (!user) {
+    // Read the session store directly, not the `user` from useAuth(): onVerified below calls
+    // handleHold() synchronously, in the same tick AuthContext's setUser(...) runs — before React
+    // has re-rendered this component with the new user, so a closure over `user` would still see
+    // null here and just reopen the modal. getSession() is a plain module-level read, updated the
+    // instant loginWithOtp() calls setSession(), so it reflects the fresh login immediately.
+    if (!getSession()) {
       // The identity gate lives here, not an upfront login wall — a buyer picks seats freely
       // and only verifies via OTP at the moment they actually claim scarce inventory (ADR-0016).
       setOtpModalOpen(true);
