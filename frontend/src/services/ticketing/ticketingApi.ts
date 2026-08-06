@@ -40,12 +40,34 @@ export async function getEventTickets(eventId: string): Promise<TicketResponse[]
 }
 
 /**
- * Scans/checks in a ticket by its opaque token (as read from its QR code). Throws (via axios) on
- * `404` (no ticket matches that token) or `409` (already checked in, or void).
+ * Fetches a ticket's QR code as a PNG and returns a local blob URL for it (suitable for an
+ * `<img src>`). The endpoint requires auth (the ticket's own buyer, or the owning tenant), so this
+ * goes through the shared `httpClient` — a plain `<img>` tag can't attach the bearer token itself.
+ * Callers should `URL.revokeObjectURL` the result once it's no longer needed.
  */
-export async function scanTicket(token: string): Promise<TicketResponse> {
+export async function getTicketQrCodeUrl(ticketId: string): Promise<string> {
+  const response = await httpClient.get(`/api/ticketing/v1/tickets/${ticketId}/qrcode`, {
+    responseType: 'blob',
+  });
+  return URL.createObjectURL(response.data as Blob);
+}
+
+/**
+ * Scans/checks in a ticket by its opaque token (as read from its QR code), for the given event
+ * and (optionally) a specific physical gate — omitting `gateId` means an unscoped "master"
+ * scanner that bypasses any section-level gate restriction. Throws (via axios) on `404` (no
+ * ticket matches that token, or it's not for the selected event) or `409` (already checked in or
+ * void, outside the check-in window, or presented at the wrong gate).
+ */
+export async function scanTicket(
+  token: string,
+  eventId: string,
+  gateId?: string,
+): Promise<TicketResponse> {
   const response = await httpClient.post<TicketResponse>('/api/ticketing/v1/tickets/scan', {
     token,
+    eventId,
+    gateId,
   });
   return response.data;
 }

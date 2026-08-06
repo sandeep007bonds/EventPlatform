@@ -7,7 +7,12 @@ namespace Inventory.Api.Endpoints;
 /// <param name="EventId">The event the inventory belongs to.</param>
 /// <param name="SeatIds">The seat ids to hold, if any.</param>
 /// <param name="GeneralAdmissionSelections">The general-admission (allocation, quantity) pairs to hold, if any.</param>
+/// <param name="QueueAdmissionToken">
+/// The Queue-service admission token, if the buyer passed through the waiting room. Required only
+/// when the event's settings have <c>RequiresQueue</c> set.
+/// </param>
 public sealed record PlaceHoldRequest(
     Guid EventId,
     IReadOnlyList<Guid>? SeatIds,
-    IReadOnlyList<GeneralAdmissionSelectionRequest>? GeneralAdmissionSelections);
+    IReadOnlyList<GeneralAdmissionSelectionRequest>? GeneralAdmissionSelections,
+    string? QueueAdmissionToken = null);

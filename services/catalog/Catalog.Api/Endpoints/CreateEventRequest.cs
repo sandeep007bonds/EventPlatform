@@ -19,6 +19,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="Longitude">Longitude, if known.</param>
 /// <param name="EventGroupId">The tour/series this event is one leg of, if any.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
+/// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
 public sealed record CreateEventRequest(
     string Title,
     DateTimeOffset StartsAt,
@@ -34,4 +35,5 @@ public sealed record CreateEventRequest(
     double? Latitude,
     double? Longitude,
     Guid? EventGroupId,
-    int? MaxTicketsPerBuyer = null);
+    int? MaxTicketsPerBuyer = null,
+    bool RequiresQueue = false);

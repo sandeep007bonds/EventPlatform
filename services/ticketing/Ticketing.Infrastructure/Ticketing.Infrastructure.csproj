@@ -18,6 +18,8 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <!-- PrivateAssets=all keeps the Design tooling tree out of the API host. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <!-- Live scan-time reads of Catalog (event/seatmap) and Inventory (GA allocations). -->
+    <PackageReference Include="Dapr.Client" />
   </ItemGroup>
 
 </Project>

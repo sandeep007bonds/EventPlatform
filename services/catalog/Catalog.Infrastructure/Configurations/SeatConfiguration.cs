@@ -15,6 +15,7 @@ internal sealed class SeatConfiguration : IEntityTypeConfiguration<Seat>
         builder.Property(s => s.PriceAmount).HasPrecision(18, 2);
         builder.Property(s => s.Row).HasMaxLength(10).IsRequired();
         builder.Property(s => s.Number).IsRequired();
+        builder.Property(s => s.EntryGateId);
 
         // Label is derived from the other columns; never stored.
         builder.Ignore(s => s.Label);

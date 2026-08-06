@@ -26,4 +26,7 @@ public enum PlaceHoldOutcome
 
     /// <summary>The event has not been provisioned in Inventory yet (no <c>EventPublished</c> processed for it).</summary>
     EventNotFound,
+
+    /// <summary>The event requires Queue admission and the request carried no valid, unexpired admission token.</summary>
+    QueueAdmissionRequired,
 }

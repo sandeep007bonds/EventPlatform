@@ -30,7 +30,8 @@ public sealed class Event
         double? latitude,
         double? longitude,
         Guid? eventGroupId,
-        int? maxTicketsPerBuyer)
+        int? maxTicketsPerBuyer,
+        bool requiresQueue)
     {
         Id = id;
         TenantId = tenantId;
@@ -49,6 +50,7 @@ public sealed class Event
         Longitude = longitude;
         EventGroupId = eventGroupId;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
+        RequiresQueue = requiresQueue;
         Status = EventStatus.Draft;
     }
 
@@ -108,6 +110,14 @@ public sealed class Event
     /// hold-placement time, propagated the same way as <see cref="BookingEndsAt"/>.
     /// </summary>
     public int? MaxTicketsPerBuyer { get; private set; }
+
+    /// <summary>
+    /// Whether a buyer must pass through the Queue service's virtual waiting room before placing
+    /// a hold for this event. <see langword="false"/> (the default) means holds behave exactly as
+    /// they do today — no queue detour. Propagated to Inventory and Queue via <c>EventPublished</c>;
+    /// cannot change after publish in this pass, same lifecycle as <see cref="BookingEndsAt"/>.
+    /// </summary>
+    public bool RequiresQueue { get; private set; }
 
     /// <summary>Free-text age restriction (e.g. "18+", "All ages"), if any.</summary>
     public string? AgeRestriction { get; private set; }
@@ -188,6 +198,7 @@ public sealed class Event
     /// The maximum number of tickets a single buyer may hold for this event, if limited.
     /// See <see cref="MaxTicketsPerBuyer"/>.
     /// </param>
+    /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="endsAt"/> is not after <paramref name="startsAt"/>.</exception>
     public static Event Create(
@@ -206,7 +217,8 @@ public sealed class Event
         double? latitude,
         double? longitude,
         Guid? eventGroupId,
-        int? maxTicketsPerBuyer = null)
+        int? maxTicketsPerBuyer = null,
+        bool requiresQueue = false)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -237,7 +249,8 @@ public sealed class Event
             latitude,
             longitude,
             eventGroupId,
-            maxTicketsPerBuyer);
+            maxTicketsPerBuyer,
+            requiresQueue);
     }
 
     /// <summary>
@@ -268,6 +281,7 @@ public sealed class Event
     /// <param name="onSaleAt">Display-only sales-window start (UTC).</param>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
+    /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
@@ -288,6 +302,7 @@ public sealed class Event
         DateTimeOffset? onSaleAt,
         DateTimeOffset? bookingEndsAt,
         int? maxTicketsPerBuyer,
+        bool requiresQueue,
         string? ageRestriction,
         string? bannerImageUrl,
         string? videoUrl,
@@ -312,6 +327,11 @@ public sealed class Event
             throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must be after the on-sale time.");
         }
 
+        if (bookingEndsAt is not null && bookingEndsAt > StartsAt)
+        {
+            throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must not be later than the event's start time.");
+        }
+
         Description = description;
         Category = category;
         EndsAt = endsAt;
@@ -319,6 +339,7 @@ public sealed class Event
         OnSaleAt = onSaleAt;
         BookingEndsAt = bookingEndsAt;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
+        RequiresQueue = requiresQueue;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;

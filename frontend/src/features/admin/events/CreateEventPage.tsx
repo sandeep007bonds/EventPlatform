@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Divider,
@@ -14,7 +15,7 @@ import {
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
-import { createEvent } from '../../../services/catalog/catalogApi';
+import { createEvent, getEventGroup } from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { EventGroupPicker } from '../eventGroups/EventGroupPicker';
@@ -35,6 +36,7 @@ interface CreateEventFormValues {
   longitude?: number;
   eventGroupId?: string;
   maxTicketsPerBuyer?: number;
+  requiresQueue?: boolean;
 }
 
 const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR'];
@@ -42,7 +44,41 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR'];
 /** Creates a new draft event for the caller's tenant. */
 export function CreateEventPage() {
   const navigate = useNavigate();
+  const [form] = Form.useForm<CreateEventFormValues>();
   const [submitting, setSubmitting] = useState(false);
+  // The tour's own advertised date range, if the organizer picked one above — a leg's dates must
+  // lie inside it (mirrored server-side; this is the inline-feedback copy, not the enforcement).
+  const [groupRange, setGroupRange] = useState<{
+    startsAt: string | null;
+    endsAt: string | null;
+  } | null>(null);
+  const selectedGroupId = Form.useWatch('eventGroupId', form);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchRange = selectedGroupId
+      ? getEventGroup(selectedGroupId).then((group) => ({
+          startsAt: group.startsAt,
+          endsAt: group.endsAt,
+        }))
+      : Promise.resolve(null);
+
+    fetchRange
+      .then((range) => {
+        if (!cancelled) {
+          setGroupRange(range);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setGroupRange(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedGroupId]);
 
   const handleSubmit = async (values: CreateEventFormValues) => {
     setSubmitting(true);
@@ -63,6 +99,7 @@ export function CreateEventPage() {
         longitude: values.longitude ?? null,
         eventGroupId: values.eventGroupId ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
+        requiresQueue: values.requiresQueue ?? false,
       });
       toast.success('Event created.');
       void navigate(`/admin/events/${result.id}`);
@@ -81,6 +118,7 @@ export function CreateEventPage() {
       />
       <Card styles={{ body: { padding: 28 } }}>
         <Form<CreateEventFormValues>
+          form={form}
           layout="vertical"
           initialValues={{ currency: 'USD' }}
           onFinish={(values) => {
@@ -100,10 +138,21 @@ export function CreateEventPage() {
                 rules={[
                   { required: true },
                   {
-                    validator: (_rule, value: Dayjs | undefined) =>
-                      !value || value.isAfter(dayjs())
-                        ? Promise.resolve()
-                        : Promise.reject(new Error('Starts at must be in the future.')),
+                    validator: (_rule, value: Dayjs | undefined) => {
+                      if (value && !value.isAfter(dayjs())) {
+                        return Promise.reject(new Error('Starts at must be in the future.'));
+                      }
+                      if (
+                        value &&
+                        groupRange?.startsAt &&
+                        value.isBefore(dayjs(groupRange.startsAt))
+                      ) {
+                        return Promise.reject(
+                          new Error("Starts at must be on or after the tour's own start date."),
+                        );
+                      }
+                      return Promise.resolve();
+                    },
                   },
                 ]}
               >
@@ -120,9 +169,15 @@ export function CreateEventPage() {
                   ({ getFieldValue }) => ({
                     validator: (_rule, value: Dayjs | undefined) => {
                       const startsAt = getFieldValue('startsAt') as Dayjs | undefined;
-                      return !value || !startsAt || value.isAfter(startsAt)
-                        ? Promise.resolve()
-                        : Promise.reject(new Error('Ends at must be after Starts at.'));
+                      if (value && startsAt && !value.isAfter(startsAt)) {
+                        return Promise.reject(new Error('Ends at must be after Starts at.'));
+                      }
+                      if (value && groupRange?.endsAt && value.isAfter(dayjs(groupRange.endsAt))) {
+                        return Promise.reject(
+                          new Error("Ends at must be on or before the tour's own end date."),
+                        );
+                      }
+                      return Promise.resolve();
                     },
                   }),
                 ]}
@@ -147,6 +202,16 @@ export function CreateEventPage() {
                 rules={[{ type: 'number', min: 1 }]}
               >
                 <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
+              </Form.Item>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Form.Item
+                name="requiresQueue"
+                label=" "
+                valuePropName="checked"
+                tooltip="Gates seat selection behind a virtual waiting room for high-demand on-sales."
+              >
+                <Checkbox>Requires queue (waiting room)</Checkbox>
               </Form.Item>
             </Col>
           </Row>

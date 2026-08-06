@@ -85,6 +85,7 @@ export async function placeHold(request: {
   eventId: string;
   seatIds?: string[];
   generalAdmissionSelections?: GeneralAdmissionSelection[];
+  queueAdmissionToken?: string;
 }): Promise<{ holdId: string; expiresAt: string }> {
   const response = await httpClient.post<{ holdId: string; expiresAt: string }>(
     '/api/inventory/v1/holds/',

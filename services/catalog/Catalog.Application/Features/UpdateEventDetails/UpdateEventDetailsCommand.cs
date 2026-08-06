@@ -13,6 +13,7 @@ namespace Catalog.Application.Features.UpdateEventDetails;
 /// <param name="OnSaleAt">Display-only sales-window start (UTC).</param>
 /// <param name="BookingEndsAt">Enforced booking cutoff (UTC) — Inventory rejects new holds after this time.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
+/// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
 /// <param name="AgeRestriction">Free-text age restriction.</param>
 /// <param name="BannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
 /// <param name="VideoUrl">Video embed URL.</param>
@@ -31,6 +32,7 @@ public sealed record UpdateEventDetailsCommand(
     DateTimeOffset? OnSaleAt,
     DateTimeOffset? BookingEndsAt,
     int? MaxTicketsPerBuyer,
+    bool RequiresQueue,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,

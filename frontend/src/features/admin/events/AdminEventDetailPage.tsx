@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   Button,
   Card,
+  Checkbox,
   Col,
   DatePicker,
   Descriptions,
@@ -11,6 +12,7 @@ import {
   InputNumber,
   Radio,
   Row,
+  Select,
   Space,
   Tag,
   Typography,
@@ -23,8 +25,10 @@ import {
   defineSeatMap,
   getEvent,
   getSeatMap,
+  listEntryGates,
   publishEvent,
   updateEventDetails,
+  type EntryGateResponse,
   type EventResponse,
   type SeatMapResponse,
   type SeatMapSectionInput,
@@ -39,6 +43,8 @@ import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
+import { EntryGatesPanel } from './EntryGatesPanel';
+import { QueueSettingsPanel } from './QueueSettingsPanel';
 
 interface SeatMapFormValues {
   name: string;
@@ -53,6 +59,7 @@ interface EventDetailsFormValues {
   onSaleAt?: Dayjs;
   bookingEndsAt?: Dayjs;
   maxTicketsPerBuyer?: number;
+  requiresQueue?: boolean;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -81,6 +88,7 @@ export function AdminEventDetailPage() {
 
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
+  const [entryGates, setEntryGates] = useState<EntryGateResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -88,13 +96,22 @@ export function AdminEventDetailPage() {
   const [detailsForm] = Form.useForm<EventDetailsFormValues>();
 
   const load = (eventId: string) => {
-    Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null)])
-      .then(([eventResult, seatMapResult]) => {
+    Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null), listEntryGates(eventId)])
+      .then(([eventResult, seatMapResult, gatesResult]) => {
         setEvent(eventResult);
         setSeatMap(seatMapResult);
+        setEntryGates(gatesResult);
       })
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
+  };
+
+  const refreshEntryGates = () => {
+    if (id) {
+      listEntryGates(id)
+        .then(setEntryGates)
+        .catch(() => toast.error('Could not load entry gates.'));
+    }
   };
 
   useEffect(() => {
@@ -117,6 +134,7 @@ export function AdminEventDetailPage() {
       onSaleAt: event.onSaleAt ? dayjs(event.onSaleAt) : undefined,
       bookingEndsAt: event.bookingEndsAt ? dayjs(event.bookingEndsAt) : undefined,
       maxTicketsPerBuyer: event.maxTicketsPerBuyer ?? undefined,
+      requiresQueue: event.requiresQueue,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -158,6 +176,7 @@ export function AdminEventDetailPage() {
         onSaleAt: values.onSaleAt?.toISOString() ?? null,
         bookingEndsAt: values.bookingEndsAt?.toISOString() ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
+        requiresQueue: values.requiresQueue ?? false,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -316,11 +335,17 @@ export function AdminEventDetailPage() {
                     ({ getFieldValue }) => ({
                       validator: (_rule, value: Dayjs | undefined) => {
                         const onSaleAt = getFieldValue('onSaleAt') as Dayjs | undefined;
-                        return !value || !onSaleAt || value.isAfter(onSaleAt)
-                          ? Promise.resolve()
-                          : Promise.reject(
-                              new Error('Booking closes at must be after On sale from.'),
-                            );
+                        if (value && onSaleAt && !value.isAfter(onSaleAt)) {
+                          return Promise.reject(
+                            new Error('Booking closes at must be after On sale from.'),
+                          );
+                        }
+                        if (value && value.isAfter(dayjs(event.startsAt))) {
+                          return Promise.reject(
+                            new Error('Booking closes at must not be later than the event start.'),
+                          );
+                        }
+                        return Promise.resolve();
                       },
                     }),
                   ]}
@@ -336,6 +361,16 @@ export function AdminEventDetailPage() {
                   rules={[{ type: 'number', min: 1 }]}
                 >
                   <InputNumber min={1} style={{ width: '100%' }} placeholder="No limit" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="requiresQueue"
+                  label=" "
+                  valuePropName="checked"
+                  tooltip="Gates seat selection behind a virtual waiting room for high-demand on-sales."
+                >
+                  <Checkbox>Requires queue (waiting room)</Checkbox>
                 </Form.Item>
               </Col>
             </Row>
@@ -458,6 +493,10 @@ export function AdminEventDetailPage() {
         </Card>
       )}
 
+      {!seatMap && event.status === 'Draft' && id && (
+        <EntryGatesPanel eventId={id} gates={entryGates} onGateCreated={refreshEntryGates} />
+      )}
+
       {!seatMap && event.status === 'Draft' && (
         <Card
           title="Define seat map"
@@ -544,7 +583,7 @@ export function AdminEventDetailPage() {
                             <InputNumber min={0} style={{ width: '100%' }} />
                           </Form.Item>
                         </Col>
-                        <Col span={24}>
+                        <Col xs={24} sm={16}>
                           <Form.Item
                             name={[field.name, 'allocationType']}
                             label="Allocation"
@@ -556,6 +595,21 @@ export function AdminEventDetailPage() {
                                 General admission
                               </Radio.Button>
                             </Radio.Group>
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} sm={8}>
+                          <Form.Item
+                            name={[field.name, 'entryGateId']}
+                            label="Entry gate (optional)"
+                          >
+                            <Select
+                              allowClear
+                              placeholder="No restriction"
+                              options={entryGates.map((gate) => ({
+                                value: gate.id,
+                                label: gate.name,
+                              }))}
+                            />
                           </Form.Item>
                         </Col>
                         <Form.Item shouldUpdate noStyle>
@@ -633,6 +687,7 @@ export function AdminEventDetailPage() {
       )}
 
       {event.status !== 'Draft' && id && <SeatBlockPanel eventId={id} />}
+      {event.status !== 'Draft' && event.requiresQueue && id && <QueueSettingsPanel eventId={id} />}
     </>
   );
 }

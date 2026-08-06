@@ -9,17 +9,23 @@ namespace Inventory.Application.Holds;
 /// <param name="holdStore">The Redis hold store (fast gate).</param>
 /// <param name="events">The integration-event publisher (outbox).</param>
 /// <param name="options">Hold options (TTL, per-hold seat cap).</param>
+/// <param name="queueAdmissionTokenValidator">Verifies a Queue-service admission token locally.</param>
 public sealed class HoldService(
     IInventoryRepository inventory,
     IHoldStore holdStore,
     IEventPublisher events,
-    HoldOptions options)
+    HoldOptions options,
+    IQueueAdmissionTokenValidator queueAdmissionTokenValidator)
 {
     /// <summary>Places a hold over the requested seats and/or general-admission quantities.</summary>
     /// <param name="userId">The buyer.</param>
     /// <param name="eventId">The event the inventory belongs to.</param>
     /// <param name="seatIds">The requested seat ids, if any.</param>
     /// <param name="generalAdmissionSelections">The requested (allocation id, quantity) pairs, if any.</param>
+    /// <param name="queueAdmissionToken">
+    /// The Queue-service admission token, if the buyer passed through the waiting room. Required
+    /// only when the event's settings have <c>RequiresQueue</c> set.
+    /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The place-hold result.</returns>
     public async Task<PlaceHoldResult> PlaceHoldAsync(
@@ -27,6 +33,7 @@ public sealed class HoldService(
         Guid eventId,
         IReadOnlyList<Guid> seatIds,
         IReadOnlyList<(Guid AllocationId, int Quantity)> generalAdmissionSelections,
+        string? queueAdmissionToken,
         CancellationToken cancellationToken)
     {
         var distinctSeatIds = seatIds.Distinct().ToList();
@@ -65,6 +72,11 @@ public sealed class HoldService(
             {
                 return PlaceHoldResult.Failed(PlaceHoldOutcome.BuyerLimitExceeded);
             }
+        }
+
+        if (settings.RequiresQueue && !queueAdmissionTokenValidator.IsValid(queueAdmissionToken, eventId, DateTimeOffset.UtcNow))
+        {
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.QueueAdmissionRequired);
         }
 
         var items = new List<InventoryItem>();

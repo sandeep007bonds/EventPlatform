@@ -10,7 +10,8 @@ public sealed class Seat
         string priceTier,
         decimal priceAmount,
         string row,
-        int number)
+        int number,
+        Guid? entryGateId)
     {
         Id = id;
         SeatMapId = seatMapId;
@@ -19,6 +20,7 @@ public sealed class Seat
         PriceAmount = priceAmount;
         Row = row;
         Number = number;
+        EntryGateId = entryGateId;
     }
 
     // Parameterless ctor for EF Core materialization.
@@ -46,6 +48,13 @@ public sealed class Seat
 
     /// <summary>Seat number within the row (1-based).</summary>
     public int Number { get; private set; }
+
+    /// <summary>
+    /// The <see cref="EntryGate"/> this seat's section is restricted to, if any — set once when
+    /// the section is defined; <see langword="null"/> means no restriction (any gate). See
+    /// <see cref="SeatMap.AddReservedSection"/>.
+    /// </summary>
+    public Guid? EntryGateId { get; private set; }
 
     /// <summary>Human-readable label, e.g. <c>Lower Tier-A12</c>.</summary>
     public string Label => $"{Section}-{Row}{Number}";

@@ -22,7 +22,7 @@ event, and enforces that event's booking cutoff.
   yet appear on these events (no external consumer needs them this pass)
 - **Events consumed:** `EventPublished` (Catalog) → provision seat inventory and
   general-admission allocations, and record the event's `BookingEndsAt`,
-  `OnSaleAt`, and `MaxTicketsPerBuyer`
+  `OnSaleAt`, `MaxTicketsPerBuyer`, and `RequiresQueue`
 
 ## General admission and the enforced booking cutoff
 
@@ -59,6 +59,16 @@ event, and enforces that event's booking cutoff.
   `Hold.Items`/`Hold.GeneralAdmissionItems`); if the new request would push
   the total past the limit, `PlaceHoldAsync` returns
   `PlaceHoldOutcome.BuyerLimitExceeded` (409) before touching Redis/Postgres.
+- **`EventInventorySettings.RequiresQueue`** (from Catalog's
+  `Event.RequiresQueue`, the single on/off source of truth — ADR-0026), if
+  set, requires `PlaceHoldAsync`'s caller to present a valid Queue-service
+  admission token — checked right after the buyer-limit check, before
+  touching Redis/Postgres. `IQueueAdmissionTokenValidator`
+  (`HmacQueueAdmissionTokenValidator`) verifies the token **locally** via a
+  shared HMAC secret (`QueueAdmission:HmacKey`, identical in both services'
+  config) — no call to the Queue service itself, the same zero-hot-path-call
+  philosophy ADR-0025 established for Ticketing's scan. An invalid/missing/
+  expired token returns `PlaceHoldOutcome.QueueAdmissionRequired` (409).
 - **Not extended for GA in this pass:** `InventoryReconciler` only rebuilds the
   seat fast gate from Postgres after a flush. A GA capacity counter lost to a
   flush degrades fast-path availability (Redis under-reports remaining

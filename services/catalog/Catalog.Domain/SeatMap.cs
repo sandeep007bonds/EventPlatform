@@ -66,8 +66,18 @@ public sealed class SeatMap
     /// <param name="priceAmount">Seat price (non-negative) in the event's currency.</param>
     /// <param name="rows">Number of rows (positive).</param>
     /// <param name="seatsPerRow">Seats per row (positive).</param>
+    /// <param name="entryGateId">
+    /// The <see cref="EntryGate"/> this section is restricted to, if any — <see langword="null"/>
+    /// means no restriction. Callers must have already validated the id belongs to the same event.
+    /// </param>
     /// <exception cref="InvalidOperationException">A section with the same name already exists.</exception>
-    public void AddReservedSection(string section, string priceTier, decimal priceAmount, int rows, int seatsPerRow)
+    public void AddReservedSection(
+        string section,
+        string priceTier,
+        decimal priceAmount,
+        int rows,
+        int seatsPerRow,
+        Guid? entryGateId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
         ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
@@ -81,7 +91,7 @@ public sealed class SeatMap
             var rowLabel = BuildRowLabel(r);
             for (var number = 1; number <= seatsPerRow; number++)
             {
-                _seats.Add(new Seat(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, rowLabel, number));
+                _seats.Add(new Seat(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, rowLabel, number, entryGateId));
             }
         }
     }
@@ -94,8 +104,17 @@ public sealed class SeatMap
     /// <param name="priceTier">Price tier name for the section.</param>
     /// <param name="priceAmount">Ticket price (non-negative) in the event's currency.</param>
     /// <param name="capacity">Total number of admissions sellable in this section (positive).</param>
+    /// <param name="entryGateId">
+    /// The <see cref="EntryGate"/> this section is restricted to, if any — <see langword="null"/>
+    /// means no restriction. Callers must have already validated the id belongs to the same event.
+    /// </param>
     /// <exception cref="InvalidOperationException">A section with the same name already exists.</exception>
-    public void AddGeneralAdmissionSection(string section, string priceTier, decimal priceAmount, int capacity)
+    public void AddGeneralAdmissionSection(
+        string section,
+        string priceTier,
+        decimal priceAmount,
+        int capacity,
+        Guid? entryGateId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
         ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
@@ -103,7 +122,7 @@ public sealed class SeatMap
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         EnsureSectionNameIsUnique(section);
 
-        _generalAdmissionSections.Add(new GeneralAdmissionSection(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, capacity));
+        _generalAdmissionSections.Add(new GeneralAdmissionSection(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, capacity, entryGateId));
     }
 
     // Spreadsheet-column style labels: A..Z, then AA..AZ, BA.. (supports up to 702 rows).

@@ -12,6 +12,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="Rows">Number of rows (positive). Required for Reserved sections.</param>
 /// <param name="SeatsPerRow">Seats per row (positive). Required for Reserved sections.</param>
 /// <param name="Capacity">Total admissions sellable (positive). Required for GeneralAdmission sections.</param>
+/// <param name="EntryGateId">The entry gate this section is restricted to, if any.</param>
 public sealed record DefineSeatMapSectionRequest(
     string Name,
     string PriceTier,
@@ -19,4 +20,5 @@ public sealed record DefineSeatMapSectionRequest(
     AllocationType AllocationType,
     int? Rows,
     int? SeatsPerRow,
-    int? Capacity);
+    int? Capacity,
+    Guid? EntryGateId = null);

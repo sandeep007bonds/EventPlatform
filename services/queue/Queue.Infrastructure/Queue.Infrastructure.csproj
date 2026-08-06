@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Infrastructure: EF Core (PostgreSQL) persistence for QueueSettings, the Redis-backed
+       waiting-room store, HMAC admission-token issuance, and the admission background service. -->
+
+  <PropertyGroup>
+    <RootNamespace>Queue.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Queue.Domain/Queue.Domain.csproj" />
+    <ProjectReference Include="../Queue.Application/Queue.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- PrivateAssets=all keeps the Design tooling tree out of the API host. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+    <PackageReference Include="StackExchange.Redis" />
+  </ItemGroup>
+
+  <!-- Lets Queue.Tests exercise the internal repository/store/issuer classes directly. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Queue.Tests" />
+  </ItemGroup>
+
+</Project>

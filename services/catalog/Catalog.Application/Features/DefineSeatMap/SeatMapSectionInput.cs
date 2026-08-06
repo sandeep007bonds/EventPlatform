@@ -13,6 +13,10 @@ namespace Catalog.Application.Features.DefineSeatMap;
 /// <param name="Rows">Number of rows (positive). Required for <see cref="Catalog.Domain.AllocationType.Reserved"/>; ignored otherwise.</param>
 /// <param name="SeatsPerRow">Seats per row (positive). Required for <see cref="Catalog.Domain.AllocationType.Reserved"/>; ignored otherwise.</param>
 /// <param name="Capacity">Total admissions sellable (positive). Required for <see cref="Catalog.Domain.AllocationType.GeneralAdmission"/>; ignored otherwise.</param>
+/// <param name="EntryGateId">
+/// The entry gate this section is restricted to, if any — must belong to the same event.
+/// <see langword="null"/> means no restriction (any gate).
+/// </param>
 public sealed record SeatMapSectionInput(
     string Name,
     string PriceTier,
@@ -20,4 +24,5 @@ public sealed record SeatMapSectionInput(
     AllocationType AllocationType,
     int? Rows,
     int? SeatsPerRow,
-    int? Capacity);
+    int? Capacity,
+    Guid? EntryGateId = null);

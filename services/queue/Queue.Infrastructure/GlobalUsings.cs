@@ -1,0 +1,15 @@
+global using System.Collections.Concurrent;
+global using System.Security.Cryptography;
+global using System.Text;
+global using Microsoft.EntityFrameworkCore;
+global using Microsoft.EntityFrameworkCore.Design;
+global using Microsoft.EntityFrameworkCore.Metadata.Builders;
+global using Microsoft.Extensions.Configuration;
+global using Microsoft.Extensions.DependencyInjection;
+global using Microsoft.Extensions.Hosting;
+global using Microsoft.Extensions.Logging;
+global using Queue.Application.Abstractions;
+global using Queue.Domain;
+global using Queue.Infrastructure.Admission;
+global using Queue.Infrastructure.Configurations;
+global using StackExchange.Redis;

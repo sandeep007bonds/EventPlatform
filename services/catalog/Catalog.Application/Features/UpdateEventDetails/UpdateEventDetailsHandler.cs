@@ -6,8 +6,12 @@ namespace Catalog.Application.Features.UpdateEventDetails;
 /// work — reusing <c>PublishEvent</c>'s existing outbox pattern.
 /// </summary>
 /// <param name="repository">The event repository.</param>
+/// <param name="eventGroupRepository">The event-group repository, for tour-range validation.</param>
 /// <param name="events">The integration-event publisher (transactional outbox).</param>
-internal sealed class UpdateEventDetailsHandler(IEventRepository repository, IEventPublisher events)
+internal sealed class UpdateEventDetailsHandler(
+    IEventRepository repository,
+    IEventGroupRepository eventGroupRepository,
+    IEventPublisher events)
     : IRequestHandler<UpdateEventDetailsCommand, UpdateEventDetailsOutcome>
 {
     /// <inheritdoc />
@@ -24,6 +28,32 @@ internal sealed class UpdateEventDetailsHandler(IEventRepository repository, IEv
             return UpdateEventDetailsOutcome.NotDraft;
         }
 
+        if (request.BookingEndsAt is not null && request.BookingEndsAt > @event.StartsAt)
+        {
+            return UpdateEventDetailsOutcome.BookingCutoffAfterStart;
+        }
+
+        if (@event.EventGroupId is { } eventGroupId)
+        {
+            var group = await eventGroupRepository.GetByIdAsync(eventGroupId, cancellationToken);
+            if (group is not null)
+            {
+                if ((group.StartsAt is not null && @event.StartsAt < group.StartsAt)
+                    || (group.EndsAt is not null && request.EndsAt > group.EndsAt))
+                {
+                    return UpdateEventDetailsOutcome.OutsideEventGroupRange;
+                }
+
+                var siblingLegs = await repository.ListLegsForEventGroupAsync(eventGroupId, cancellationToken);
+                var overlaps = siblingLegs.Any(leg =>
+                    leg.Id != @event.Id && leg.StartsAt < request.EndsAt && @event.StartsAt < leg.EndsAt);
+                if (overlaps)
+                {
+                    return UpdateEventDetailsOutcome.OverlapsExistingLeg;
+                }
+            }
+        }
+
         @event.UpdateDetails(
             request.Description,
             request.Category,
@@ -32,6 +62,7 @@ internal sealed class UpdateEventDetailsHandler(IEventRepository repository, IEv
             request.OnSaleAt,
             request.BookingEndsAt,
             request.MaxTicketsPerBuyer,
+            request.RequiresQueue,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

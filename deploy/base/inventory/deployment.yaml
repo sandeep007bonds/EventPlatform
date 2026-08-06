@@ -48,6 +48,13 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: redis-connection-string
+            # Shared secret with the Queue service — verifies an admission token locally,
+            # with no call back to Queue at hold-placement time (ADR-0026).
+            - name: QueueAdmission__HmacKey
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: queue-admission-hmac-key
           readinessProbe:
             httpGet:
               path: /health/ready

@@ -3,10 +3,15 @@ namespace Inventory.Infrastructure;
 /// <summary>Registers the Inventory infrastructure layer with the DI container.</summary>
 public static class DependencyInjection
 {
+    // Dev-only fallback, mirrors Jwt:DevSigningKey/Identity:Otp:HmacKey's committed-plaintext
+    // posture. Must be the SAME literal value Queue's DependencyInjection.cs falls back to — this
+    // is a genuinely shared secret between the two services (see ADR-0026).
+    private const string DevQueueAdmissionHmacKey = "eventplatform-dev-queue-admission-hmac-key-not-a-secret";
+
     /// <summary>
     /// Adds the Inventory EF Core context (PostgreSQL), repository, the Catalog seat-map client,
-    /// and the transactional outbox. The connection string is read from the <c>inventory</c>
-    /// connection string.
+    /// the Queue admission-token validator, and the transactional outbox. The connection string is
+    /// read from the <c>inventory</c> connection string.
     /// </summary>
     /// <param name="services">The service collection.</param>
     /// <param name="configuration">The application configuration.</param>
@@ -29,6 +34,10 @@ public static class DependencyInjection
         services.AddScoped<IHoldStore, RedisHoldStore>();
         services.AddHostedService<ExpiredHoldReaper>();
         services.AddHostedService<InventoryReconciler>();
+
+        var queueAdmissionHmacKey = configuration["QueueAdmission:HmacKey"] ?? DevQueueAdmissionHmacKey;
+        services.AddSingleton<IQueueAdmissionTokenValidator>(
+            new HmacQueueAdmissionTokenValidator(Encoding.UTF8.GetBytes(queueAdmissionHmacKey)));
 
         services.AddOutbox<InventoryDbContext>();
 

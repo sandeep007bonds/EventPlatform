@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: queue
+  labels:
+    app.kubernetes.io/name: queue
+    app.kubernetes.io/part-of: eventplatform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: queue
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: queue
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "queue"
+        dapr.io/app-port: "8080"
+        dapr.io/app-protocol: "http"
+    spec:
+      containers:
+        - name: queue
+          image: queue-placeholder
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: eventplatform-config
+          env:
+            - name: ConnectionStrings__queue
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: queue-connection-string
+            # Direct StackExchange.Redis connection for the waiting-room hot path (RedisQueueStore)
+            # — bypasses Dapr entirely, same as Inventory's hold store. Reuses the same Redis
+            # instance under its own "queue:" key prefix, no separate instance needed.
+            - name: ConnectionStrings__redis
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: redis-connection-string
+            # Shared secret with Inventory — signs admission tokens Inventory verifies locally,
+            # with no call back to this service at hold-placement time (ADR-0026).
+            - name: QueueAdmission__HmacKey
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: queue-admission-hmac-key
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eventplatform-keyvault

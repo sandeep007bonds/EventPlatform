@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Queue.Api</RootNamespace>
+    <UserSecretsId>eventplatform-queue</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Queue.Application/Queue.Application.csproj" />
+    <ProjectReference Include="../Queue.Infrastructure/Queue.Infrastructure.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+  </ItemGroup>
+
+  <!-- Dapr.AspNetCore: Queue subscribes to Catalog's EventPublished (its only Dapr use — it makes
+       no outbound Dapr calls of its own, unlike Inventory/Ticketing). -->
+  <ItemGroup>
+    <PackageReference Include="Dapr.AspNetCore" />
+  </ItemGroup>
+
+</Project>

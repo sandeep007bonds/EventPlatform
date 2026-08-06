@@ -11,6 +11,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<TicketIssuingService>();
+        services.AddScoped<EventScanContextProvisioningService>();
 
         return services;
     }

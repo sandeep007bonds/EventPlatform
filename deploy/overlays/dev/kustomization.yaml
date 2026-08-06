@@ -48,6 +48,9 @@ images:
   - name: identity-placeholder
     newName: REPLACE_ME.azurecr.io/identity
     newTag: REPLACE_ME
+  - name: queue-placeholder
+    newName: REPLACE_ME.azurecr.io/queue
+    newTag: REPLACE_ME
   - name: gateway-placeholder
     newName: REPLACE_ME.azurecr.io/gateway
     newTag: REPLACE_ME

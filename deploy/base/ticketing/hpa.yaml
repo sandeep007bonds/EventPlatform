@@ -1,0 +1,24 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ticketing
+  labels:
+    app.kubernetes.io/name: ticketing
+    app.kubernetes.io/part-of: eventplatform
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ticketing
+  # Starting defaults — the real ceiling depends on a given venue's expected concurrent-turnstile
+  # count; tune per event. Pre-scale ahead of a known gate-open time rather than relying solely on
+  # reactive scaling (see services/ticketing/README.md).
+  minReplicas: 1
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

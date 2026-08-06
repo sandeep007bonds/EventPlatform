@@ -1,9 +1,13 @@
+global using System.Security.Claims;
+global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Hosting;
 global using Microsoft.EntityFrameworkCore;
+global using QRCoder;
 global using Ticketing.Api.Endpoints;
 global using Ticketing.Application;
 global using Ticketing.Application.Abstractions;
 global using Ticketing.Application.Issuing;
+global using Ticketing.Application.Provisioning;
 global using Ticketing.Domain;
 global using Ticketing.Infrastructure;

@@ -14,4 +14,7 @@ public enum DefineSeatMapOutcome
 
     /// <summary>A seat map already exists for the event.</summary>
     AlreadyDefined,
+
+    /// <summary>A section references an entry gate that doesn't exist for this event.</summary>
+    EntryGateNotFound,
 }

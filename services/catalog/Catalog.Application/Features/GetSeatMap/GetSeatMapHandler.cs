@@ -23,12 +23,12 @@ internal sealed class GetSeatMapHandler(IEventRepository eventRepository, ISeatM
 
         var seats = seatMap.Seats
             .OrderBy(s => s.Id)
-            .Select(s => new SeatResponse(s.Id, s.Section, s.PriceTier, s.PriceAmount, s.Row, s.Number, s.Label))
+            .Select(s => new SeatResponse(s.Id, s.Section, s.PriceTier, s.PriceAmount, s.Row, s.Number, s.Label, s.EntryGateId))
             .ToList();
 
         var gaSections = seatMap.GeneralAdmissionSections
             .OrderBy(s => s.Id)
-            .Select(s => new GeneralAdmissionSectionResponse(s.Id, s.SectionName, s.PriceTier, s.PriceAmount, s.Capacity))
+            .Select(s => new GeneralAdmissionSectionResponse(s.Id, s.SectionName, s.PriceTier, s.PriceAmount, s.Capacity, s.EntryGateId))
             .ToList();
 
         return new SeatMapResponse(seatMap.EventId, seatMap.Name, seatMap.Capacity, seats, gaSections);

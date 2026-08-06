@@ -13,6 +13,8 @@
 
   <ItemGroup>
     <PackageReference Include="Dapr.AspNetCore" />
+    <!-- Renders a ticket's scan token as a real QR image, on demand (GET /v1/tickets/{id}/qrcode). -->
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 
 </Project>

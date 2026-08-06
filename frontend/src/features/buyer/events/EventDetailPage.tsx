@@ -112,6 +112,10 @@ export function EventDetailPage() {
       toast.error('Tickets are not on sale yet for this event.');
       return;
     }
+    if (event?.requiresQueue) {
+      void navigate(`/events/${id}/queue`);
+      return;
+    }
     void navigate(`/events/${id}/seats`);
   };
 

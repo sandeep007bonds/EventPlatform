@@ -27,6 +27,7 @@ export interface EventResponse {
   onSaleAt: string | null;
   bookingEndsAt: string | null;
   maxTicketsPerBuyer: number | null;
+  requiresQueue: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
@@ -55,6 +56,7 @@ export interface UpdateEventDetailsRequest {
   onSaleAt?: string | null;
   bookingEndsAt?: string | null;
   maxTicketsPerBuyer?: number | null;
+  requiresQueue?: boolean;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -120,6 +122,7 @@ export interface SeatResponse {
   row: string;
   number: number;
   label: string;
+  entryGateId: string | null;
 }
 
 /** A general-admission (capacity-only, no individual seats) section of a seat map. */
@@ -129,6 +132,7 @@ export interface GeneralAdmissionSectionResponse {
   priceTier: string;
   priceAmount: number;
   capacity: number;
+  entryGateId: string | null;
 }
 
 /** Read model for an event's seat map — reserved seats and/or general-admission sections. */
@@ -186,6 +190,7 @@ export interface CreateEventRequest {
   longitude?: number | null;
   eventGroupId?: string | null;
   maxTicketsPerBuyer?: number | null;
+  requiresQueue?: boolean;
 }
 
 /** Creates a new draft event for the caller's tenant. */
@@ -209,6 +214,14 @@ export interface SeatMapSectionInput {
   rows?: number;
   seatsPerRow?: number;
   capacity?: number;
+  entryGateId?: string | null;
+}
+
+/** A named physical entry point at an event's location. */
+export interface EntryGateResponse {
+  id: string;
+  eventId: string;
+  name: string;
 }
 
 /** Defines the seat map for a draft event (one time only). */
@@ -265,4 +278,21 @@ export async function updateEventGroup(
   request: UpdateEventGroupRequest,
 ): Promise<void> {
   await httpClient.put(`/api/catalog/v1/event-groups/${id}`, request);
+}
+
+/** Lists every entry gate defined for an event. Public — no login required. */
+export async function listEntryGates(eventId: string): Promise<EntryGateResponse[]> {
+  const response = await httpClient.get<EntryGateResponse[]>(
+    `/api/catalog/v1/events/${eventId}/entry-gates`,
+  );
+  return response.data;
+}
+
+/** Defines a new entry gate for an event. */
+export async function createEntryGate(eventId: string, name: string): Promise<{ id: string }> {
+  const response = await httpClient.post<{ id: string }>(
+    `/api/catalog/v1/events/${eventId}/entry-gates`,
+    { name },
+  );
+  return response.data;
 }

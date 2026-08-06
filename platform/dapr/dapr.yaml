@@ -77,3 +77,12 @@ apps:
     env:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://localhost:5087
+
+  - appID: queue
+    appDirPath: ../../services/queue/Queue.Api
+    appProtocol: http
+    appPort: 5088
+    command: ["dotnet", "run", "--no-launch-profile"]
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://localhost:5088

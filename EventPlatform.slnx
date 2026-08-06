@@ -61,4 +61,11 @@
     <Project Path="services/identity/Identity.Api/Identity.Api.csproj" />
     <Project Path="services/identity/tests/Identity.Tests/Identity.Tests.csproj" />
   </Folder>
+  <Folder Name="/services/queue/">
+    <Project Path="services/queue/Queue.Domain/Queue.Domain.csproj" />
+    <Project Path="services/queue/Queue.Application/Queue.Application.csproj" />
+    <Project Path="services/queue/Queue.Infrastructure/Queue.Infrastructure.csproj" />
+    <Project Path="services/queue/Queue.Api/Queue.Api.csproj" />
+    <Project Path="services/queue/tests/Queue.Tests/Queue.Tests.csproj" />
+  </Folder>
 </Solution>

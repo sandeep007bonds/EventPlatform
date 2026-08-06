@@ -82,6 +82,11 @@
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.29.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Ticketing (QR code generation)">
+    <!-- MIT-licensed, pure-managed, no native/WASM dependency. -->
+    <PackageVersion Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+
   <ItemGroup Label="Application (in-process mediator)">
     <!-- Pinned to the last Apache/OSS release; do NOT bump to 13.x (commercial). See ADR-0014. -->
     <PackageVersion Include="MediatR" Version="12.5.0" />
