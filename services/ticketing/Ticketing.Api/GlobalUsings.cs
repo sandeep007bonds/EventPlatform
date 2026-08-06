@@ -9,5 +9,6 @@ global using Ticketing.Application;
 global using Ticketing.Application.Abstractions;
 global using Ticketing.Application.Issuing;
 global using Ticketing.Application.Provisioning;
+global using Ticketing.Application.Voiding;
 global using Ticketing.Domain;
 global using Ticketing.Infrastructure;

@@ -13,6 +13,7 @@ public static class OrderingEndpoints
         app.MapPost("/v1/checkout", CheckoutAsync).WithName("Checkout").WithTags("Checkout");
         app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders");
         app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
+        app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders");
 
         return app;
     }
@@ -166,6 +167,54 @@ public static class OrderingEndpoints
             lines);
 
         return Results.Ok(response);
+    }
+
+    private static async Task<IResult> CancelOrderAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        DaprWorkflowClient workflowClient,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var instanceId = Guid.CreateVersion7().ToString("N");
+        await workflowClient.ScheduleNewWorkflowAsync(
+            nameof(CancelOrderWorkflow),
+            instanceId,
+            new CancelOrderWorkflowInput(id, userId.Value));
+
+        var state = await workflowClient.WaitForWorkflowCompletionAsync(
+            instanceId,
+            getInputsAndOutputs: true,
+            cancellationToken);
+
+        return MapCancelOutcome(state.ReadOutputAs<CancelOrderWorkflowResult>());
+    }
+
+    private static IResult MapCancelOutcome(CancelOrderWorkflowResult? result)
+    {
+        if (result is null || !Enum.TryParse<CancelOrderOutcome>(result.Outcome, out var outcome))
+        {
+            return Results.Problem("Unexpected cancel outcome.");
+        }
+
+        return outcome switch
+        {
+            CancelOrderOutcome.Cancelled => Results.NoContent(),
+            CancelOrderOutcome.OrderNotFound => Results.NotFound(new { message = "The order does not exist." }),
+            CancelOrderOutcome.Forbidden => Results.Forbid(),
+            CancelOrderOutcome.NotConfirmed =>
+                Results.Conflict(new { message = "Only a confirmed order can be cancelled.", orderId = result.OrderId }),
+            CancelOrderOutcome.TicketAlreadyCheckedIn =>
+                Results.Conflict(new { message = "One or more tickets for this order have already been checked in.", orderId = result.OrderId }),
+            CancelOrderOutcome.Failed =>
+                Results.Conflict(new { message = "The order could not be cancelled.", orderId = result.OrderId }),
+            _ => Results.Problem("Unexpected cancel outcome."),
+        };
     }
 
     private static Guid? GetUserId(ClaimsPrincipal principal)

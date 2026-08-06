@@ -54,6 +54,10 @@ public static class InventoryEndpoints
         holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").ExcludeFromDescription();
         holds.MapPost("/{holdId:guid}/release", SystemReleaseHoldAsync).WithName("SystemReleaseHold").ExcludeFromDescription();
 
+        // Internal (Ordering's cancellation saga, via Dapr service invocation): release a converted
+        // hold's sold seats/quantities back to available.
+        holds.MapPost("/{holdId:guid}/cancel", CancelSoldAsync).WithName("CancelSold").ExcludeFromDescription();
+
         return app;
     }
 
@@ -91,6 +95,25 @@ public static class InventoryEndpoints
             ConvertHoldOutcome.Conflict =>
                 Results.Conflict(new { message = "The hold could not be converted due to a concurrent change." }),
             _ => Results.Problem("Unexpected convert outcome."),
+        };
+    }
+
+    private static async Task<IResult> CancelSoldAsync(
+        Guid holdId,
+        CancelSoldRequest request,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await holds.CancelSoldAsync(holdId, request.OrderId, cancellationToken);
+        return outcome switch
+        {
+            CancelSoldOutcome.Cancelled => Results.NoContent(),
+            CancelSoldOutcome.NotFound => Results.NotFound(),
+            CancelSoldOutcome.NotConverted =>
+                Results.Conflict(new { message = "The hold was not sold for this order." }),
+            CancelSoldOutcome.Conflict =>
+                Results.Conflict(new { message = "The hold could not be cancelled due to a concurrent change." }),
+            _ => Results.Problem("Unexpected cancel outcome."),
         };
     }
 

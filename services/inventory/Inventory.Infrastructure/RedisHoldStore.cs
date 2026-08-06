@@ -108,6 +108,28 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         return 'OK'
         """;
 
+    // KEYS = seat keys. Unlike ReleaseScript, there's no holdId to match against — a sold marker
+    // ('S') carries none — so this clears the key outright for any seat currently marked sold.
+    private const string ReleaseSoldScript = """
+        for i = 1, #KEYS do
+          if redis.call('GET', KEYS[i]) == 'S' then
+            redis.call('DEL', KEYS[i])
+          end
+        end
+        return 'OK'
+        """;
+
+    // KEYS = capacity keys (one per allocation); ARGV[1..]=quantities aligned to KEYS. Mirrors
+    // ReleaseGeneralAdmissionScript's INCRBY loop, minus the hold-bookkeeping-hash delete —
+    // MarkGeneralAdmissionSoldScript already deleted that hash, so there's nothing left to clear.
+    private const string ReleaseSoldGeneralAdmissionScript = """
+        for i = 1, #KEYS do
+          local qty = tonumber(ARGV[i])
+          redis.call('INCRBY', KEYS[i], qty)
+        end
+        return 'OK'
+        """;
+
     /// <inheritdoc />
     public async Task<HoldStoreResult> TryHoldAsync(
         Guid eventId,
@@ -164,6 +186,14 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         cancellationToken.ThrowIfCancellationRequested();
 
         await redis.GetDatabase().ScriptEvaluateAsync(MarkSoldScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+    }
+
+    /// <inheritdoc />
+    public async Task ReleaseSoldAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseSoldScript, HoldKeys(eventId, seatIds), Array.Empty<RedisValue>());
     }
 
     /// <inheritdoc />
@@ -320,6 +350,22 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
         var values = new RedisValue[] { GaHoldItemsKey(eventId, holdId) };
         await redis.GetDatabase().ScriptEvaluateAsync(MarkGeneralAdmissionSoldScript, Array.Empty<RedisKey>(), values);
+    }
+
+    /// <inheritdoc />
+    public async Task ReleaseSoldGeneralAdmissionAsync(
+        Guid eventId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var keys = selections
+            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .ToArray();
+        var values = selections.Select(selection => (RedisValue)selection.Quantity).ToArray();
+
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseSoldGeneralAdmissionScript, keys, values);
     }
 
     private static RedisKey[] HoldKeys(Guid eventId, IReadOnlyList<Guid> seatIds) =>

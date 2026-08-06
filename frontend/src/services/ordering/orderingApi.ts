@@ -67,6 +67,14 @@ export async function getOrder(id: string): Promise<OrderResponse> {
   return response.data;
 }
 
+/**
+ * Cancels a confirmed order: voids its tickets, releases the inventory, and refunds the payment.
+ * Only a `Confirmed` order with no already-checked-in tickets can be cancelled.
+ */
+export async function cancelOrder(id: string): Promise<void> {
+  await httpClient.post(`/api/ordering/v1/orders/${id}/cancel`);
+}
+
 /** Lists the caller's own orders (buyer). */
 export async function listMyOrders(params: {
   page?: number;

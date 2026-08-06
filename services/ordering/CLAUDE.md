@@ -16,7 +16,8 @@ is named `Ordering` so the type never clashes with its namespace.
   `BuyerEmail` — a plain checkout-time field for ticket delivery, not derived
   from any token claim, see ADR-0021), `GET /v1/orders`
   (`?mine=true` — buyer's own; `?forTenant=true` — organizer's tenant; exactly
-  one is required), `GET /v1/orders/{id}`
+  one is required), `GET /v1/orders/{id}`, `POST /v1/orders/{id}/cancel`
+  (buyer-initiated cancellation + refund)
 - **Events published:** `OrderConfirmed` (via outbox)
 - **Events consumed:** — (calls Inventory + Payment synchronously in the saga)
 
@@ -52,8 +53,21 @@ is named `Ordering` so the type never clashes with its namespace.
   schedules the workflow and awaits its completion. Tenant is sourced from the
   fetched hold (`hold.TenantId`, step 1 of the saga), not from
   `CheckoutWorkflowInput` — that record has no `TenantId` field (ADR-0022).
-- **Cross-service calls** go through ports: `IHoldClient` (Inventory) and
-  `IPaymentClient` (Payments), both via Dapr service invocation.
+- **Cross-service calls** go through ports: `IHoldClient` (Inventory),
+  `IPaymentClient` (Payments), and `ITicketClient` (Ticketing), all via Dapr
+  service invocation.
+- **Cancellation saga:** `POST /v1/orders/{id}/cancel` runs `CancelOrderWorkflow`
+  (`Ordering.Workflow`), the buyer-initiated counterpart to `CheckoutWorkflow` —
+  void tickets → release sold inventory → refund → mark the order refunded.
+  Deliberately the *reverse* step order of `CheckoutWorkflow`'s own compensation
+  (which refunds before releasing the hold): that path unwinds a checkout that
+  never completed, this one unwinds a fully completed sale, so the product
+  (tickets/seats) is taken back before the money is returned. Each activity is
+  individually idempotent (gated on the underlying aggregate's own status —
+  `Order.Status`, `Hold.Status`, `Ticket.Status`), so a crash mid-flight resumes
+  safely on replay. `RefundActivity`/`IPaymentClient.RefundAsync` are the exact
+  same ones `CheckoutWorkflow`'s compensation path already used — reused as-is,
+  no changes to Payments needed.
 
 ## Structure
 

@@ -14,7 +14,9 @@ servers; only PSP references are stored.
 
 - **Data store:** PostgreSQL `payments` DB (this service only)
 - **Public API:** internal `POST /v1/payments/charge`, `POST /v1/payments/refund`
-  (called by the checkout saga via Dapr service invocation); public
+  (called by the checkout saga's compensation path *and* by Ordering's
+  buyer-initiated `CancelOrderWorkflow` — same endpoint, same `RefundActivity`,
+  no Payments-side changes needed for cancellation to reuse it); public
   `POST /v1/payments/webhooks/stripe` (Stripe provider callback, signature-verified)
 - **Events published:** `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded`
 - **Events consumed:** —

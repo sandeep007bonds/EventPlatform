@@ -115,6 +115,18 @@ public sealed class Hold
         Status = HoldStatus.Released;
     }
 
+    /// <summary>Marks a converted (sold) hold cancelled — a buyer-initiated cancellation/refund.</summary>
+    /// <exception cref="InvalidOperationException">The hold is not converted.</exception>
+    public void MarkCancelled()
+    {
+        if (Status != HoldStatus.Converted)
+        {
+            throw new InvalidOperationException($"Hold {Id} is {Status}, not Converted.");
+        }
+
+        Status = HoldStatus.Cancelled;
+    }
+
     private void RequireActive()
     {
         if (Status != HoldStatus.Active)

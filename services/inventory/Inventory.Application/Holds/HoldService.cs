@@ -363,6 +363,97 @@ public sealed class HoldService(
     }
 
     /// <summary>
+    /// Releases a converted hold's sold seats/quantities back to available — a buyer-initiated
+    /// cancellation/refund, the reverse of <see cref="ConvertToSoldAsync"/>. Idempotent: gated on
+    /// the hold's own status flipping to <see cref="HoldStatus.Cancelled"/>, so a retried/replayed
+    /// call (this runs as an activity inside Ordering's cancellation workflow) short-circuits before
+    /// touching inventory again, the same single-gate idempotency <see cref="ConvertToSoldAsync"/>
+    /// already relies on via <see cref="HoldStatus.Converted"/>.
+    /// </summary>
+    /// <param name="holdId">The hold to release.</param>
+    /// <param name="orderId">The order the hold was converted for (defensive ownership check).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The cancel-sold result.</returns>
+    public async Task<CancelSoldOutcome> CancelSoldAsync(
+        Guid holdId,
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null)
+        {
+            return CancelSoldOutcome.NotFound;
+        }
+
+        if (hold.Status == HoldStatus.Cancelled)
+        {
+            return hold.OrderId == orderId ? CancelSoldOutcome.Cancelled : CancelSoldOutcome.NotConverted;
+        }
+
+        if (hold.Status != HoldStatus.Converted || hold.OrderId != orderId)
+        {
+            return CancelSoldOutcome.NotConverted;
+        }
+
+        var itemIds = hold.Items.Select(item => item.InventoryItemId).ToList();
+        var items = await inventory.GetItemsByIdsAsync(itemIds, cancellationToken);
+
+        var allocationIds = hold.GeneralAdmissionItems.Select(item => item.GeneralAdmissionAllocationId).ToList();
+        var allocations = await inventory.GetGeneralAdmissionAllocationsByIdsAsync(allocationIds, cancellationToken);
+        var allocationsById = allocations.ToDictionary(allocation => allocation.Id);
+
+        var ledger = new List<LedgerEntry>();
+        var releasedSeatIds = new List<Guid>();
+        foreach (var item in items.Where(item => item.Status == InventoryStatus.Sold))
+        {
+            item.ReleaseSold();
+            ledger.Add(LedgerEntry.Record(item.Id, InventoryStatus.Sold, InventoryStatus.Available, "cancelled", orderId));
+            releasedSeatIds.Add(item.SeatId);
+        }
+
+        var releasedGaSelections = new List<(Guid AllocationId, int Quantity)>();
+        foreach (var gaItem in hold.GeneralAdmissionItems)
+        {
+            var allocation = allocationsById[gaItem.GeneralAdmissionAllocationId];
+            allocation.ReleaseSold(gaItem.Quantity);
+            ledger.Add(LedgerEntry.RecordGeneralAdmission(
+                allocation.Id, gaItem.Quantity, InventoryStatus.Sold, InventoryStatus.Available, "cancelled", orderId));
+            releasedGaSelections.Add((allocation.Id, gaItem.Quantity));
+        }
+
+        hold.MarkCancelled();
+        inventory.AddLedgerEntries(ledger);
+
+        if (releasedSeatIds.Count > 0)
+        {
+            events.Enqueue(new SeatReleased(
+                Guid.CreateVersion7(),
+                DateTimeOffset.UtcNow,
+                hold.TenantId,
+                hold.Id,
+                hold.EventId,
+                releasedSeatIds));
+        }
+
+        if (!await inventory.TrySaveChangesAsync(cancellationToken))
+        {
+            return CancelSoldOutcome.Conflict;
+        }
+
+        if (releasedSeatIds.Count > 0)
+        {
+            await holdStore.ReleaseSoldAsync(hold.EventId, releasedSeatIds, cancellationToken);
+        }
+
+        if (releasedGaSelections.Count > 0)
+        {
+            await holdStore.ReleaseSoldGeneralAdmissionAsync(hold.EventId, releasedGaSelections, cancellationToken);
+        }
+
+        return CancelSoldOutcome.Cancelled;
+    }
+
+    /// <summary>
     /// Reclaims an expired hold (called by the reaper). Releases its seats/quantities regardless of
     /// owner; a no-op if the hold is already gone or no longer active.
     /// </summary>

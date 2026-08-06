@@ -71,4 +71,17 @@ internal sealed class DaprHoldClient : IHoldClient
 
         return response.IsSuccessStatusCode;
     }
+
+    /// <inheritdoc />
+    public async Task<bool> CancelSoldAsync(Guid holdId, Guid orderId, CancellationToken cancellationToken)
+    {
+        using var http = DaprClient.CreateInvokeHttpClient(InventoryAppId);
+        using var response = await http.PostAsJsonAsync(
+            $"v1/holds/{holdId}/cancel",
+            new { orderId },
+            JsonOptions,
+            cancellationToken);
+
+        return response.IsSuccessStatusCode;
+    }
 }

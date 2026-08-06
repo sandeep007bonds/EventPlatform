@@ -9,6 +9,9 @@ public enum HoldStatus
     /// <summary>Converted to a sale (checkout completed).</summary>
     Converted,
 
-    /// <summary>Released — expired by the reaper or cancelled by the buyer.</summary>
+    /// <summary>Released — expired by the reaper or cancelled by the buyer before checkout.</summary>
     Released,
+
+    /// <summary>A converted (sold) hold whose sale was later cancelled/refunded.</summary>
+    Cancelled,
 }

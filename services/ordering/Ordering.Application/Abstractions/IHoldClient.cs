@@ -24,4 +24,14 @@ public interface IHoldClient
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true"/> if the hold was released.</returns>
     Task<bool> ReleaseAsync(Guid holdId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Releases a converted hold's sold seats/quantities back to available — a buyer-initiated
+    /// cancellation/refund, the reverse of <see cref="ConvertAsync"/>.
+    /// </summary>
+    /// <param name="holdId">The hold id.</param>
+    /// <param name="orderId">The order the hold was converted for.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the hold's sold inventory was released.</returns>
+    Task<bool> CancelSoldAsync(Guid holdId, Guid orderId, CancellationToken cancellationToken);
 }

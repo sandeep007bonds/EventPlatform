@@ -23,7 +23,10 @@ clashes with its namespace.
   deliberately — a wrong-event scan shouldn't reveal the token is valid
   elsewhere); 409 outside the event's check-in window, presented at the
   wrong gate, or already-checked-in/void; otherwise calls `Ticket.CheckIn()`
-  (see ADR-0024) — every check is a purely local read, see below (ADR-0025)
+  (see ADR-0024) — every check is a purely local read, see below (ADR-0025);
+  internal (saga-only, not gateway-routed)
+  `POST /v1/orders/{orderId}/tickets/void` — voids every ticket for an order,
+  called by Ordering's cancellation saga
 - **Events published:** `TicketIssued` (via outbox, one per ticket — unchanged),
   `OrderTicketsIssued` (via outbox, one per order, enqueued once all of the
   order's tickets are minted — see ADR-0021)
@@ -42,6 +45,12 @@ clashes with its namespace.
   is ticketed (unique index on `(order_id, seat_id)` + a pre-check — Postgres
   treats each `NULL seat_id` as distinct, so multiple general-admission tickets
   per order don't collide on that index).
+- **`TicketVoidingService.VoidByOrderAsync`** (buyer-initiated cancellation,
+  called by Ordering's cancellation saga): all-or-nothing across an order's
+  tickets, mirroring `SeatBlockingService`'s "all-or-nothing across the
+  requested seats" precedent — any ticket already `CheckedIn` blocks voiding
+  the whole order (a buyer can't cancel out from under a ticket they already
+  used), never a partial void.
 - **Scan token:** a 128-bit CSPRNG token (`RandomNumberGenerator`), unique per
   ticket. The QR encodes the token; the gate scans it. See tracker T-ticket-token
   for signing/rotation before production. `Ticket.CheckedInAt` (nullable,

@@ -22,6 +22,12 @@ public interface ITicketRepository
     /// <returns>The order's tickets.</returns>
     Task<IReadOnlyList<Ticket>> GetByOrderAsync(Guid orderId, CancellationToken cancellationToken);
 
+    /// <summary>Gets the tickets for an order, tracked — for voiding on cancellation/refund.</summary>
+    /// <param name="orderId">The order id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The order's tickets (tracked).</returns>
+    Task<IReadOnlyList<Ticket>> GetTrackedByOrderAsync(Guid orderId, CancellationToken cancellationToken);
+
     /// <summary>Gets a ticket by id, or <see langword="null"/>.</summary>
     /// <param name="id">The ticket id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
