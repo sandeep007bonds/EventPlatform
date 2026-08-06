@@ -315,7 +315,11 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
 
       <Card styles={{ body: { padding: '16px 20px' } }}>
         <Space align="center" wrap style={{ width: '100%', justifyContent: 'space-between' }}>
-          <Typography.Text type="secondary">{selected.size} seat(s) selected</Typography.Text>
+          <Typography.Text type="secondary">
+            {selected.size === 0
+              ? 'Click seats above to block or unblock them'
+              : `${selected.size} seat(s) selected`}
+          </Typography.Text>
           <Space>
             <Input
               placeholder="Reason (optional)"

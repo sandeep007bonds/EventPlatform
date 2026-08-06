@@ -19,6 +19,8 @@ public static class CatalogEndpoints
         group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
         group.MapPost("/{id:guid}/seatmap/sections", AddSeatMapSectionsAsync).WithName("AddSeatMapSections");
+        group.MapPut("/{id:guid}/seatmap/sections", UpdateSeatMapSectionAsync).WithName("UpdateSeatMapSection");
+        group.MapDelete("/{id:guid}/seatmap/sections/{sectionName}", RemoveSeatMapSectionAsync).WithName("RemoveSeatMapSection");
         group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails");
 
         return app;
@@ -185,6 +187,79 @@ public static class CatalogEndpoints
                 Results.Conflict(new { message = "A section with that name already exists in this seat map." }),
             AddSeatMapSectionsOutcome.EntryGateNotFound =>
                 Results.BadRequest(new { message = "One or more sections reference an entry gate that doesn't exist for this event." }),
+            _ => Results.Problem("Unexpected seat-map outcome."),
+        };
+    }
+
+    private static async Task<IResult> UpdateSeatMapSectionAsync(
+        Guid id,
+        UpdateSeatMapSectionRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var section = new SeatMapSectionInput(
+            request.Section.Name,
+            request.Section.PriceTier,
+            request.Section.PriceAmount,
+            request.Section.AllocationType,
+            request.Section.Rows,
+            request.Section.SeatsPerRow,
+            request.Section.Capacity,
+            request.Section.EntryGateId);
+
+        var command = new UpdateSeatMapSectionCommand(id, tenant.TenantId.Value, request.CurrentSectionName, section);
+        var result = await sender.Send(command, cancellationToken);
+
+        return result.Outcome switch
+        {
+            UpdateSeatMapSectionOutcome.Updated =>
+                Results.Ok(new { seatMapId = result.SeatMapId }),
+            UpdateSeatMapSectionOutcome.EventNotFound => Results.NotFound(),
+            UpdateSeatMapSectionOutcome.SeatMapNotFound =>
+                Results.NotFound(new { message = "This event has no seat map yet." }),
+            UpdateSeatMapSectionOutcome.SectionNotFound =>
+                Results.NotFound(new { message = "No section with that name exists in this seat map." }),
+            UpdateSeatMapSectionOutcome.EventNotDraft =>
+                Results.Conflict(new { message = "The event is not a draft; its seat map can no longer be changed." }),
+            UpdateSeatMapSectionOutcome.DuplicateSectionName =>
+                Results.Conflict(new { message = "A different section with that name already exists in this seat map." }),
+            UpdateSeatMapSectionOutcome.EntryGateNotFound =>
+                Results.BadRequest(new { message = "The section references an entry gate that doesn't exist for this event." }),
+            _ => Results.Problem("Unexpected seat-map outcome."),
+        };
+    }
+
+    private static async Task<IResult> RemoveSeatMapSectionAsync(
+        Guid id,
+        string sectionName,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var command = new RemoveSeatMapSectionCommand(id, tenant.TenantId.Value, sectionName);
+        var result = await sender.Send(command, cancellationToken);
+
+        return result.Outcome switch
+        {
+            RemoveSeatMapSectionOutcome.Removed => Results.NoContent(),
+            RemoveSeatMapSectionOutcome.EventNotFound => Results.NotFound(),
+            RemoveSeatMapSectionOutcome.SeatMapNotFound =>
+                Results.NotFound(new { message = "This event has no seat map yet." }),
+            RemoveSeatMapSectionOutcome.SectionNotFound =>
+                Results.NotFound(new { message = "No section with that name exists in this seat map." }),
+            RemoveSeatMapSectionOutcome.EventNotDraft =>
+                Results.Conflict(new { message = "The event is not a draft; its seat map can no longer be changed." }),
             _ => Results.Problem("Unexpected seat-map outcome."),
         };
     }

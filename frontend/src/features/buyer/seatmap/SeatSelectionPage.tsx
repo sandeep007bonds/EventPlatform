@@ -463,7 +463,7 @@ export function SeatSelectionPage() {
         onCancel={() => setOtpModalOpen(false)}
         footer={null}
         title="Log in to hold your seats"
-        destroyOnClose
+        maskClosable={false}
       >
         <OtpLoginFlow
           onVerified={() => {

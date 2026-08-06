@@ -13,6 +13,8 @@ context: **Catalog** (ADR-0008).
 
 - **Data store:** PostgreSQL `catalog` DB (this service only)
 - **Public API:** REST `/v1/events`, `/v1/events/{id}/seatmap`,
+  `/v1/events/{id}/seatmap/sections` (`POST` add, `PUT` replace-one-by-name),
+  `/v1/events/{id}/seatmap/sections/{sectionName}` (`DELETE`),
   `/v1/events/{id}/details`, `/v1/event-groups`, `/v1/events/{id}/entry-gates`.
   `GET /v1/events` (list) and
   `GET /v1/events/{id}` and `/seatmap` are `.AllowAnonymous()` —
@@ -75,7 +77,18 @@ context: **Catalog** (ADR-0008).
   map, not just the ones in the request), just loaded via
   `ISeatMapRepository.GetTrackedByEventIdAsync` (change-tracked, unlike the
   `AsNoTracking()` `GetByEventIdAsync` every read path uses) so the new
-  sections are picked up by `SaveChangesAsync`.
+  sections are picked up by `SaveChangesAsync`. `PUT .../sections`
+  (`UpdateSeatMapSection`) and `DELETE .../sections/{sectionName}`
+  (`RemoveSeatMapSection`) round out full Draft-only editing —
+  `SeatMap.RemoveSection` deletes every seat/GA-section row matching a name
+  (EF orphan-delete on the tracked collection, no explicit `Remove()` call
+  needed); "edit" is implemented as remove-then-`AddReservedSection`/
+  `AddGeneralAdmissionSection` rather than a true in-place update, since a
+  section's rows/capacity can only be expressed by regenerating its
+  seats/pool anyway — freeing the name first means the existing
+  duplicate-name check needs no special-casing for a same-name (no rename)
+  edit. Safe only pre-publish, since nothing outside Catalog references a
+  seat/section id before Inventory provisions from it.
 - **Entry gates.** `EntryGate` (`Id`, `EventId`, `Name`) — an organizer defines
   named physical entry points for an event's location, then restricts a
   seat-map section to one at `DefineSeatMap` time (`Seat.EntryGateId`/

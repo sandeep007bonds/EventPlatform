@@ -248,6 +248,25 @@ export async function addSeatMapSections(
   return response.data;
 }
 
+/** Replaces one existing section of a draft event's seat map (Draft-only) — a full remove+re-add. */
+export async function updateSeatMapSection(
+  eventId: string,
+  request: { currentSectionName: string; section: SeatMapSectionInput },
+): Promise<{ seatMapId: string }> {
+  const response = await httpClient.put<{ seatMapId: string }>(
+    `/api/catalog/v1/events/${eventId}/seatmap/sections`,
+    request,
+  );
+  return response.data;
+}
+
+/** Removes one section from a draft event's existing seat map entirely (Draft-only). */
+export async function removeSeatMapSection(eventId: string, sectionName: string): Promise<void> {
+  await httpClient.delete(
+    `/api/catalog/v1/events/${eventId}/seatmap/sections/${encodeURIComponent(sectionName)}`,
+  );
+}
+
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);

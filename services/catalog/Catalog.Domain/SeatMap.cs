@@ -125,6 +125,29 @@ public sealed class SeatMap
         _generalAdmissionSections.Add(new GeneralAdmissionSection(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, capacity, entryGateId));
     }
 
+    /// <summary>
+    /// Removes a section (reserved or general-admission) by name — safe only while the event is
+    /// still a draft, before Inventory has provisioned anything from this map (the caller enforces
+    /// that; this method has no event-status awareness of its own). Editing a section is the
+    /// caller's remove-then-<see cref="AddReservedSection"/>/<see cref="AddGeneralAdmissionSection"/>
+    /// pair, not a separate in-place update — this regenerates fresh seat/section ids, which is
+    /// harmless pre-publish since nothing outside Catalog references them yet.
+    /// </summary>
+    /// <param name="section">The section name to remove.</param>
+    /// <exception cref="InvalidOperationException">No section with that name exists.</exception>
+    public void RemoveSection(string section)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(section);
+
+        var removedSeats = _seats.RemoveAll(s => string.Equals(s.Section, section, StringComparison.OrdinalIgnoreCase));
+        var removedGa = _generalAdmissionSections.RemoveAll(s => string.Equals(s.SectionName, section, StringComparison.OrdinalIgnoreCase));
+
+        if (removedSeats == 0 && removedGa == 0)
+        {
+            throw new InvalidOperationException($"No section named '{section}' exists in this seat map.");
+        }
+    }
+
     // Spreadsheet-column style labels: A..Z, then AA..AZ, BA.. (supports up to 702 rows).
     private static string BuildRowLabel(int index)
     {

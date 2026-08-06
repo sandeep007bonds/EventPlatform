@@ -12,6 +12,12 @@ export interface SeatMapSectionsFieldsProps {
    * Omit (or leave empty) when defining a brand-new map, where every name is necessarily new.
    */
   existingSectionNames?: string[];
+  /**
+   * Whether the "Add section"/remove-this-section affordances render — `false` locks the list to
+   * exactly the sections already in `initialValues` (used when editing a single existing section,
+   * where growing/shrinking the list makes no sense). Defaults to `true`.
+   */
+  allowAddRemove?: boolean;
 }
 
 /**
@@ -22,6 +28,7 @@ export interface SeatMapSectionsFieldsProps {
 export function SeatMapSectionsFields({
   entryGates,
   existingSectionNames = [],
+  allowAddRemove = true,
 }: SeatMapSectionsFieldsProps) {
   return (
     <Form.List name="sections">
@@ -34,6 +41,7 @@ export function SeatMapSectionsFields({
               title={`Section ${index + 1}`}
               style={{ marginBottom: 16 }}
               extra={
+                allowAddRemove &&
                 fields.length > 1 && <MinusCircleOutlined onClick={() => remove(field.name)} />
               }
             >
@@ -164,15 +172,17 @@ export function SeatMapSectionsFields({
               </Row>
             </Card>
           ))}
-          <Button
-            type="dashed"
-            block
-            onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
-            icon={<PlusOutlined />}
-            style={{ marginBottom: 16 }}
-          >
-            Add section
-          </Button>
+          {allowAddRemove && (
+            <Button
+              type="dashed"
+              block
+              onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
+              icon={<PlusOutlined />}
+              style={{ marginBottom: 16 }}
+            >
+              Add section
+            </Button>
+          )}
         </>
       )}
     </Form.List>
