@@ -2,6 +2,7 @@ import { App as AntApp, ConfigProvider } from 'antd';
 import { BrowserRouter } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ToastHolder } from './components/common/feedback/ToastHolder';
+import { TopProgressBar } from './components/common/feedback/TopProgressBar';
 import { RouteErrorBoundary } from './components/common/errors/RouteErrorBoundary';
 import { AppRouter } from './router/AppRouter';
 
@@ -14,6 +15,7 @@ export function App() {
     <ConfigProvider>
       <AntApp>
         <ToastHolder />
+        <TopProgressBar />
         <BrowserRouter>
           <AuthProvider>
             <RouteErrorBoundary>

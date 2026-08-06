@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import { toast } from '../../components/common/feedback/toast';
+import { beginRequest, endRequest } from './requestActivity';
 import { clearSession, getSession, SESSION_EXPIRED_EVENT } from './tokenStore';
 
 // The frontend only ever talks to the gateway (BFF) — never a backend service
@@ -9,6 +10,8 @@ const baseURL = import.meta.env.VITE_GATEWAY_BASE_URL;
 export const httpClient = axios.create({ baseURL });
 
 httpClient.interceptors.request.use((config) => {
+  beginRequest();
+
   const session = getSession();
   if (session) {
     config.headers.set('Authorization', `Bearer ${session.accessToken}`);
@@ -18,8 +21,13 @@ httpClient.interceptors.request.use((config) => {
 });
 
 httpClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    endRequest();
+    return response;
+  },
   (error: AxiosError) => {
+    endRequest();
+
     const status = error.response?.status;
 
     if (status === 401) {

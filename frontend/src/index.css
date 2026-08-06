@@ -5,3 +5,16 @@ body {
 #root {
   min-height: 100svh;
 }
+
+/* Ant's `message` toasts (components/common/feedback/toast.ts) have no built-in
+   horizontal placement prop — they're always centered by default. Pin them to the
+   top-right instead, matching where `notification.error` (notifyError) already appears.
+   The actual centering happens on the inner `.ant-message-notice` (`left: 50%` +
+   `translate3d(-50%, ...)`), not the outer `.ant-message` container — overriding only
+   the outer element (as a first attempt here did) has no visible effect, since `left`/
+   `transform` aren't inherited CSS properties. */
+.ant-message-notice {
+  left: auto !important;
+  right: 0 !important;
+  transform: scale(var(--notification-scale, 1)) !important;
+}

@@ -28,7 +28,9 @@ src/
                  three ways only so react-refresh's lint rule is happy —
                  treat them as one unit)
   services/
-    http/        the ONE axios instance + interceptors + tokenStore
+    http/        the ONE axios instance + interceptors + tokenStore +
+                 requestActivity (in-flight request counter, drives
+                 TopProgressBar)
     auth/        identityApi (buyer OTP) + organizerApi (organizer
                  email+password) API clients
     catalog/ inventory/ ordering/ ticketing/   typed API client per bounded
@@ -38,7 +40,8 @@ src/
     errors/      UnauthorizedPage (401→403 visual), NotFoundPage (404),
                  ServerErrorPage (500), RouteErrorBoundary
     feedback/    toast.ts + ToastHolder (stashes Ant's message/notification
-                 instances so non-React code can call toast.*)
+                 instances so non-React code can call toast.*); TopProgressBar
+                 (global top-of-page loading indicator, no third-party dep)
   layouts/       BuyerLayout, AdminLayout — each wraps its own <ConfigProvider>
   pages/auth/    BuyerLoginPage (OTP flow), OrganizerLoginPage
                  (email+password register/login), LogoutPage
@@ -89,6 +92,18 @@ src/
 - **Toast without a React context.** `toast.*` (in `components/common/feedback`)
   is a plain module so the axios interceptor (outside React) can call it;
   `ToastHolder` mounts once near the root and stashes Ant's instances into it.
+- **Global loading indicator, same pattern.** `services/http/requestActivity.ts`
+  is a plain module tracking the in-flight request count; `httpClient`'s request/
+  response interceptors call `beginRequest`/`endRequest`. `TopProgressBar`
+  subscribes to it and renders a fixed top-of-page bar — mounted once near the
+  root, next to `ToastHolder`. No third-party dependency (no NProgress); a small
+  hand-rolled indeterminate CSS transition instead. Individual pages/actions
+  still use their own skeletons (`components/common/skeletons/`) and per-button
+  `loading` props for local state — this bar is only for "something is happening
+  somewhere," not a replacement for those.
+- **Ant's `message` toasts are pinned to top-right via CSS** (`index.css`) — the
+  `message` API has no placement prop and defaults to top-center; `notification`
+  (used by `toast.notifyError`) already defaults to top-right.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft
