@@ -10,18 +10,17 @@ import {
   Form,
   Input,
   InputNumber,
-  Radio,
   Row,
-  Select,
   Space,
   Tag,
   Typography,
   Upload,
 } from 'antd';
-import { MinusCircleOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { UploadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  addSeatMapSections,
   defineSeatMap,
   getEvent,
   getSeatMap,
@@ -45,9 +44,15 @@ import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksE
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 import { EntryGatesPanel } from './EntryGatesPanel';
 import { QueueSettingsPanel } from './QueueSettingsPanel';
+import { SeatMapSectionsFields } from './SeatMapSectionsFields';
+import { DEFAULT_SEAT_MAP_SECTION } from './seatMapSectionDefaults';
 
 interface SeatMapFormValues {
   name: string;
+  sections: SeatMapSectionInput[];
+}
+
+interface AddSeatMapSectionsFormValues {
   sections: SeatMapSectionInput[];
 }
 
@@ -70,15 +75,6 @@ interface EventDetailsFormValues {
   socialLinks?: SocialLinkInput[];
 }
 
-const DEFAULT_SEAT_MAP_SECTION: SeatMapSectionInput = {
-  name: '',
-  priceTier: '',
-  priceAmount: 0,
-  allocationType: 'Reserved',
-  rows: 1,
-  seatsPerRow: 1,
-};
-
 const SECTION_HEADING_STYLE = { marginTop: 0, marginBottom: 16 };
 
 /** Organizer's event detail: define seat map, publish, and (once published) block/unblock seats. */
@@ -93,7 +89,9 @@ export function AdminEventDetailPage() {
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
+  const [addingSections, setAddingSections] = useState(false);
   const [detailsForm] = Form.useForm<EventDetailsFormValues>();
+  const [addSectionsForm] = Form.useForm<AddSeatMapSectionsFormValues>();
 
   const load = (eventId: string) => {
     Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null), listEntryGates(eventId)])
@@ -159,6 +157,25 @@ export function AdminEventDetailPage() {
       toast.error('Could not create the seat map.');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleAddSeatMapSections = async (values: AddSeatMapSectionsFormValues) => {
+    if (!id) {
+      return;
+    }
+    setAddingSections(true);
+    try {
+      await addSeatMapSections(id, { sections: values.sections });
+      toast.success('Sections added to the seat map.');
+      addSectionsForm.resetFields();
+      load(id);
+    } catch {
+      toast.error(
+        'Could not add those sections — check for a duplicate name or an invalid entry gate.',
+      );
+    } finally {
+      setAddingSections(false);
     }
   };
 
@@ -493,7 +510,7 @@ export function AdminEventDetailPage() {
         </Card>
       )}
 
-      {!seatMap && event.status === 'Draft' && id && (
+      {event.status === 'Draft' && id && (
         <EntryGatesPanel eventId={id} gates={entryGates} onGateCreated={refreshEntryGates} />
       )}
 
@@ -514,172 +531,65 @@ export function AdminEventDetailPage() {
               <Input placeholder="e.g. Main Floor" style={{ maxWidth: 360 }} />
             </Form.Item>
 
-            <Form.List name="sections">
-              {(fields, { add, remove }) => (
-                <>
-                  {fields.map((field, index) => (
-                    <Card
-                      key={field.key}
-                      size="small"
-                      title={`Section ${index + 1}`}
-                      style={{ marginBottom: 16 }}
-                      extra={
-                        fields.length > 1 && (
-                          <MinusCircleOutlined onClick={() => remove(field.name)} />
-                        )
-                      }
-                    >
-                      <Row gutter={16}>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name={[field.name, 'name']}
-                            label="Section name"
-                            rules={[
-                              { required: true, message: 'Required' },
-                              { max: 100 },
-                              ({ getFieldValue }) => ({
-                                validator: (_rule, value: string | undefined) => {
-                                  if (!value) {
-                                    return Promise.resolve();
-                                  }
-                                  const sections =
-                                    (getFieldValue('sections') as
-                                      SeatMapSectionInput[] | undefined) ?? [];
-                                  const isDuplicate = sections.some(
-                                    (section, i) =>
-                                      i !== field.name &&
-                                      section?.name &&
-                                      section.name.trim().toLowerCase() ===
-                                        value.trim().toLowerCase(),
-                                  );
-                                  return isDuplicate
-                                    ? Promise.reject(new Error('Section names must be unique.'))
-                                    : Promise.resolve();
-                                },
-                              }),
-                            ]}
-                          >
-                            <Input placeholder="e.g. Orchestra" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name={[field.name, 'priceTier']}
-                            label="Price tier"
-                            rules={[{ required: true, message: 'Required' }, { max: 50 }]}
-                          >
-                            <Input placeholder="e.g. Gold" />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name={[field.name, 'priceAmount']}
-                            label="Price"
-                            rules={[
-                              { required: true, message: 'Required' },
-                              { type: 'number', min: 0 },
-                            ]}
-                          >
-                            <InputNumber min={0} style={{ width: '100%' }} />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={16}>
-                          <Form.Item
-                            name={[field.name, 'allocationType']}
-                            label="Allocation"
-                            initialValue="Reserved"
-                          >
-                            <Radio.Group>
-                              <Radio.Button value="Reserved">Reserved seating</Radio.Button>
-                              <Radio.Button value="GeneralAdmission">
-                                General admission
-                              </Radio.Button>
-                            </Radio.Group>
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} sm={8}>
-                          <Form.Item
-                            name={[field.name, 'entryGateId']}
-                            label="Entry gate (optional)"
-                          >
-                            <Select
-                              allowClear
-                              placeholder="No restriction"
-                              options={entryGates.map((gate) => ({
-                                value: gate.id,
-                                label: gate.name,
-                              }))}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Form.Item shouldUpdate noStyle>
-                          {({ getFieldValue }) => {
-                            const allocationType: SeatMapSectionInput['allocationType'] =
-                              getFieldValue(['sections', field.name, 'allocationType']) ??
-                              'Reserved';
-                            return allocationType === 'Reserved' ? (
-                              <>
-                                <Col xs={12} sm={6}>
-                                  <Form.Item
-                                    name={[field.name, 'rows']}
-                                    label="Rows"
-                                    rules={[
-                                      { required: true, message: 'Required' },
-                                      { type: 'number', min: 1, max: 500 },
-                                    ]}
-                                  >
-                                    <InputNumber min={1} max={500} style={{ width: '100%' }} />
-                                  </Form.Item>
-                                </Col>
-                                <Col xs={12} sm={6}>
-                                  <Form.Item
-                                    name={[field.name, 'seatsPerRow']}
-                                    label="Seats per row"
-                                    rules={[
-                                      { required: true, message: 'Required' },
-                                      { type: 'number', min: 1, max: 500 },
-                                    ]}
-                                  >
-                                    <InputNumber min={1} max={500} style={{ width: '100%' }} />
-                                  </Form.Item>
-                                </Col>
-                              </>
-                            ) : (
-                              <Col xs={24} sm={12}>
-                                <Form.Item
-                                  name={[field.name, 'capacity']}
-                                  label="Total capacity"
-                                  rules={[
-                                    { required: true, message: 'Required' },
-                                    { type: 'number', min: 1, max: 1000000 },
-                                  ]}
-                                >
-                                  <InputNumber min={1} max={1000000} style={{ width: '100%' }} />
-                                </Form.Item>
-                              </Col>
-                            );
-                          }}
-                        </Form.Item>
-                      </Row>
-                    </Card>
-                  ))}
-                  <Button
-                    type="dashed"
-                    block
-                    onClick={() => add({ ...DEFAULT_SEAT_MAP_SECTION })}
-                    icon={<PlusOutlined />}
-                    style={{ marginBottom: 16 }}
-                  >
-                    Add section
-                  </Button>
-                </>
-              )}
-            </Form.List>
+            <SeatMapSectionsFields entryGates={entryGates} />
 
             <Divider />
             <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button type="primary" htmlType="submit" loading={submitting}>
                 Create seat map
+              </Button>
+            </Space>
+          </Form>
+        </Card>
+      )}
+
+      {seatMap && event.status === 'Draft' && (
+        <Card title="Seat map" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
+          <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+            {seatMap.name} · {seatMap.capacity} total
+          </Typography.Title>
+          <Space direction="vertical" style={{ width: '100%', marginBottom: 8 }}>
+            {[...new Set(seatMap.seats.map((seat) => seat.section))].map((section) => {
+              const seatsInSection = seatMap.seats.filter((seat) => seat.section === section);
+              return (
+                <Typography.Text key={section} type="secondary">
+                  {section} — Reserved · {seatsInSection[0]?.priceTier} · {seatsInSection.length}{' '}
+                  seats
+                </Typography.Text>
+              );
+            })}
+            {seatMap.generalAdmissionSections.map((section) => (
+              <Typography.Text key={section.id} type="secondary">
+                {section.sectionName} — General admission · {section.priceTier} · {section.capacity}{' '}
+                capacity
+              </Typography.Text>
+            ))}
+          </Space>
+
+          <Divider />
+          <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+            Add more sections
+          </Typography.Title>
+          <Form<AddSeatMapSectionsFormValues>
+            form={addSectionsForm}
+            layout="vertical"
+            initialValues={{ sections: [DEFAULT_SEAT_MAP_SECTION] }}
+            onFinish={(values) => {
+              void handleAddSeatMapSections(values);
+            }}
+          >
+            <SeatMapSectionsFields
+              entryGates={entryGates}
+              existingSectionNames={[
+                ...seatMap.seats.map((seat) => seat.section),
+                ...seatMap.generalAdmissionSections.map((section) => section.sectionName),
+              ]}
+            />
+
+            <Divider />
+            <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <Button type="primary" htmlType="submit" loading={addingSections}>
+                Add sections
               </Button>
             </Space>
           </Form>

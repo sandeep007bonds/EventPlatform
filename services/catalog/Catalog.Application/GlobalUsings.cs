@@ -1,6 +1,7 @@
 global using System.Reflection;
 global using Catalog.Application.Abstractions;
 global using Catalog.Application.Behaviors;
+global using Catalog.Application.Features.DefineSeatMap;
 global using Catalog.Application.Features.GetEvent;
 global using Catalog.Application.Features.GetEventGroup;
 global using Catalog.Domain;

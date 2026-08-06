@@ -5,4 +5,12 @@ namespace Inventory.Api.Endpoints;
 /// <param name="CatalogSectionId">The Catalog general-admission section id this allocation maps to.</param>
 /// <param name="Remaining">How many admissions are still available to hold.</param>
 /// <param name="TotalCapacity">The section's total sellable capacity.</param>
-public sealed record GeneralAdmissionAllocationResponse(Guid AllocationId, Guid CatalogSectionId, int Remaining, int TotalCapacity);
+/// <param name="HeldCount">Number of admissions currently held (not yet sold, not yet released).</param>
+/// <param name="SoldCount">Number of admissions sold.</param>
+public sealed record GeneralAdmissionAllocationResponse(
+    Guid AllocationId,
+    Guid CatalogSectionId,
+    int Remaining,
+    int TotalCapacity,
+    int HeldCount,
+    int SoldCount);

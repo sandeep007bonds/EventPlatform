@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Input, Space, Typography } from 'antd';
+import { Alert, Button, Card, Col, Input, Row, Space, Statistic, Typography } from 'antd';
 import { getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
 import {
   blockSeats,
+  getGeneralAdmissionAllocations,
   getInventorySeats,
   unblockSeats,
+  type GeneralAdmissionAllocationResponse,
   type SeatInventoryStatus,
 } from '../../../services/inventory/inventoryApi';
-import { getEventTickets } from '../../../services/ticketing/ticketingApi';
+import { getEventTickets, type TicketResponse } from '../../../services/ticketing/ticketingApi';
 import { toast } from '../../../components/common/feedback/toast';
 import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
@@ -39,6 +41,8 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [checkedInSeatIds, setCheckedInSeatIds] = useState<Set<string>>(new Set());
+  const [gaAllocations, setGaAllocations] = useState<GeneralAdmissionAllocationResponse[]>([]);
+  const [checkedInGaCounts, setCheckedInGaCounts] = useState<Map<string, number>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
@@ -98,7 +102,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
       });
 
     getEventTickets(eventId)
-      .then((tickets) => {
+      .then((tickets: TicketResponse[]) => {
         if (cancelled) {
           return;
         }
@@ -109,9 +113,28 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
               .map((ticket) => ticket.seatId as string),
           ),
         );
+
+        const gaCounts = new Map<string, number>();
+        for (const ticket of tickets) {
+          if (ticket.status === 'CheckedIn' && ticket.generalAdmissionAllocationId !== null) {
+            const allocationId = ticket.generalAdmissionAllocationId;
+            gaCounts.set(allocationId, (gaCounts.get(allocationId) ?? 0) + 1);
+          }
+        }
+        setCheckedInGaCounts(gaCounts);
       })
       .catch(() => {
         // Non-critical — the seat grid still works with plain Inventory statuses if this fails.
+      });
+
+    getGeneralAdmissionAllocations(eventId)
+      .then((allocations) => {
+        if (!cancelled) {
+          setGaAllocations(allocations);
+        }
+      })
+      .catch(() => {
+        // Non-critical — a mixed seat map still shows its Reserved half if this fails.
       });
 
     return () => {
@@ -243,6 +266,51 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
             );
           }}
         />
+      )}
+
+      {seatMap.generalAdmissionSections.length > 0 && (
+        <>
+          <Typography.Title level={5} style={{ marginTop: 24 }}>
+            General admission
+          </Typography.Title>
+          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+            {seatMap.generalAdmissionSections.map((section) => {
+              const allocation = gaAllocations.find((a) => a.catalogSectionId === section.id);
+              const checkedIn = allocation
+                ? (checkedInGaCounts.get(allocation.allocationId) ?? 0)
+                : 0;
+              return (
+                <Col key={section.id} xs={24} sm={12} md={8}>
+                  <Card size="small" title={`${section.sectionName} · ${section.priceTier}`}>
+                    <Row gutter={16}>
+                      <Col span={12}>
+                        <Statistic
+                          title="Capacity"
+                          value={allocation?.totalCapacity ?? section.capacity}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic
+                          title="Remaining"
+                          value={allocation?.remaining ?? section.capacity}
+                        />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic title="Sold" value={allocation?.soldCount ?? 0} />
+                      </Col>
+                      <Col span={12}>
+                        <Statistic title="Held" value={allocation?.heldCount ?? 0} />
+                      </Col>
+                      <Col span={24}>
+                        <Statistic title="Checked in" value={checkedIn} />
+                      </Col>
+                    </Row>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        </>
       )}
 
       <Card styles={{ body: { padding: '16px 20px' } }}>

@@ -23,6 +23,8 @@ export interface GeneralAdmissionAllocationResponse {
   catalogSectionId: string;
   remaining: number;
   totalCapacity: number;
+  heldCount: number;
+  soldCount: number;
 }
 
 /** Fetches every general-admission allocation for an event — the real ids a hold request must reference. */

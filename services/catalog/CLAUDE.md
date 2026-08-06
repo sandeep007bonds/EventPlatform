@@ -66,7 +66,16 @@ context: **Catalog** (ADR-0008).
   `GeneralAdmission` sections are a capacity-only pool (no individual seats) —
   a single event can have both kinds side by side. `GetSeatMapResponse`
   (the hand-off Inventory reads) carries both `Seats` and
-  `GeneralAdmissionSections` lists.
+  `GeneralAdmissionSections` lists. `DefineSeatMap` still only ever creates the
+  map (404/`AlreadyDefined` on a second call); `POST /v1/events/{id}/seatmap/sections`
+  (`AddSeatMapSections`) appends more sections to an **existing** Draft-only
+  map — same section-shape/validation/entry-gate rules, same
+  `SeatMap.AddReservedSection`/`AddGeneralAdmissionSection` domain methods
+  (which already enforce name-uniqueness against every section already in the
+  map, not just the ones in the request), just loaded via
+  `ISeatMapRepository.GetTrackedByEventIdAsync` (change-tracked, unlike the
+  `AsNoTracking()` `GetByEventIdAsync` every read path uses) so the new
+  sections are picked up by `SaveChangesAsync`.
 - **Entry gates.** `EntryGate` (`Id`, `EventId`, `Name`) — an organizer defines
   named physical entry points for an event's location, then restricts a
   seat-map section to one at `DefineSeatMap` time (`Seat.EntryGateId`/

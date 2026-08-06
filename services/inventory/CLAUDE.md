@@ -33,6 +33,11 @@ event, and enforces that event's booking cutoff.
   remaining-capacity counter per allocation, atomic Lua decrement), Postgres is
   the final authority. A hold can cover reserved seats and general-admission
   quantities together (`Hold.Items` + `Hold.GeneralAdmissionItems`).
+  `GET /v1/events/{id}/inventory/general-admission`'s response carries
+  `HeldCount`/`SoldCount` alongside `Remaining`/`TotalCapacity` — the admin
+  seat panel (`SeatBlockPanel`) uses these plus Ticketing's per-event ticket
+  list to show sold/held/checked-in counts per GA section, the same
+  visibility Reserved seats already had via per-seat status/color.
 - **Fail-closed Redis default for GA capacity** (the deliberate opposite of the
   sparse seat model's fail-open default): a capacity key that was never
   initialized, or was lost to a flush, reads as zero remaining rather than

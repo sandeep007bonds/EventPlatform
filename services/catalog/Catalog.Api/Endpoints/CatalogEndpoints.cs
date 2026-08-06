@@ -18,6 +18,7 @@ public static class CatalogEndpoints
         group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
         group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
+        group.MapPost("/{id:guid}/seatmap/sections", AddSeatMapSectionsAsync).WithName("AddSeatMapSections");
         group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails");
 
         return app;
@@ -147,6 +148,42 @@ public static class CatalogEndpoints
             DefineSeatMapOutcome.AlreadyDefined =>
                 Results.Conflict(new { message = "A seat map already exists for this event." }),
             DefineSeatMapOutcome.EntryGateNotFound =>
+                Results.BadRequest(new { message = "One or more sections reference an entry gate that doesn't exist for this event." }),
+            _ => Results.Problem("Unexpected seat-map outcome."),
+        };
+    }
+
+    private static async Task<IResult> AddSeatMapSectionsAsync(
+        Guid id,
+        AddSeatMapSectionsRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var sections = request.Sections
+            .Select(s => new SeatMapSectionInput(s.Name, s.PriceTier, s.PriceAmount, s.AllocationType, s.Rows, s.SeatsPerRow, s.Capacity, s.EntryGateId))
+            .ToList();
+
+        var command = new AddSeatMapSectionsCommand(id, tenant.TenantId.Value, sections);
+        var result = await sender.Send(command, cancellationToken);
+
+        return result.Outcome switch
+        {
+            AddSeatMapSectionsOutcome.Added =>
+                Results.Ok(new { seatMapId = result.SeatMapId }),
+            AddSeatMapSectionsOutcome.EventNotFound => Results.NotFound(),
+            AddSeatMapSectionsOutcome.SeatMapNotFound =>
+                Results.NotFound(new { message = "Define a seat map before adding more sections to it." }),
+            AddSeatMapSectionsOutcome.EventNotDraft =>
+                Results.Conflict(new { message = "The event is not a draft; its seat map can no longer be changed." }),
+            AddSeatMapSectionsOutcome.DuplicateSectionName =>
+                Results.Conflict(new { message = "A section with that name already exists in this seat map." }),
+            AddSeatMapSectionsOutcome.EntryGateNotFound =>
                 Results.BadRequest(new { message = "One or more sections reference an entry gate that doesn't exist for this event." }),
             _ => Results.Problem("Unexpected seat-map outcome."),
         };

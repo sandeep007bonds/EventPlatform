@@ -314,7 +314,7 @@ public static class InventoryEndpoints
     {
         var allocations = await repository.ListGeneralAdmissionForEventAsync(eventId, cancellationToken);
         var response = allocations
-            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.CatalogSectionId, a.RemainingCapacity, a.TotalCapacity))
+            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.CatalogSectionId, a.RemainingCapacity, a.TotalCapacity, a.HeldCount, a.SoldCount))
             .ToList();
         return Results.Ok(response);
     }
