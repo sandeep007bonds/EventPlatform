@@ -16,7 +16,9 @@ event, and enforces that event's booking cutoff.
 - **Public API:** REST `/v1/holds` (seats and/or general-admission quantities,
   Stage B), `/v1/events/{id}/inventory`, `/v1/events/{id}/inventory/seats`
   (`.AllowAnonymous()` — every seat's status), `/v1/events/{id}/inventory/block`,
-  `/v1/events/{id}/inventory/unblock`
+  `/v1/events/{id}/inventory/unblock`; internal (saga-only, not gateway-routed)
+  `POST /v1/holds/{holdId}/cancel` — releases a converted hold's sold
+  seats/quantities back to available, called by Ordering's cancellation saga
 - **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`,
   `SeatUnblocked` (via outbox) — seat-only today; general-admission holds don't
   yet appear on these events (no external consumer needs them this pass)
@@ -74,6 +76,16 @@ event, and enforces that event's booking cutoff.
   config) — no call to the Queue service itself, the same zero-hot-path-call
   philosophy ADR-0025 established for Ticketing's scan. An invalid/missing/
   expired token returns `PlaceHoldOutcome.QueueAdmissionRequired` (409).
+- **`HoldService.CancelSoldAsync`** (a buyer-initiated cancellation/refund, the
+  reverse of `ConvertToSoldAsync`) releases a converted hold's sold
+  seats/quantities back to available (`InventoryItem.ReleaseSold()`/
+  `GeneralAdmissionAllocation.ReleaseSold(quantity)`, plus the matching Redis
+  release scripts). Idempotent via a genuine new `HoldStatus.Cancelled` state
+  as a single gate — `ConvertToSoldAsync`'s per-item `Sold`-status filtering
+  isn't safe to reuse here because GA capacity is a shared pool counter, not
+  individually addressable like a seat. Called by Ordering's cancellation
+  saga (an activity, so retried/replayed on crash-recovery) via
+  `POST /v1/holds/{holdId}/cancel`.
 - **Not extended for GA in this pass:** `InventoryReconciler` only rebuilds the
   seat fast gate from Postgres after a flush. A GA capacity counter lost to a
   flush degrades fast-path availability (Redis under-reports remaining

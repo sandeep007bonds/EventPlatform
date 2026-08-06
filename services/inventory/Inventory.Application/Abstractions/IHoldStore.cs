@@ -36,6 +36,18 @@ public interface IHoldStore
     /// <returns>A task that completes when the seats are marked sold.</returns>
     Task MarkSoldAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Releases previously-sold seats back to available (a buyer-initiated cancellation/refund) —
+    /// the reverse of <see cref="MarkSoldAsync"/>. Unlike <see cref="ReleaseAsync"/>, there is no
+    /// hold id to match against — the sold marker carries none — so this clears the key outright
+    /// for any of the given seats currently marked sold.
+    /// </summary>
+    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="seatIds">The seats to release.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the seats are released.</returns>
+    Task ReleaseSoldAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
+
     /// <summary>Marks the given seats blocked (organizer-initiated; not tied to a hold).</summary>
     /// <param name="eventId">The event the seats belong to.</param>
     /// <param name="seatIds">The seats to block.</param>
@@ -124,4 +136,20 @@ public interface IHoldStore
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the hold's general-admission bookkeeping is cleared.</returns>
     Task MarkGeneralAdmissionSoldAsync(Guid eventId, Guid holdId, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Releases previously-sold general-admission quantities back to each allocation's remaining
+    /// capacity (a buyer-initiated cancellation/refund) — the reverse of
+    /// <see cref="MarkGeneralAdmissionSoldAsync"/>. There is no hold bookkeeping hash left to clear
+    /// by this point (it was already deleted when the quantities were marked sold) — this only adds
+    /// the released quantities back onto each allocation's capacity counter.
+    /// </summary>
+    /// <param name="eventId">The event the allocations belong to.</param>
+    /// <param name="selections">The (allocation id, quantity) pairs to release.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the quantities are released.</returns>
+    Task ReleaseSoldGeneralAdmissionAsync(
+        Guid eventId,
+        IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
+        CancellationToken cancellationToken);
 }

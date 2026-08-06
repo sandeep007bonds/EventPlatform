@@ -7,6 +7,7 @@ global using Microsoft.EntityFrameworkCore;
 global using Ordering.Api.Endpoints;
 global using Ordering.Application;
 global using Ordering.Application.Abstractions;
+global using Ordering.Application.Cancellation;
 global using Ordering.Application.Checkout;
 global using Ordering.Domain;
 global using Ordering.Infrastructure;

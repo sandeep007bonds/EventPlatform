@@ -84,6 +84,16 @@ public sealed class InventoryItem
     }
 
     /// <summary>
+    /// Releases a sold seat back to available (a buyer-initiated cancellation/refund) — the
+    /// reverse of <see cref="MarkSold"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The seat is not sold.</exception>
+    public void ReleaseSold()
+    {
+        Transition(InventoryStatus.Sold, InventoryStatus.Available);
+    }
+
+    /// <summary>
     /// Blocks an available seat so it can't be held or sold (e.g. a kill or a restricted view).
     /// Only available seats can be blocked — a seat already in a buyer's hold isn't yanked out
     /// from under them.

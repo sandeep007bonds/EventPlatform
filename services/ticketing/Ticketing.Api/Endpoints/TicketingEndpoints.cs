@@ -44,6 +44,12 @@ public static class TicketingEndpoints
             .WithName("GetTicketQrCode")
             .WithTags("Tickets");
 
+        // Internal (Ordering's cancellation saga, via Dapr service invocation): void every ticket
+        // for an order — not gateway-routed, same treatment as Payments' charge/refund.
+        app.MapPost("/v1/orders/{orderId:guid}/tickets/void", VoidOrderTicketsAsync)
+            .WithName("VoidOrderTickets")
+            .ExcludeFromDescription();
+
         return app;
     }
 
@@ -192,6 +198,22 @@ public static class TicketingEndpoints
 
         await repository.SaveChangesAsync(cancellationToken);
         return Results.Ok(Map(ticket));
+    }
+
+    private static async Task<IResult> VoidOrderTicketsAsync(
+        Guid orderId,
+        TicketVoidingService voiding,
+        CancellationToken cancellationToken)
+    {
+        var outcome = await voiding.VoidByOrderAsync(orderId, cancellationToken);
+        return outcome switch
+        {
+            VoidTicketsOutcome.Voided => Results.NoContent(),
+            VoidTicketsOutcome.NoTickets => Results.NotFound(),
+            VoidTicketsOutcome.AlreadyCheckedIn =>
+                Results.Conflict(new { message = "One or more tickets for this order have already been checked in." }),
+            _ => Results.Problem("Unexpected void outcome."),
+        };
     }
 
     private static async Task<IResult> GetTicketQrCodeAsync(

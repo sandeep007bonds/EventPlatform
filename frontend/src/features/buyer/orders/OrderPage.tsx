@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Card, Col, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import { Button, Card, Col, Modal, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
 import { CheckCircleFilled } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
-import { getOrder, type OrderResponse } from '../../../services/ordering/orderingApi';
+import type { AxiosError } from 'axios';
+import { cancelOrder, getOrder, type OrderResponse } from '../../../services/ordering/orderingApi';
 import {
   getOrderTickets,
   getTicketQrCodeUrl,
@@ -10,7 +11,12 @@ import {
 } from '../../../services/ticketing/ticketingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
+import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+
+interface ConflictBody {
+  message?: string;
+}
 
 const TICKET_POLL_INTERVAL_MS = 2000;
 const TICKET_POLL_MAX_ATTEMPTS = 8;
@@ -37,6 +43,7 @@ export function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [ticketsPending, setTicketsPending] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     if (!orderId) {
@@ -133,6 +140,34 @@ export function OrderPage() {
     [qrUrls],
   );
 
+  const handleCancel = () => {
+    if (!orderId) {
+      return;
+    }
+
+    Modal.confirm({
+      title: 'Cancel this order?',
+      content: 'Your tickets will be voided and the payment refunded. This cannot be undone.',
+      okText: 'Cancel order',
+      okButtonProps: { danger: true },
+      cancelText: 'Keep order',
+      onOk: async () => {
+        setCancelling(true);
+        try {
+          await cancelOrder(orderId);
+          toast.success('Order cancelled and refunded.');
+          const refreshed = await getOrder(orderId);
+          setOrder(refreshed);
+        } catch (error) {
+          const body = (error as AxiosError<ConflictBody>).response?.data;
+          toast.error(body?.message ?? 'This order could not be cancelled.');
+        } finally {
+          setCancelling(false);
+        }
+      },
+    });
+  };
+
   if (loading) {
     return <DetailSkeleton />;
   }
@@ -155,7 +190,16 @@ export function OrderPage() {
       <Card
         title="Order summary"
         styles={{ body: { padding: 24 } }}
-        extra={<Tag color={ORDER_STATUS_COLOR[order.status]}>{order.status}</Tag>}
+        extra={
+          <Space>
+            {order.status === 'Confirmed' && (
+              <Button danger size="small" loading={cancelling} onClick={handleCancel}>
+                Cancel order
+              </Button>
+            )}
+            <Tag color={ORDER_STATUS_COLOR[order.status]}>{order.status}</Tag>
+          </Space>
+        }
       >
         <div>
           {order.lines.map((line, index) => (

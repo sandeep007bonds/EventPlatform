@@ -135,4 +135,22 @@ public sealed class GeneralAdmissionAllocation
         SoldCount += quantity;
         Version++;
     }
+
+    /// <summary>
+    /// Releases <paramref name="quantity"/> previously-sold admissions back to available (a
+    /// buyer-initiated cancellation/refund) — the reverse of <see cref="MarkSold"/>.
+    /// </summary>
+    /// <param name="quantity">Number of admissions to release (positive).</param>
+    /// <exception cref="InvalidOperationException">Fewer than <paramref name="quantity"/> admissions are currently sold.</exception>
+    public void ReleaseSold(int quantity)
+    {
+        if (quantity > SoldCount)
+        {
+            throw new InvalidOperationException(
+                $"Cannot release {quantity} sold admissions in section {CatalogSectionId}; only {SoldCount} are sold.");
+        }
+
+        SoldCount -= quantity;
+        Version++;
+    }
 }

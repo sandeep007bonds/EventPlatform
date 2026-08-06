@@ -19,6 +19,12 @@ internal sealed class TicketRepository(TicketingDbContext dbContext) : ITicketRe
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Ticket>> GetTrackedByOrderAsync(Guid orderId, CancellationToken cancellationToken) =>
+        await dbContext.Tickets
+            .Where(t => t.OrderId == orderId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<Ticket?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
         dbContext.Tickets
             .AsNoTracking()
