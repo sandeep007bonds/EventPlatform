@@ -16,6 +16,7 @@ public sealed class EventSalesToggleService(IInventoryRepository inventory)
     /// <param name="eventId">The event.</param>
     /// <param name="salesPaused">The new paused state.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the flag has been applied (or immediately, if the event isn't provisioned).</returns>
     public async Task SetSalesPausedAsync(Guid eventId, bool salesPaused, CancellationToken cancellationToken)
     {
         var settings = await inventory.GetEventInventorySettingsAsync(eventId, cancellationToken);

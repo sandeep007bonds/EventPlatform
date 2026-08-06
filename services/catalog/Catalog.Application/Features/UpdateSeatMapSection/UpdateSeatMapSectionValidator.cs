@@ -1,6 +1,6 @@
 namespace Catalog.Application.Features.UpdateSeatMapSection;
 
-/// <summary>Validation rules for <see cref="UpdateSeatMapSectionCommand"/> — mirrors <see cref="AddSeatMapSectionsValidator"/>'s per-section rules.</summary>
+/// <summary>Validation rules for <see cref="UpdateSeatMapSectionCommand"/> — mirrors <see cref="Catalog.Application.Features.AddSeatMapSections.AddSeatMapSectionsValidator"/>'s per-section rules.</summary>
 public sealed class UpdateSeatMapSectionValidator : AbstractValidator<UpdateSeatMapSectionCommand>
 {
     /// <summary>Initializes the validation rules.</summary>
