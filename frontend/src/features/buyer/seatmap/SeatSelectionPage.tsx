@@ -61,6 +61,7 @@ export function SeatSelectionPage() {
   const [currency, setCurrency] = useState('USD');
   const [maxTicketsPerBuyer, setMaxTicketsPerBuyer] = useState<number | null>(null);
   const [onSaleAt, setOnSaleAt] = useState<string | null>(null);
+  const [salesPaused, setSalesPaused] = useState(false);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
@@ -152,6 +153,7 @@ export function SeatSelectionPage() {
         setCurrency(event.currency);
         setMaxTicketsPerBuyer(event.maxTicketsPerBuyer);
         setOnSaleAt(event.onSaleAt);
+        setSalesPaused(event.salesPaused);
         setSeatMap(map);
         pollStatuses(map);
       })
@@ -309,6 +311,16 @@ export function SeatSelectionPage() {
     return (
       <Typography.Text type="secondary">
         Tickets go on sale {dayjs(onSaleAt).format('MMMM D, YYYY · h:mm A')}.
+      </Typography.Text>
+    );
+  }
+
+  // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
+  // enforce the manual sales pause here too. The server rejects the hold either way (SalesPaused).
+  if (salesPaused) {
+    return (
+      <Typography.Text type="secondary">
+        Sales are currently paused for this event. Please check back later.
       </Typography.Text>
     );
   }

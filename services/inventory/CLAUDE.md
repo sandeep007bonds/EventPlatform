@@ -24,7 +24,9 @@ event, and enforces that event's booking cutoff.
   yet appear on these events (no external consumer needs them this pass)
 - **Events consumed:** `EventPublished` (Catalog) → provision seat inventory and
   general-admission allocations, and record the event's `BookingEndsAt`,
-  `OnSaleAt`, `MaxTicketsPerBuyer`, and `RequiresQueue`
+  `OnSaleAt`, `MaxTicketsPerBuyer`, and `RequiresQueue`; `EventSalesPaused`/
+  `EventSalesResumed` (Catalog) → update the already-provisioned event's
+  `EventInventorySettings.SalesPaused` flag (see ADR-0027)
 
 ## General admission and the enforced booking cutoff
 
@@ -57,6 +59,16 @@ event, and enforces that event's booking cutoff.
   stamped on a placed `Hold`** — `PlaceHoldAsync` no longer takes a
   caller-supplied tenant; a buyer's own token may not carry one at all
   (ADR-0022).
+- **`EventInventorySettings.SalesPaused`** (an organizer's manual on/off toggle
+  for an already-published event, independent of `OnSaleAt`/`BookingEndsAt` —
+  ADR-0027) is checked first, before the on-sale/booking-cutoff checks —
+  the most direct override an organizer can apply. Learned from
+  `EventSalesPaused`/`EventSalesResumed` (not `EventPublished` — sales are
+  never paused at provisioning time), applied via `EventSalesToggleService`,
+  which updates the row directly rather than going through
+  `InventoryProvisioningService.ProvisionAsync`'s one-time-only guard. An
+  event paused this way returns `PlaceHoldOutcome.SalesPaused` (409) for new
+  holds; already-held/converted seats and issued tickets are untouched.
 - **`EventInventorySettings.MaxTicketsPerBuyer`** (per-buyer ticket limit, if
   set — ADR-0021) is checked right after the on-sale/booking-cutoff checks.
   `IInventoryRepository.GetBuyerCommittedQuantityAsync` sums the buyer's

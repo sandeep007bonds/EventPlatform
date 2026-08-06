@@ -97,8 +97,14 @@ context: **Catalog** (ADR-0008).
   slice this pass. Ticketing resolves gate eligibility live at scan time via
   Dapr service invocation against `GET /v1/events/{id}/seatmap` — Catalog
   does not enforce anything itself (see ADR-0024).
+- **Manual sales pause.** `Event.SalesPaused` (bool, default `false`) lets an organizer pause/resume
+  sales on an already-`Published` event via `POST /v1/events/{id}/pause-sales`/`resume-sales`
+  (`Event.PauseSales`/`ResumeSales`, 409 if not published or already in the requested state) —
+  independent of the `OnSaleAt`/`BookingEndsAt` enforced time window, and without affecting
+  already-placed holds/tickets. Publishes `EventSalesPaused`/`EventSalesResumed` for Inventory to
+  reject/allow new holds accordingly (see ADR-0027).
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
-  `MaxTicketsPerBuyer`), `EventUpdated`
+  `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
 - **Events consumed:** —
 
 ## Structure

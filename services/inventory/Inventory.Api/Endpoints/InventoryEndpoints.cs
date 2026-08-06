@@ -16,6 +16,16 @@ public static class InventoryEndpoints
             .WithName("OnEventPublished")
             .ExcludeFromDescription();
 
+        // Dapr pub/sub: an organizer manually paused/resumed sales for a published event.
+        app.MapPost("/integration/catalog/event-sales-paused", OnEventSalesPausedAsync)
+            .WithTopic("pubsub", nameof(EventSalesPaused))
+            .WithName("OnEventSalesPaused")
+            .ExcludeFromDescription();
+        app.MapPost("/integration/catalog/event-sales-resumed", OnEventSalesResumedAsync)
+            .WithTopic("pubsub", nameof(EventSalesResumed))
+            .WithName("OnEventSalesResumed")
+            .ExcludeFromDescription();
+
         app.MapGet("/v1/events/{eventId:guid}/inventory", GetInventoryCountAsync)
             .WithName("GetInventoryCount")
             .WithTags("Inventory");
@@ -185,6 +195,8 @@ public static class InventoryEndpoints
                 Results.Conflict(new { message = "Tickets are not on sale yet for this event." }),
             PlaceHoldOutcome.QueueAdmissionRequired =>
                 Results.Conflict(new { message = "This event requires joining the queue first." }),
+            PlaceHoldOutcome.SalesPaused =>
+                Results.Conflict(new { message = "Sales are currently paused for this event." }),
             _ => Results.Problem("Unexpected hold outcome."),
         };
     }
@@ -308,6 +320,24 @@ public static class InventoryEndpoints
         }
 
         // Ack so Dapr does not redeliver; provisioning is idempotent if it does.
+        return Results.Ok();
+    }
+
+    private static async Task<IResult> OnEventSalesPausedAsync(
+        EventSalesPaused @event,
+        EventSalesToggleService salesToggle,
+        CancellationToken cancellationToken)
+    {
+        await salesToggle.SetSalesPausedAsync(@event.CatalogEventId, salesPaused: true, cancellationToken);
+        return Results.Ok();
+    }
+
+    private static async Task<IResult> OnEventSalesResumedAsync(
+        EventSalesResumed @event,
+        EventSalesToggleService salesToggle,
+        CancellationToken cancellationToken)
+    {
+        await salesToggle.SetSalesPausedAsync(@event.CatalogEventId, salesPaused: false, cancellationToken);
         return Results.Ok();
     }
 

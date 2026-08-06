@@ -28,6 +28,7 @@ export interface EventResponse {
   bookingEndsAt: string | null;
   maxTicketsPerBuyer: number | null;
   requiresQueue: boolean;
+  salesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
@@ -270,6 +271,16 @@ export async function removeSeatMapSection(eventId: string, sectionName: string)
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);
+}
+
+/** Pauses sales for a published event, without affecting already-placed holds/tickets. */
+export async function pauseSales(eventId: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/pause-sales`);
+}
+
+/** Resumes sales for a published event previously paused via {@link pauseSales}. */
+export async function resumeSales(eventId: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/resume-sales`);
 }
 
 /** Sets a draft event's descriptive/promotional details (Draft-only; 409 otherwise). */

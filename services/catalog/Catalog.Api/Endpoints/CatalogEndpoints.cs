@@ -16,6 +16,8 @@ public static class CatalogEndpoints
         group.MapGet("/", ListEventsAsync).WithName("ListEvents").AllowAnonymous();
         group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent").AllowAnonymous();
         group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
+        group.MapPost("/{id:guid}/pause-sales", PauseSalesAsync).WithName("PauseSales");
+        group.MapPost("/{id:guid}/resume-sales", ResumeSalesAsync).WithName("ResumeSales");
         group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
         group.MapPost("/{id:guid}/seatmap/sections", AddSeatMapSectionsAsync).WithName("AddSeatMapSections");
@@ -118,6 +120,50 @@ public static class CatalogEndpoints
             PublishEventOutcome.NoSeatMap => Results.Conflict(new { message = "Define a seat map before publishing the event." }),
             PublishEventOutcome.NotDraft => Results.Conflict(new { message = "Only a draft event can be published." }),
             _ => Results.Problem("Unexpected publish outcome."),
+        };
+    }
+
+    private static async Task<IResult> PauseSalesAsync(
+        Guid id,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var outcome = await sender.Send(new PauseSalesCommand(id, tenant.TenantId.Value), cancellationToken);
+        return outcome switch
+        {
+            PauseSalesOutcome.Paused => Results.NoContent(),
+            PauseSalesOutcome.NotFound => Results.NotFound(),
+            PauseSalesOutcome.NotPublished => Results.Conflict(new { message = "Only a published event's sales can be paused." }),
+            PauseSalesOutcome.AlreadyPaused => Results.Conflict(new { message = "Sales are already paused for this event." }),
+            _ => Results.Problem("Unexpected pause-sales outcome."),
+        };
+    }
+
+    private static async Task<IResult> ResumeSalesAsync(
+        Guid id,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var outcome = await sender.Send(new ResumeSalesCommand(id, tenant.TenantId.Value), cancellationToken);
+        return outcome switch
+        {
+            ResumeSalesOutcome.Resumed => Results.NoContent(),
+            ResumeSalesOutcome.NotFound => Results.NotFound(),
+            ResumeSalesOutcome.NotPublished => Results.Conflict(new { message = "Only a published event's sales can be resumed." }),
+            ResumeSalesOutcome.NotPaused => Results.Conflict(new { message = "Sales are not paused for this event." }),
+            _ => Results.Problem("Unexpected resume-sales outcome."),
         };
     }
 

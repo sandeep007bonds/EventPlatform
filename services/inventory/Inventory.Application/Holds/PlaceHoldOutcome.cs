@@ -29,4 +29,7 @@ public enum PlaceHoldOutcome
 
     /// <summary>The event requires Queue admission and the request carried no valid, unexpired admission token.</summary>
     QueueAdmissionRequired,
+
+    /// <summary>An organizer has manually paused sales for this event; no new holds are accepted.</summary>
+    SalesPaused,
 }

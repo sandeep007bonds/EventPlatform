@@ -27,8 +27,10 @@ import {
   getEvent,
   getSeatMap,
   listEntryGates,
+  pauseSales,
   publishEvent,
   removeSeatMapSection,
+  resumeSales,
   updateEventDetails,
   updateSeatMapSection,
   type EntryGateResponse,
@@ -96,6 +98,7 @@ export function AdminEventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingSales, setTogglingSales] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [addingSections, setAddingSections] = useState(false);
   const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
@@ -284,6 +287,27 @@ export function AdminEventDetailPage() {
     }
   };
 
+  const handleToggleSales = async () => {
+    if (!id || !event) {
+      return;
+    }
+    setTogglingSales(true);
+    try {
+      if (event.salesPaused) {
+        await resumeSales(id);
+        toast.success('Sales resumed.');
+      } else {
+        await pauseSales(id);
+        toast.success('Sales paused.');
+      }
+      load(id);
+    } catch {
+      toast.error('Could not update sales status for this event.');
+    } finally {
+      setTogglingSales(false);
+    }
+  };
+
   if (loading) {
     return <DetailSkeleton />;
   }
@@ -301,6 +325,7 @@ export function AdminEventDetailPage() {
             <Tag color={eventStatusColor[event.status]} style={{ marginLeft: 4 }}>
               {event.status}
             </Tag>
+            {event.salesPaused && <Tag color="warning">Sales paused</Tag>}
           </Space>
         }
         extra={
@@ -308,6 +333,15 @@ export function AdminEventDetailPage() {
             {event.status === 'Draft' && seatMap && (
               <Button type="primary" loading={submitting} onClick={() => void handlePublish()}>
                 Publish
+              </Button>
+            )}
+            {event.status === 'Published' && (
+              <Button
+                danger={!event.salesPaused}
+                loading={togglingSales}
+                onClick={() => void handleToggleSales()}
+              >
+                {event.salesPaused ? 'Resume sales' : 'Pause sales'}
               </Button>
             )}
             <Button onClick={() => void navigate('/admin')}>← Back to events</Button>
