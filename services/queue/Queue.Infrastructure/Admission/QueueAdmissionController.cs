@@ -7,12 +7,10 @@ namespace Queue.Infrastructure.Admission;
 /// already established for Inventory's hold expiry.
 /// </summary>
 /// <param name="scopeFactory">Factory used to resolve scoped services per tick.</param>
-/// <param name="store">The waiting-room store.</param>
 /// <param name="options">The admission controller options.</param>
 /// <param name="logger">The logger.</param>
 public sealed class QueueAdmissionController(
     IServiceScopeFactory scopeFactory,
-    IQueueStore store,
     QueueAdmissionOptions options,
     ILogger<QueueAdmissionController> logger)
     : BackgroundService
@@ -46,12 +44,15 @@ public sealed class QueueAdmissionController(
 
     private async Task PromoteDueEventsAsync(CancellationToken cancellationToken)
     {
-        IReadOnlyList<QueueSettings> enabled;
-        using (var scope = scopeFactory.CreateScope())
-        {
-            var settingsRepository = scope.ServiceProvider.GetRequiredService<IQueueSettingsRepository>();
-            enabled = await settingsRepository.ListEnabledAsync(cancellationToken);
-        }
+        // IQueueStore is scoped (like IQueueSettingsRepository) — a BackgroundService is always a
+        // singleton, so both must be resolved from a scope created per tick rather than injected
+        // into the constructor directly (the container's scope validation rejects a singleton that
+        // consumes a scoped service). One scope covers the whole tick, reused across every event's
+        // PromoteBatchAsync call below.
+        using var scope = scopeFactory.CreateScope();
+        var settingsRepository = scope.ServiceProvider.GetRequiredService<IQueueSettingsRepository>();
+        var store = scope.ServiceProvider.GetRequiredService<IQueueStore>();
+        var enabled = await settingsRepository.ListEnabledAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         foreach (var settings in enabled)
