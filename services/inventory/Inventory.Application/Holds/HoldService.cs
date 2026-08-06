@@ -54,6 +54,11 @@ public sealed class HoldService(
             return PlaceHoldResult.Failed(PlaceHoldOutcome.EventNotFound);
         }
 
+        if (settings.SalesPaused)
+        {
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.SalesPaused);
+        }
+
         if (settings.OnSaleAt is { } onSaleAt && DateTimeOffset.UtcNow < onSaleAt)
         {
             return PlaceHoldResult.Failed(PlaceHoldOutcome.OnSaleNotStarted);

@@ -10,13 +10,15 @@ import {
   Form,
   Input,
   InputNumber,
+  Modal,
+  Popconfirm,
   Row,
   Space,
   Tag,
   Typography,
   Upload,
 } from 'antd';
-import { UploadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -25,8 +27,12 @@ import {
   getEvent,
   getSeatMap,
   listEntryGates,
+  pauseSales,
   publishEvent,
+  removeSeatMapSection,
+  resumeSales,
   updateEventDetails,
+  updateSeatMapSection,
   type EntryGateResponse,
   type EventResponse,
   type SeatMapResponse,
@@ -54,6 +60,10 @@ interface SeatMapFormValues {
 
 interface AddSeatMapSectionsFormValues {
   sections: SeatMapSectionInput[];
+}
+
+interface EditSeatMapSectionFormValues {
+  sections: [SeatMapSectionInput];
 }
 
 interface EventDetailsFormValues {
@@ -88,10 +98,15 @@ export function AdminEventDetailPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingSales, setTogglingSales] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
   const [addingSections, setAddingSections] = useState(false);
+  const [editingSectionName, setEditingSectionName] = useState<string | null>(null);
+  const [savingSection, setSavingSection] = useState(false);
+  const [deletingSectionName, setDeletingSectionName] = useState<string | null>(null);
   const [detailsForm] = Form.useForm<EventDetailsFormValues>();
   const [addSectionsForm] = Form.useForm<AddSeatMapSectionsFormValues>();
+  const [editSectionForm] = Form.useForm<EditSeatMapSectionFormValues>();
 
   const load = (eventId: string) => {
     Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null), listEntryGates(eventId)])
@@ -179,6 +194,49 @@ export function AdminEventDetailPage() {
     }
   };
 
+  const openEditSection = (section: SeatMapSectionInput) => {
+    setEditingSectionName(section.name);
+    editSectionForm.setFieldsValue({ sections: [section] });
+  };
+
+  const handleSaveSection = async (values: EditSeatMapSectionFormValues) => {
+    if (!id || !editingSectionName) {
+      return;
+    }
+    setSavingSection(true);
+    try {
+      await updateSeatMapSection(id, {
+        currentSectionName: editingSectionName,
+        section: values.sections[0],
+      });
+      toast.success('Section updated.');
+      setEditingSectionName(null);
+      load(id);
+    } catch {
+      toast.error(
+        'Could not save that section — check for a duplicate name or an invalid entry gate.',
+      );
+    } finally {
+      setSavingSection(false);
+    }
+  };
+
+  const handleDeleteSection = async (sectionName: string) => {
+    if (!id) {
+      return;
+    }
+    setDeletingSectionName(sectionName);
+    try {
+      await removeSeatMapSection(id, sectionName);
+      toast.success('Section removed.');
+      load(id);
+    } catch {
+      toast.error('Could not remove that section.');
+    } finally {
+      setDeletingSectionName(null);
+    }
+  };
+
   const handleSaveDetails = async (values: EventDetailsFormValues) => {
     if (!id) {
       return;
@@ -229,6 +287,27 @@ export function AdminEventDetailPage() {
     }
   };
 
+  const handleToggleSales = async () => {
+    if (!id || !event) {
+      return;
+    }
+    setTogglingSales(true);
+    try {
+      if (event.salesPaused) {
+        await resumeSales(id);
+        toast.success('Sales resumed.');
+      } else {
+        await pauseSales(id);
+        toast.success('Sales paused.');
+      }
+      load(id);
+    } catch {
+      toast.error('Could not update sales status for this event.');
+    } finally {
+      setTogglingSales(false);
+    }
+  };
+
   if (loading) {
     return <DetailSkeleton />;
   }
@@ -246,6 +325,7 @@ export function AdminEventDetailPage() {
             <Tag color={eventStatusColor[event.status]} style={{ marginLeft: 4 }}>
               {event.status}
             </Tag>
+            {event.salesPaused && <Tag color="warning">Sales paused</Tag>}
           </Space>
         }
         extra={
@@ -253,6 +333,15 @@ export function AdminEventDetailPage() {
             {event.status === 'Draft' && seatMap && (
               <Button type="primary" loading={submitting} onClick={() => void handlePublish()}>
                 Publish
+              </Button>
+            )}
+            {event.status === 'Published' && (
+              <Button
+                danger={!event.salesPaused}
+                loading={togglingSales}
+                onClick={() => void handleToggleSales()}
+              >
+                {event.salesPaused ? 'Resume sales' : 'Pause sales'}
               </Button>
             )}
             <Button onClick={() => void navigate('/admin')}>← Back to events</Button>
@@ -551,18 +640,88 @@ export function AdminEventDetailPage() {
           <Space direction="vertical" style={{ width: '100%', marginBottom: 8 }}>
             {[...new Set(seatMap.seats.map((seat) => seat.section))].map((section) => {
               const seatsInSection = seatMap.seats.filter((seat) => seat.section === section);
+              const first = seatsInSection[0];
               return (
-                <Typography.Text key={section} type="secondary">
-                  {section} — Reserved · {seatsInSection[0]?.priceTier} · {seatsInSection.length}{' '}
-                  seats
-                </Typography.Text>
+                <div
+                  key={section}
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                >
+                  <Typography.Text type="secondary">
+                    {section} — Reserved · {first?.priceTier} · {seatsInSection.length} seats
+                  </Typography.Text>
+                  <Space size="small">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<EditOutlined />}
+                      onClick={() =>
+                        openEditSection({
+                          name: section,
+                          priceTier: first?.priceTier ?? '',
+                          priceAmount: first?.priceAmount ?? 0,
+                          allocationType: 'Reserved',
+                          rows: new Set(seatsInSection.map((seat) => seat.row)).size,
+                          seatsPerRow: Math.max(...seatsInSection.map((seat) => seat.number)),
+                          entryGateId: first?.entryGateId ?? null,
+                        })
+                      }
+                    />
+                    <Popconfirm
+                      title="Remove this section?"
+                      description="Every seat in it is deleted."
+                      onConfirm={() => void handleDeleteSection(section)}
+                    >
+                      <Button
+                        type="text"
+                        size="small"
+                        danger
+                        icon={<DeleteOutlined />}
+                        loading={deletingSectionName === section}
+                      />
+                    </Popconfirm>
+                  </Space>
+                </div>
               );
             })}
             {seatMap.generalAdmissionSections.map((section) => (
-              <Typography.Text key={section.id} type="secondary">
-                {section.sectionName} — General admission · {section.priceTier} · {section.capacity}{' '}
-                capacity
-              </Typography.Text>
+              <div
+                key={section.id}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <Typography.Text type="secondary">
+                  {section.sectionName} — General admission · {section.priceTier} ·{' '}
+                  {section.capacity} capacity
+                </Typography.Text>
+                <Space size="small">
+                  <Button
+                    type="text"
+                    size="small"
+                    icon={<EditOutlined />}
+                    onClick={() =>
+                      openEditSection({
+                        name: section.sectionName,
+                        priceTier: section.priceTier,
+                        priceAmount: section.priceAmount,
+                        allocationType: 'GeneralAdmission',
+                        capacity: section.capacity,
+                        entryGateId: section.entryGateId,
+                      })
+                    }
+                  />
+                  <Popconfirm
+                    title="Remove this section?"
+                    onConfirm={() => void handleDeleteSection(section.sectionName)}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      loading={deletingSectionName === section.sectionName}
+                    />
+                  </Popconfirm>
+                </Space>
+              </div>
             ))}
           </Space>
 
@@ -598,6 +757,33 @@ export function AdminEventDetailPage() {
 
       {event.status !== 'Draft' && id && <SeatBlockPanel eventId={id} />}
       {event.status !== 'Draft' && event.requiresQueue && id && <QueueSettingsPanel eventId={id} />}
+
+      <Modal
+        open={editingSectionName !== null}
+        onCancel={() => setEditingSectionName(null)}
+        title={`Edit section: ${editingSectionName ?? ''}`}
+        okText="Save"
+        confirmLoading={savingSection}
+        onOk={() => editSectionForm.submit()}
+        destroyOnClose
+      >
+        <Form<EditSeatMapSectionFormValues>
+          form={editSectionForm}
+          layout="vertical"
+          onFinish={(values) => {
+            void handleSaveSection(values);
+          }}
+        >
+          <SeatMapSectionsFields
+            entryGates={entryGates}
+            allowAddRemove={false}
+            existingSectionNames={[
+              ...(seatMap?.seats.map((seat) => seat.section) ?? []),
+              ...(seatMap?.generalAdmissionSections.map((section) => section.sectionName) ?? []),
+            ].filter((name) => name !== editingSectionName)}
+          />
+        </Form>
+      </Modal>
     </>
   );
 }

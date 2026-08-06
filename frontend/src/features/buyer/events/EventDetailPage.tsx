@@ -112,6 +112,10 @@ export function EventDetailPage() {
       toast.error('Tickets are not on sale yet for this event.');
       return;
     }
+    if (event?.salesPaused) {
+      toast.error('Sales are currently paused for this event.');
+      return;
+    }
     if (event?.requiresQueue) {
       void navigate(`/events/${id}/queue`);
       return;
@@ -202,6 +206,11 @@ export function EventDetailPage() {
               {notOnSaleYet && (
                 <Tag color="blue" style={{ width: 'fit-content' }}>
                   On sale {dayjs(event.onSaleAt).format('MMMM D, YYYY · h:mm A')}
+                </Tag>
+              )}
+              {event.salesPaused && (
+                <Tag color="warning" style={{ width: 'fit-content' }}>
+                  Sales paused
                 </Tag>
               )}
               {bookingClosed && (

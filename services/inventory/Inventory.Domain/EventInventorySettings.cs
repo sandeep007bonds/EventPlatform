@@ -60,6 +60,14 @@ public sealed class EventInventorySettings
     /// </summary>
     public bool RequiresQueue { get; private set; }
 
+    /// <summary>
+    /// Whether an organizer has manually paused sales for this event — learned from Catalog's
+    /// <c>EventSalesPaused</c>/<c>EventSalesResumed</c>, not from <c>EventPublished</c> (sales are
+    /// never paused at provisioning time). <c>HoldService.PlaceHoldAsync</c> rejects new holds for
+    /// this event while this is <see langword="true"/>, without affecting already-placed holds/tickets.
+    /// </summary>
+    public bool SalesPaused { get; private set; }
+
     /// <summary>Creates the settings row for an event.</summary>
     /// <param name="eventId">The event.</param>
     /// <param name="tenantId">Owning tenant.</param>
@@ -94,5 +102,14 @@ public sealed class EventInventorySettings
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         OnSaleAt = onSaleAt;
         RequiresQueue = requiresQueue;
+    }
+
+    /// <summary>
+    /// Sets the manual sales-paused flag — called on <c>EventSalesPaused</c>/<c>EventSalesResumed</c>.
+    /// </summary>
+    /// <param name="salesPaused">The new paused state.</param>
+    public void SetSalesPaused(bool salesPaused)
+    {
+        SalesPaused = salesPaused;
     }
 }

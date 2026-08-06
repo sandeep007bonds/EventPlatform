@@ -187,6 +187,14 @@ public static class TicketingEndpoints
             return Results.Conflict(new { message = "This ticket must enter through a different gate." });
         }
 
+        // A clearer message than the domain exception's raw "Ticket {id} is Void, not Issued." for
+        // the specific, common case of a cancelled/refunded order — the gate scanner shouldn't see
+        // an internal-sounding message for what is, to them, just "this ticket isn't valid."
+        if (ticket.Status == TicketStatus.Void)
+        {
+            return Results.Conflict(new { message = "This ticket was cancelled and is no longer valid." });
+        }
+
         try
         {
             ticket.CheckIn();

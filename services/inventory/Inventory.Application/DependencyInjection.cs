@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddSingleton(new HoldReaperOptions());
         services.AddSingleton(new InventoryReconcilerOptions());
         services.AddScoped<InventoryProvisioningService>();
+        services.AddScoped<EventSalesToggleService>();
         services.AddScoped<HoldService>();
         services.AddScoped<SeatBlockingService>();
 

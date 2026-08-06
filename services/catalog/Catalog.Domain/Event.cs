@@ -81,6 +81,14 @@ public sealed class Event
     /// <summary>Current lifecycle status.</summary>
     public EventStatus Status { get; private set; }
 
+    /// <summary>
+    /// Whether an organizer has manually paused sales for this published event (e.g. during a
+    /// technical issue), independent of the <see cref="OnSaleAt"/>/<see cref="BookingEndsAt"/>
+    /// enforced time window. Inventory rejects new holds while this is <see langword="true"/>,
+    /// the same way it does for those bounds. See <see cref="PauseSales"/>/<see cref="ResumeSales"/>.
+    /// </summary>
+    public bool SalesPaused { get; private set; }
+
     /// <summary>Marketing description shown on the public event page.</summary>
     public string? Description { get; private set; }
 
@@ -265,6 +273,45 @@ public sealed class Event
         }
 
         Status = EventStatus.Published;
+    }
+
+    /// <summary>
+    /// Pauses sales for a published event, without affecting already-placed holds/tickets. Only a
+    /// <see cref="EventStatus.Published"/> event that isn't already paused may be paused.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The event is not published, or sales are already paused.</exception>
+    public void PauseSales()
+    {
+        if (Status != EventStatus.Published)
+        {
+            throw new InvalidOperationException("Only a published event's sales can be paused.");
+        }
+
+        if (SalesPaused)
+        {
+            throw new InvalidOperationException("Sales are already paused for this event.");
+        }
+
+        SalesPaused = true;
+    }
+
+    /// <summary>
+    /// Resumes sales for a published event previously paused via <see cref="PauseSales"/>.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The event is not published, or sales are not paused.</exception>
+    public void ResumeSales()
+    {
+        if (Status != EventStatus.Published)
+        {
+            throw new InvalidOperationException("Only a published event's sales can be resumed.");
+        }
+
+        if (!SalesPaused)
+        {
+            throw new InvalidOperationException("Sales are not paused for this event.");
+        }
+
+        SalesPaused = false;
     }
 
     /// <summary>

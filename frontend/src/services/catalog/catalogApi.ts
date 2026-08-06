@@ -28,6 +28,7 @@ export interface EventResponse {
   bookingEndsAt: string | null;
   maxTicketsPerBuyer: number | null;
   requiresQueue: boolean;
+  salesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
@@ -248,9 +249,38 @@ export async function addSeatMapSections(
   return response.data;
 }
 
+/** Replaces one existing section of a draft event's seat map (Draft-only) — a full remove+re-add. */
+export async function updateSeatMapSection(
+  eventId: string,
+  request: { currentSectionName: string; section: SeatMapSectionInput },
+): Promise<{ seatMapId: string }> {
+  const response = await httpClient.put<{ seatMapId: string }>(
+    `/api/catalog/v1/events/${eventId}/seatmap/sections`,
+    request,
+  );
+  return response.data;
+}
+
+/** Removes one section from a draft event's existing seat map entirely (Draft-only). */
+export async function removeSeatMapSection(eventId: string, sectionName: string): Promise<void> {
+  await httpClient.delete(
+    `/api/catalog/v1/events/${eventId}/seatmap/sections/${encodeURIComponent(sectionName)}`,
+  );
+}
+
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);
+}
+
+/** Pauses sales for a published event, without affecting already-placed holds/tickets. */
+export async function pauseSales(eventId: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/pause-sales`);
+}
+
+/** Resumes sales for a published event previously paused via {@link pauseSales}. */
+export async function resumeSales(eventId: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/resume-sales`);
 }
 
 /** Sets a draft event's descriptive/promotional details (Draft-only; 409 otherwise). */
