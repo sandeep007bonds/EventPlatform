@@ -236,6 +236,18 @@ export async function defineSeatMap(
   return response.data;
 }
 
+/** Adds more sections to a draft event's existing seat map (Draft-only). */
+export async function addSeatMapSections(
+  eventId: string,
+  request: { sections: SeatMapSectionInput[] },
+): Promise<{ seatMapId: string }> {
+  const response = await httpClient.post<{ seatMapId: string }>(
+    `/api/catalog/v1/events/${eventId}/seatmap/sections`,
+    request,
+  );
+  return response.data;
+}
+
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);

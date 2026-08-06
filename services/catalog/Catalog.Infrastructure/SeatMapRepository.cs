@@ -16,6 +16,13 @@ internal sealed class SeatMapRepository(CatalogDbContext dbContext) : ISeatMapRe
             .FirstOrDefaultAsync(m => m.EventId == eventId, cancellationToken);
 
     /// <inheritdoc />
+    public Task<SeatMap?> GetTrackedByEventIdAsync(Guid eventId, CancellationToken cancellationToken) =>
+        dbContext.SeatMaps
+            .Include(m => m.Seats)
+            .Include(m => m.GeneralAdmissionSections)
+            .FirstOrDefaultAsync(m => m.EventId == eventId, cancellationToken);
+
+    /// <inheritdoc />
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 }
