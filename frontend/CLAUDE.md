@@ -112,7 +112,7 @@ src/
 - **`httpClient`'s response interceptor never auto-toasts, for any request.**
   It used to show a generic toast for 403/5xx — on top of whatever the calling
   page's own `.catch()` already showed, doubling every single failure (load
-  *and* action alike; see git history for the exact bug report). Every call
+  _and_ action alike; see git history for the exact bug report). Every call
   site owns its own failure UI now: a data load shows `LoadError` (list/panel —
   tracked as its own `loadError` state distinct from "succeeded with zero
   results," so the two don't get confused) or, for a single-resource top-level
@@ -124,20 +124,35 @@ src/
   401, since that has to happen regardless of which call triggered it.
   `EventGroupPicker`'s own tours fetch degrades fully silently (no `LoadError`
   either) since it's a minor dropdown inside an otherwise-fully-usable form.
-- **Tour-first is the primary flow; inline quick-create on `CreateEventPage` is the fast path.**
-  `CreateEventGroupPage` (`/admin/tours/new`) creates the tour itself and lands on its own
-  `TourDetailPage` (`/admin/tours/:id` — dates/contact summary + `TourLegsList`, upcoming visible,
-  past collapsed), which has an "Add leg" button that opens `CreateEventPage` with
-  `?eventGroupId=` pre-filled (read via `useSearchParams`), so growing a tour is
-  create-it-once-then-keep-adding-legs-from-its-page, not re-picking it from a dropdown each time.
-  `EventGroupsPage`'s rows are clickable through to the same `TourDetailPage`. Separately,
-  `CreateEventPage`'s own tour picker still offers "+ New tour" inline (just a title field on the
-  same form — no tour is created until the *event* submits, so an abandoned form never leaves an
-  orphan tour behind, and the new tour inherits this first leg's own dates as its advertised range)
-  for the "I'm creating an event and realize it needs a tour" case, without leaving the page.
-  Picking an *existing* tour from that same picker also renders `TourLegsList` inline, for context
-  before adding another leg. Both paths reuse the same `TourLegsList`/`EventGroupPicker` components
-  and the same create-then-conditionally-`updateEventGroup` sequence server-side.
+- **`CreateEventPage` is a single page/form that creates 1..N legs (cities/dates) in one visit,
+  optionally creating their tour inline.** It defaults to looking exactly like a plain
+  single-event form — no tour language visible — with one leg card
+  (`EventLegFields`, a `Form.List name="legs"` repeater following `SeatMapSectionsFields.tsx`'s
+  "one Card per item, dashed 'Add' button, remove hidden once only one item's left" shape). The
+  "Add another city/date" button appends another leg card **on the same page** and, once there's
+  more than one leg, the tour picker (`EventGroupPicker`) becomes required — a multi-leg batch
+  always needs somewhere to attach its legs — auto-switching to `NEW_TOUR_OPTION` (its "+ New
+  tour" sentinel) if nothing was already picked. Submission creates the tour first if needed
+  (title-only; nothing is created until submit, so an abandoned form never leaves an orphan tour
+  behind), then calls `POST /v1/events` **sequentially, one leg at a time** (never
+  `Promise.all`) — the server's sibling-overlap check re-queries fresh state per call, so legs
+  must land in order for that check to be correct. A newly-created tour's advertised range is
+  backfilled afterward from `min`/`max` across all the legs just submitted (`updateEventGroup`) —
+  not done when attaching to an _already-existing_ tour, since that tour may have other legs
+  outside this submission that a naive min/max would wrongly ignore.
+  **No delete/rollback endpoint exists for either `Event` or `EventGroup`**, so a batch that fails
+  partway through leaves whatever succeeded permanently saved — `CreateEventPage` tracks each
+  leg's status (`pending`/`created`/`failed`) and locks/tags already-created cards so a retry only
+  (re-)submits what's left, never re-creating a leg twice; the submit button relabels to "Create
+  remaining legs" while any leg has failed.
+  `CreateEventGroupPage` (`/admin/tours/new`) still exists separately, for setting a tour's full
+  date range/contact/social defaults up front before any legs exist; it lands on `TourDetailPage`
+  (`/admin/tours/:id` — dates/contact summary, an "Edit dates" action, + `TourLegsList`, upcoming
+  visible/past collapsed), whose "Add leg" button opens the same `CreateEventPage` pre-scoped via
+  `?eventGroupId=` — the organizer can still add just one leg, or several at once, from there.
+  `EventGroupsPage`'s rows are clickable through to `TourDetailPage`. Both entry points funnel
+  into the same `CreateEventPage`/`EventLegFields`/`EventGroupPicker` machinery and the same
+  create-then-conditionally-`updateEventGroup` sequence server-side.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft
