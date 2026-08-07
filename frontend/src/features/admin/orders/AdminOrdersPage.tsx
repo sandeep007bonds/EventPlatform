@@ -8,7 +8,7 @@ import {
 } from '../../../services/ordering/orderingApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 import { formatMoney } from '../../../utils/money';
 
 const PAGE_SIZE = 20;
@@ -34,6 +34,8 @@ export function AdminOrdersPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +47,13 @@ export function AdminOrdersPage() {
         }
         setOrders(result.orders);
         setTotalCount(result.totalCount);
+        setLoadError(false);
       })
-      .catch(() => toast.error('Could not load orders.'))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -56,7 +63,7 @@ export function AdminOrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, reloadToken]);
 
   if (loading) {
     return (
@@ -70,45 +77,57 @@ export function AdminOrdersPage() {
   return (
     <>
       <PageHeader title="Orders" description="Every order placed against your events." />
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<OrderSummaryResponse>
-          rowKey="id"
-          dataSource={orders}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: totalCount,
-            onChange: setPage,
-            showSizeChanger: false,
-          }}
-          columns={[
-            { title: 'Order', dataIndex: 'id', render: (id: string) => id.slice(0, 8) },
-            {
-              title: 'Status',
-              dataIndex: 'status',
-              // Client-side, current page only — Ordering has no server-side status filter yet.
-              filters: STATUS_OPTIONS.map((option) => ({ text: option, value: option })),
-              onFilter: (value, record) => record.status === value,
-              render: (status: OrderSummaryResponse['status']) => (
-                <Tag color={STATUS_COLOR[status]}>{status}</Tag>
-              ),
-            },
-            {
-              title: 'Total',
-              key: 'total',
-              sorter: (a, b) => a.totalMinor - b.totalMinor,
-              render: (_, order) => formatMoney(order.totalMinor, order.currency),
-            },
-            {
-              title: 'Created',
-              dataIndex: 'createdAt',
-              sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
-              defaultSortOrder: 'descend',
-              render: (createdAt: string) => dayjs(createdAt).format('MMM D, YYYY · h:mm A'),
-            },
-          ]}
-        />
-      </Card>
+      {loadError ? (
+        <Card>
+          <LoadError
+            description="Could not load orders."
+            onRetry={() => {
+              setLoading(true);
+              setReloadToken((token) => token + 1);
+            }}
+          />
+        </Card>
+      ) : (
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table<OrderSummaryResponse>
+            rowKey="id"
+            dataSource={orders}
+            pagination={{
+              current: page,
+              pageSize: PAGE_SIZE,
+              total: totalCount,
+              onChange: setPage,
+              showSizeChanger: false,
+            }}
+            columns={[
+              { title: 'Order', dataIndex: 'id', render: (id: string) => id.slice(0, 8) },
+              {
+                title: 'Status',
+                dataIndex: 'status',
+                // Client-side, current page only — Ordering has no server-side status filter yet.
+                filters: STATUS_OPTIONS.map((option) => ({ text: option, value: option })),
+                onFilter: (value, record) => record.status === value,
+                render: (status: OrderSummaryResponse['status']) => (
+                  <Tag color={STATUS_COLOR[status]}>{status}</Tag>
+                ),
+              },
+              {
+                title: 'Total',
+                key: 'total',
+                sorter: (a, b) => a.totalMinor - b.totalMinor,
+                render: (_, order) => formatMoney(order.totalMinor, order.currency),
+              },
+              {
+                title: 'Created',
+                dataIndex: 'createdAt',
+                sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
+                defaultSortOrder: 'descend',
+                render: (createdAt: string) => dayjs(createdAt).format('MMM D, YYYY · h:mm A'),
+              },
+            ]}
+          />
+        </Card>
+      )}
     </>
   );
 }

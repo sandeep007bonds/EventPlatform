@@ -157,7 +157,10 @@ export function SeatSelectionPage() {
         setSeatMap(map);
         pollStatuses(map);
       })
-      .catch(() => toast.error('Could not load the seat map.'))
+      .catch(() => {
+        // seatMap stays null — the render below already shows a graceful message for that,
+        // covering both "genuinely not defined yet" and "failed to load" with one honest state.
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -301,7 +304,10 @@ export function SeatSelectionPage() {
 
   if (!seatMap) {
     return (
-      <Typography.Text type="secondary">No seat map is available for this event.</Typography.Text>
+      <Typography.Text type="secondary">
+        Couldn't load the seat map for this event — it may not be defined yet, or something went
+        wrong. Please try again shortly.
+      </Typography.Text>
     );
   }
 

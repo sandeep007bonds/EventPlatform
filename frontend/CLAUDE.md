@@ -38,7 +38,9 @@ src/
   components/common/
     skeletons/   ListSkeleton, TableSkeleton, CardSkeleton, DetailSkeleton
     errors/      UnauthorizedPage (401→403 visual), NotFoundPage (404),
-                 ServerErrorPage (500), RouteErrorBoundary
+                 ServerErrorPage (500, route-level only), RouteErrorBoundary,
+                 LoadError (inline "couldn't load this" + retry, for a
+                 list/panel's own failed GET — see design notes below)
     feedback/    toast.ts + ToastHolder (stashes Ant's message/notification
                  instances so non-React code can call toast.*); TopProgressBar
                  (global top-of-page loading indicator, no third-party dep)
@@ -106,6 +108,20 @@ src/
 - **Ant's `message` toasts are pinned to top-right via CSS** (`index.css`) — the
   `message` API has no placement prop and defaults to top-center; `notification`
   (used by `toast.notifyError`) already defaults to top-right.
+- **A failed GET (a list/panel's own data load) never toasts — a mutating request
+  (POST/PUT/DELETE) still can.** `httpClient`'s response interceptor only
+  auto-toasts 403/5xx for non-GET requests now; GET failures are silent there by
+  design, since every load site owns its own graceful state instead: `LoadError`
+  (list/panel — the alternative to a toast for "the fetch failed," tracked as its
+  own `loadError` state distinct from "the fetch succeeded with zero results," so
+  the two don't get confused) or, for a single-resource top-level page load,
+  `NotFoundPage` on a genuine 404 vs `ServerErrorPage` on anything else (mirrors
+  each other in `EventDetailPage`/`AdminEventDetailPage`/`OrderPage` — check
+  `error.response?.status === 404` before choosing which). Action-triggered
+  failures (a save, a publish, a block/unblock, a login attempt) still toast —
+  only initial page/panel data loads changed. `EventGroupPicker`'s own tours
+  fetch is the one exception that degrades fully silently (no `LoadError` either)
+  since it's a minor dropdown inside an otherwise-fully-usable form.
 - **Tour creation is inline in `CreateEventPage`, not a separate page-first flow.** Picking
   "+ New tour" in the `EventGroupPicker` just reveals a title field on the same form — no tour is
   created until the event itself is submitted (an abandoned form never leaves an orphan tour

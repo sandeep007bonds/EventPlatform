@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { listMyOrders, type OrderSummaryResponse } from '../../../services/ordering/orderingApi';
 import { ListSkeleton } from '../../../components/common/skeletons/ListSkeleton';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 import { formatMoney } from '../../../utils/money';
 
 const PAGE_SIZE = 10;
@@ -24,6 +24,8 @@ export function MyOrdersPage() {
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,8 +37,13 @@ export function MyOrdersPage() {
         }
         setOrders(result.orders);
         setTotalCount(result.totalCount);
+        setLoadError(false);
       })
-      .catch(() => toast.error('Could not load your orders.'))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -46,7 +53,7 @@ export function MyOrdersPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, reloadToken]);
 
   if (loading) {
     return (
@@ -60,7 +67,15 @@ export function MyOrdersPage() {
   return (
     <>
       <PageHeader title="My orders" />
-      {orders.length === 0 ? (
+      {loadError ? (
+        <LoadError
+          description="Could not load your orders."
+          onRetry={() => {
+            setLoading(true);
+            setReloadToken((token) => token + 1);
+          }}
+        />
+      ) : orders.length === 0 ? (
         <Empty description="No orders yet" style={{ margin: '64px 0' }} />
       ) : (
         <>

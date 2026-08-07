@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Col, Descriptions, Row, Space, Tag, Typography, Divider } from 'antd';
+import type { AxiosError } from 'axios';
 import {
   CalendarOutlined,
   ClockCircleOutlined,
@@ -22,6 +23,7 @@ import {
 import { getInventoryCount } from '../../../services/inventory/inventoryApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
+import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toEmbedUrl } from '../../../utils/videoEmbed';
 import { toast } from '../../../components/common/feedback/toast';
@@ -38,6 +40,7 @@ export function EventDetailPage() {
   const [availableCount, setAvailableCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -89,7 +92,13 @@ export function EventDetailPage() {
             });
         }
       })
-      .catch(() => setNotFound(true))
+      .catch((error: AxiosError) => {
+        if (error.response?.status === 404) {
+          setNotFound(true);
+        } else {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -125,6 +134,10 @@ export function EventDetailPage() {
 
   if (loading) {
     return <DetailSkeleton />;
+  }
+
+  if (loadError) {
+    return <ServerErrorPage />;
   }
 
   if (notFound || !event) {

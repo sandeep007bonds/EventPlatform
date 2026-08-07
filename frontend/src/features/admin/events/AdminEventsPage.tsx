@@ -13,7 +13,7 @@ import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleto
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { eventStatusColor } from '../../../utils/eventStatus';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS: EventStatus[] = [
@@ -37,6 +37,8 @@ export function AdminEventsPage() {
   // eventGroupId -> tour title, for the "Tour" column. Catalog has no batch lookup endpoint for
   // this, so it's resolved client-side from the current page's distinct ids (at most PAGE_SIZE).
   const [tourTitles, setTourTitles] = useState<Map<string, string>>(new Map());
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +52,7 @@ export function AdminEventsPage() {
         }
         setEvents(result.events);
         setTotalCount(result.totalCount);
+        setLoadError(false);
 
         const groupIds = [
           ...new Set(
@@ -73,7 +76,11 @@ export function AdminEventsPage() {
           },
         );
       })
-      .catch(() => toast.error('Could not load your events.'))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -83,7 +90,7 @@ export function AdminEventsPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, status]);
+  }, [page, status, reloadToken]);
 
   if (loading) {
     return (
@@ -132,58 +139,70 @@ export function AdminEventsPage() {
         />
       </Toolbar>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<EventResponse>
-          rowKey="id"
-          dataSource={visibleEvents}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: totalCount,
-            onChange: setPage,
-            showSizeChanger: false,
-          }}
-          onRow={(record) => ({
-            onClick: () => void navigate(`/admin/events/${record.id}`),
-            style: { cursor: 'pointer' },
-          })}
-          columns={[
-            {
-              title: 'Title',
-              dataIndex: 'title',
-              sorter: (a, b) => a.title.localeCompare(b.title),
-            },
-            {
-              title: 'Status',
-              dataIndex: 'status',
-              render: (eventStatus: EventResponse['status']) => (
-                <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
-              ),
-            },
-            {
-              title: 'Tour',
-              dataIndex: 'eventGroupId',
-              render: (eventGroupId: EventResponse['eventGroupId']) =>
-                eventGroupId ? (
-                  tourTitles.get(eventGroupId) ?? '…'
-                ) : (
-                  <Typography.Text type="secondary">—</Typography.Text>
+      {loadError ? (
+        <Card>
+          <LoadError
+            description="Could not load your events."
+            onRetry={() => {
+              setLoading(true);
+              setReloadToken((token) => token + 1);
+            }}
+          />
+        </Card>
+      ) : (
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table<EventResponse>
+            rowKey="id"
+            dataSource={visibleEvents}
+            pagination={{
+              current: page,
+              pageSize: PAGE_SIZE,
+              total: totalCount,
+              onChange: setPage,
+              showSizeChanger: false,
+            }}
+            onRow={(record) => ({
+              onClick: () => void navigate(`/admin/events/${record.id}`),
+              style: { cursor: 'pointer' },
+            })}
+            columns={[
+              {
+                title: 'Title',
+                dataIndex: 'title',
+                sorter: (a, b) => a.title.localeCompare(b.title),
+              },
+              {
+                title: 'Status',
+                dataIndex: 'status',
+                render: (eventStatus: EventResponse['status']) => (
+                  <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
                 ),
-            },
-            {
-              title: 'City',
-              dataIndex: 'city',
-            },
-            {
-              title: 'Starts',
-              dataIndex: 'startsAt',
-              sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
-              defaultSortOrder: 'ascend',
-              render: (startsAt: string) => dayjs(startsAt).format('MMM D, YYYY · h:mm A'),
-            },
-          ]}
-        />
-      </Card>
+              },
+              {
+                title: 'Tour',
+                dataIndex: 'eventGroupId',
+                render: (eventGroupId: EventResponse['eventGroupId']) =>
+                  eventGroupId ? (
+                    (tourTitles.get(eventGroupId) ?? '…')
+                  ) : (
+                    <Typography.Text type="secondary">—</Typography.Text>
+                  ),
+              },
+              {
+                title: 'City',
+                dataIndex: 'city',
+              },
+              {
+                title: 'Starts',
+                dataIndex: 'startsAt',
+                sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
+                defaultSortOrder: 'ascend',
+                render: (startsAt: string) => dayjs(startsAt).format('MMM D, YYYY · h:mm A'),
+              },
+            ]}
+          />
+        </Card>
+      )}
     </>
   );
 }

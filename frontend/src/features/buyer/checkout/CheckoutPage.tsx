@@ -69,7 +69,9 @@ export function CheckoutPage() {
           setCurrency(event.currency);
         }
       })
-      .catch(() => toast.error('Could not load this hold — it may have expired.'))
+      .catch(() => {
+        // hold stays null — the render below already shows a proper "no longer available" Result.
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
