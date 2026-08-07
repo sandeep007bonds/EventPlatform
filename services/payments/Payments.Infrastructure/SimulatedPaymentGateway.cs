@@ -3,7 +3,7 @@ namespace Payments.Infrastructure;
 /// <summary>
 /// Dev/test payment gateway that captures synchronously and always succeeds — the local stand-in
 /// for Stripe test mode. The real Stripe-backed gateway (Stripe.net, secret key from Key Vault)
-/// replaces this behind <see cref="IPaymentGateway"/> without touching the saga. See tracker T-stripe.
+/// replaces this behind <see cref="IPaymentGateway"/> without touching the saga.
 /// </summary>
 internal sealed class SimulatedPaymentGateway : IPaymentGateway
 {
@@ -15,6 +15,7 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string paymentMethodId,
         CancellationToken cancellationToken) =>
         Task.FromResult(new GatewayResult(Succeeded: true, Reference: $"pi_sim_{Guid.CreateVersion7():N}", FailureReason: null));
 

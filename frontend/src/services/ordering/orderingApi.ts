@@ -52,10 +52,11 @@ export async function checkout(
   holdId: string,
   idempotencyKey: string,
   buyerEmail: string,
+  paymentMethodId: string,
 ): Promise<{ orderId: string }> {
   const response = await httpClient.post<{ orderId: string }>(
     '/api/ordering/v1/checkout',
-    { holdId, buyerEmail },
+    { holdId, buyerEmail, paymentMethodId },
     { headers: { 'Idempotency-Key': idempotencyKey } },
   );
   return response.data;

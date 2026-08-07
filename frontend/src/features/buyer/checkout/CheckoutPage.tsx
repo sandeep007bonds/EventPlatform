@@ -1,15 +1,22 @@
 import { useEffect, useRef, useState } from 'react';
 import { Button, Card, Input, Progress, Result, Tag, Typography } from 'antd';
 import { ClockCircleOutlined, MailOutlined } from '@ant-design/icons';
+import { Elements } from '@stripe/react-stripe-js';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent } from '../../../services/catalog/catalogApi';
 import { getHold, type HoldView } from '../../../services/inventory/inventoryApi';
 import { checkout } from '../../../services/ordering/orderingApi';
+import {
+  DEV_FALLBACK_PAYMENT_METHOD_ID,
+  isStripeConfigured,
+  stripePromise,
+} from '../../../services/payments/stripeClient';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { useAuth } from '../../../contexts/useAuth';
+import { CheckoutPaymentForm } from './CheckoutPaymentForm';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -85,7 +92,7 @@ export function CheckoutPage() {
 
   const secondsLeft = useCountdown(hold?.expiresAt ?? null);
 
-  const handleConfirm = async () => {
+  const handleConfirm = async (paymentMethodId: string) => {
     if (!holdId) {
       return;
     }
@@ -102,7 +109,7 @@ export function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const result = await checkout(holdId, idempotencyKey.current, buyerEmail);
+      const result = await checkout(holdId, idempotencyKey.current, buyerEmail, paymentMethodId);
       void navigate(`/orders/${result.orderId}`);
     } catch (error) {
       const axiosError = error as AxiosError<CheckoutErrorBody>;
@@ -215,16 +222,27 @@ export function CheckoutPage() {
           style={{ marginBottom: 20 }}
         />
 
-        <Button
-          type="primary"
-          size="large"
-          block
-          disabled={expired}
-          loading={submitting}
-          onClick={() => void handleConfirm()}
-        >
-          {expired ? 'Hold expired' : 'Confirm purchase'}
-        </Button>
+        {isStripeConfigured ? (
+          <Elements stripe={stripePromise}>
+            <CheckoutPaymentForm
+              expired={expired}
+              emailValid={EMAIL_PATTERN.test(buyerEmail)}
+              submitting={submitting}
+              onSubmit={(paymentMethodId) => void handleConfirm(paymentMethodId)}
+            />
+          </Elements>
+        ) : (
+          <Button
+            type="primary"
+            size="large"
+            block
+            disabled={expired}
+            loading={submitting}
+            onClick={() => void handleConfirm(DEV_FALLBACK_PAYMENT_METHOD_ID)}
+          >
+            {expired ? 'Hold expired' : 'Confirm purchase'}
+          </Button>
+        )}
       </Card>
     </div>
   );

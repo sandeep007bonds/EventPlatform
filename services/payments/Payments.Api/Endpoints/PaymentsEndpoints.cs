@@ -70,6 +70,7 @@ public static class PaymentsEndpoints
             request.AmountMinor,
             request.Currency,
             request.IdempotencyKey,
+            request.PaymentMethodId,
             cancellationToken);
 
         var response = new ChargeResponse(

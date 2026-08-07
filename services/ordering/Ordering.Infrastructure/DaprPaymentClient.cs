@@ -16,12 +16,13 @@ internal sealed class DaprPaymentClient : IPaymentClient
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string paymentMethodId,
         CancellationToken cancellationToken)
     {
         using var http = DaprClient.CreateInvokeHttpClient(PaymentsAppId);
         using var response = await http.PostAsJsonAsync(
             "v1/payments/charge",
-            new { tenantId, orderId, amountMinor, currency, idempotencyKey },
+            new { tenantId, orderId, amountMinor, currency, idempotencyKey, paymentMethodId },
             JsonOptions,
             cancellationToken);
 

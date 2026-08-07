@@ -134,6 +134,17 @@ dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." \
 In the cloud the key comes from **Key Vault** (surfaced as the same config key). Use
 a **test** key locally, and roll any key that has ever been shared.
 
+To exercise the real card-collection UI (instead of the dev fallback that skips
+rendering a card field entirely), also set the matching **publishable** key —
+safe to expose client-side — in `frontend/.env.development.local`:
+
+```
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...
+```
+
+Leaving it unset is fine: checkout falls back to a canned test payment method
+and the buyer flow works exactly as before, with no Stripe setup required.
+
 ### Twilio credentials (Communication SMS/WhatsApp)
 
 Communication's SMS/WhatsApp senders use Twilio when `Communication:Sms:Provider`
