@@ -108,20 +108,21 @@ src/
 - **Ant's `message` toasts are pinned to top-right via CSS** (`index.css`) — the
   `message` API has no placement prop and defaults to top-center; `notification`
   (used by `toast.notifyError`) already defaults to top-right.
-- **A failed GET (a list/panel's own data load) never toasts — a mutating request
-  (POST/PUT/DELETE) still can.** `httpClient`'s response interceptor only
-  auto-toasts 403/5xx for non-GET requests now; GET failures are silent there by
-  design, since every load site owns its own graceful state instead: `LoadError`
-  (list/panel — the alternative to a toast for "the fetch failed," tracked as its
-  own `loadError` state distinct from "the fetch succeeded with zero results," so
-  the two don't get confused) or, for a single-resource top-level page load,
-  `NotFoundPage` on a genuine 404 vs `ServerErrorPage` on anything else (mirrors
-  each other in `EventDetailPage`/`AdminEventDetailPage`/`OrderPage` — check
-  `error.response?.status === 404` before choosing which). Action-triggered
-  failures (a save, a publish, a block/unblock, a login attempt) still toast —
-  only initial page/panel data loads changed. `EventGroupPicker`'s own tours
-  fetch is the one exception that degrades fully silently (no `LoadError` either)
-  since it's a minor dropdown inside an otherwise-fully-usable form.
+- **`httpClient`'s response interceptor never auto-toasts, for any request.**
+  It used to show a generic toast for 403/5xx — on top of whatever the calling
+  page's own `.catch()` already showed, doubling every single failure (load
+  *and* action alike; see git history for the exact bug report). Every call
+  site owns its own failure UI now: a data load shows `LoadError` (list/panel —
+  tracked as its own `loadError` state distinct from "succeeded with zero
+  results," so the two don't get confused) or, for a single-resource top-level
+  page, `NotFoundPage` on a genuine 404 vs `ServerErrorPage` on anything else
+  (mirrored in `EventDetailPage`/`AdminEventDetailPage`/`OrderPage` — check
+  `error.response?.status === 404` before choosing which); an action (save,
+  publish, block/unblock, login attempt) shows its own specific `toast.error(...)`.
+  The interceptor's only remaining global behavior is clearing the session on a
+  401, since that has to happen regardless of which call triggered it.
+  `EventGroupPicker`'s own tours fetch degrades fully silently (no `LoadError`
+  either) since it's a minor dropdown inside an otherwise-fully-usable form.
 - **Tour creation is inline in `CreateEventPage`, not a separate page-first flow.** Picking
   "+ New tour" in the `EventGroupPicker` just reveals a title field on the same form — no tour is
   created until the event itself is submitted (an abandoned form never leaves an orphan tour
