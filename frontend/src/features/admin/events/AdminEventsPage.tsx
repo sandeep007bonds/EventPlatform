@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Select, Table, Tag } from 'antd';
+import { Button, Card, Input, Select, Table, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { Link, useNavigate } from 'react-router-dom';
 import {
+  getEventGroup,
   listEvents,
   type EventResponse,
   type EventStatus,
@@ -33,6 +34,9 @@ export function AdminEventsPage() {
   const [status, setStatus] = useState<EventStatus | undefined>(undefined);
   const [titleFilter, setTitleFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  // eventGroupId -> tour title, for the "Tour" column. Catalog has no batch lookup endpoint for
+  // this, so it's resolved client-side from the current page's distinct ids (at most PAGE_SIZE).
+  const [tourTitles, setTourTitles] = useState<Map<string, string>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +50,28 @@ export function AdminEventsPage() {
         }
         setEvents(result.events);
         setTotalCount(result.totalCount);
+
+        const groupIds = [
+          ...new Set(
+            result.events
+              .map((event) => event.eventGroupId)
+              .filter((id): id is string => id !== null),
+          ),
+        ];
+        void Promise.all(groupIds.map((id) => getEventGroup(id).catch(() => null))).then(
+          (groups) => {
+            if (cancelled) {
+              return;
+            }
+            setTourTitles(
+              new Map(
+                groups
+                  .filter((group): group is NonNullable<typeof group> => group !== null)
+                  .map((group) => [group.id, group.title]),
+              ),
+            );
+          },
+        );
       })
       .catch(() => toast.error('Could not load your events.'))
       .finally(() => {
@@ -133,6 +159,16 @@ export function AdminEventsPage() {
               render: (eventStatus: EventResponse['status']) => (
                 <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
               ),
+            },
+            {
+              title: 'Tour',
+              dataIndex: 'eventGroupId',
+              render: (eventGroupId: EventResponse['eventGroupId']) =>
+                eventGroupId ? (
+                  tourTitles.get(eventGroupId) ?? '…'
+                ) : (
+                  <Typography.Text type="secondary">—</Typography.Text>
+                ),
             },
             {
               title: 'City',

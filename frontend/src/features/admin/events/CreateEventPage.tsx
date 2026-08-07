@@ -12,13 +12,20 @@ import {
   Row,
   Select,
   Space,
+  Typography,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { useNavigate } from 'react-router-dom';
-import { createEvent, getEventGroup } from '../../../services/catalog/catalogApi';
+import {
+  createEvent,
+  createEventGroup,
+  getEventGroup,
+  updateEventGroup,
+} from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
-import { EventGroupPicker } from '../eventGroups/EventGroupPicker';
+import { EventGroupPicker, NEW_TOUR_OPTION } from '../eventGroups/EventGroupPicker';
+import { TourLegsList } from '../eventGroups/TourLegsList';
 
 interface CreateEventFormValues {
   title: string;
@@ -35,6 +42,7 @@ interface CreateEventFormValues {
   latitude?: number;
   longitude?: number;
   eventGroupId?: string;
+  newTourTitle?: string;
   maxTicketsPerBuyer?: number;
   requiresQueue?: boolean;
 }
@@ -56,12 +64,16 @@ export function CreateEventPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const fetchRange = selectedGroupId
-      ? getEventGroup(selectedGroupId).then((group) => ({
-          startsAt: group.startsAt,
-          endsAt: group.endsAt,
-        }))
-      : Promise.resolve(null);
+    // A pending "+ New tour" selection has no id to fetch a range for yet — it inherits this
+    // leg's own dates instead (set below, at submit time), so there's no existing range to warn
+    // against here.
+    const fetchRange =
+      selectedGroupId && selectedGroupId !== NEW_TOUR_OPTION
+        ? getEventGroup(selectedGroupId).then((group) => ({
+            startsAt: group.startsAt,
+            endsAt: group.endsAt,
+          }))
+        : Promise.resolve(null);
 
     fetchRange
       .then((range) => {
@@ -82,7 +94,23 @@ export function CreateEventPage() {
 
   const handleSubmit = async (values: CreateEventFormValues) => {
     setSubmitting(true);
+    // A brand-new tour is created here, not eagerly when "+ New tour" is picked — an abandoned
+    // form should never leave an orphan tour behind. It inherits this first leg's own dates as
+    // its advertised range (editable later from the Tours page).
+    let createdGroupId: string | null = null;
     try {
+      let eventGroupId = values.eventGroupId;
+      if (eventGroupId === NEW_TOUR_OPTION) {
+        const group = await createEventGroup({ title: values.newTourTitle! });
+        createdGroupId = group.id;
+        await updateEventGroup(group.id, {
+          title: values.newTourTitle!,
+          startsAt: values.startsAt.toISOString(),
+          endsAt: values.endsAt.toISOString(),
+        });
+        eventGroupId = group.id;
+      }
+
       const result = await createEvent({
         title: values.title,
         startsAt: values.startsAt.toISOString(),
@@ -97,14 +125,18 @@ export function CreateEventPage() {
         country: values.country,
         latitude: values.latitude ?? null,
         longitude: values.longitude ?? null,
-        eventGroupId: values.eventGroupId ?? null,
+        eventGroupId: eventGroupId ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
         requiresQueue: values.requiresQueue ?? false,
       });
       toast.success('Event created.');
       void navigate(`/admin/events/${result.id}`);
     } catch {
-      toast.error('Could not create the event.');
+      toast.error(
+        createdGroupId
+          ? 'Could not create the event — the new tour was still created; pick it from the tour list to add a leg to it.'
+          : 'Could not create the event.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -194,6 +226,34 @@ export function CreateEventPage() {
               <Form.Item name="eventGroupId" label="Part of a tour? (optional)">
                 <EventGroupPicker />
               </Form.Item>
+
+              {selectedGroupId === NEW_TOUR_OPTION && (
+                <Form.Item
+                  name="newTourTitle"
+                  label="New tour title"
+                  rules={[{ required: true, message: 'A new tour needs a title.' }, { max: 200 }]}
+                  style={{ marginTop: -8 }}
+                >
+                  <Input placeholder="e.g. Coldplay World Tour" />
+                </Form.Item>
+              )}
+
+              {selectedGroupId && selectedGroupId !== NEW_TOUR_OPTION && (
+                <div
+                  style={{
+                    marginTop: -8,
+                    marginBottom: 24,
+                    padding: 16,
+                    background: 'rgba(0, 0, 0, 0.02)',
+                    borderRadius: 8,
+                  }}
+                >
+                  <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                    Other legs of this tour:
+                  </Typography.Text>
+                  <TourLegsList eventGroupId={selectedGroupId} showTitle={false} />
+                </div>
+              )}
             </Col>
             <Col xs={24} sm={8}>
               <Form.Item

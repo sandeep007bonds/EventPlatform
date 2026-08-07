@@ -50,6 +50,8 @@ src/
             (hold summary + countdown) orders/ (order+tickets, order history)
             auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
+            eventGroups/ (tour picker + inline quick-create, manage list,
+                          TourLegsList — a tour's upcoming/past legs)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
             tickets/ (ScanTicketPage — check in a ticket by its scan token,
                       manual/hardware-wedge input plus BarcodeDetector/jsQR
@@ -104,6 +106,15 @@ src/
 - **Ant's `message` toasts are pinned to top-right via CSS** (`index.css`) — the
   `message` API has no placement prop and defaults to top-center; `notification`
   (used by `toast.notifyError`) already defaults to top-right.
+- **Tour creation is inline in `CreateEventPage`, not a separate page-first flow.** Picking
+  "+ New tour" in the `EventGroupPicker` just reveals a title field on the same form — no tour is
+  created until the event itself is submitted (an abandoned form never leaves an orphan tour
+  behind), and the new tour inherits this first leg's own dates as its advertised range. Picking an
+  *existing* tour instead renders `TourLegsList` (upcoming legs visible, past ones collapsed) so the
+  organizer sees what's already scheduled before adding another leg. `CreateEventGroupPage`
+  (`/admin/tours/new`) still exists separately for managing a tour's full details (contact/social,
+  wider date range) after creation — the inline flow only covers the "give it a title, create with
+  my first leg" fast path.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft

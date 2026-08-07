@@ -48,6 +48,7 @@ import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
+import { TourLegsList } from '../eventGroups/TourLegsList';
 import { EntryGatesPanel } from './EntryGatesPanel';
 import { QueueSettingsPanel } from './QueueSettingsPanel';
 import { SeatMapSectionsFields } from './SeatMapSectionsFields';
@@ -368,6 +369,12 @@ export function AdminEventDetailPage() {
           </Typography.Text>
         )}
       </Card>
+
+      {event.eventGroupId && (
+        <Card title="Part of a tour" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
+          <TourLegsList eventGroupId={event.eventGroupId} excludeEventId={event.id} />
+        </Card>
+      )}
 
       {event.status === 'Draft' && (
         <Card title="Event details" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
