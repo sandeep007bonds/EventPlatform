@@ -49,6 +49,9 @@ export function CreateEventPage() {
     startsAt: string | null;
     endsAt: string | null;
   } | null>(null);
+  // The existing tour's own title, if one is picked — purely for the "under X" sentence below;
+  // a brand-new tour uses `newTourTitle` from the form instead, so this stays null for that case.
+  const [selectedGroupTitle, setSelectedGroupTitle] = useState<string | null>(null);
 
   // Set once a tour is created or picked on this page visit, then reused across any retry so a
   // resubmit after a partial failure never creates a second tour or re-resolves the picker.
@@ -74,18 +77,21 @@ export function CreateEventPage() {
         ? getEventGroup(selectedGroupId).then((group) => ({
             startsAt: group.startsAt,
             endsAt: group.endsAt,
+            title: group.title,
           }))
         : Promise.resolve(null);
 
     fetchRange
       .then((range) => {
         if (!cancelled) {
-          setGroupRange(range);
+          setGroupRange(range ? { startsAt: range.startsAt, endsAt: range.endsAt } : null);
+          setSelectedGroupTitle(range?.title ?? null);
         }
       })
       .catch(() => {
         if (!cancelled) {
           setGroupRange(null);
+          setSelectedGroupTitle(null);
         }
       });
 
@@ -217,9 +223,10 @@ export function CreateEventPage() {
     }
   };
 
+  const isMultiLeg = legsCount > 1;
   const submitLabel = hasFailedLeg
     ? 'Create remaining legs'
-    : legsCount > 1
+    : isMultiLeg
       ? selectedGroupId && selectedGroupId !== NEW_TOUR_OPTION
         ? `Add ${legsCount} leg${legsCount === 1 ? '' : 's'} to tour`
         : 'Create tour'
@@ -228,8 +235,12 @@ export function CreateEventPage() {
   return (
     <div style={{ maxWidth: 760 }}>
       <PageHeader
-        title="Create event"
-        description="Set the basics now — you can add media, description, and pricing after."
+        title={isMultiLeg ? 'Create tour' : 'Create event'}
+        description={
+          isMultiLeg
+            ? "Add each city/date below as its own leg of the tour — they'll all be created together."
+            : 'Set the basics now — you can add media, description, and pricing after.'
+        }
       />
       <Card styles={{ body: { padding: 28 } }}>
         {hasFailedLeg && (
@@ -253,9 +264,9 @@ export function CreateEventPage() {
         >
           <Form.Item
             name="eventGroupId"
-            label="Part of a tour? (optional)"
+            label={isMultiLeg ? 'Tour' : 'Part of a tour? (optional)'}
             rules={
-              legsCount > 1
+              isMultiLeg
                 ? [
                     {
                       required: true,
@@ -267,7 +278,7 @@ export function CreateEventPage() {
             }
           >
             <EventGroupPicker
-              hideStandaloneOption={legsCount > 1}
+              hideStandaloneOption={isMultiLeg}
               disabled={resolvedGroupId !== null}
             />
           </Form.Item>
@@ -298,6 +309,13 @@ export function CreateEventPage() {
               </Typography.Text>
               <TourLegsList eventGroupId={selectedGroupId} showTitle={false} />
             </div>
+          )}
+
+          {isMultiLeg && (
+            <Typography.Text style={{ display: 'block', marginBottom: 16 }}>
+              This tour has {legsCount} legs — each city/date below becomes its own event under{' '}
+              {selectedGroupTitle ? `"${selectedGroupTitle}"` : 'the new tour'}.
+            </Typography.Text>
           )}
 
           <EventLegFields
