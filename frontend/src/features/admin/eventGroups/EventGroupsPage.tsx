@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button, Card, Input, Table } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { listEventGroups, type EventGroupResponse } from '../../../services/catalog/catalogApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
@@ -12,6 +12,7 @@ const PAGE_SIZE = 20;
 
 /** The organizer's own tours — not a public directory. */
 export function EventGroupsPage() {
+  const navigate = useNavigate();
   const [groups, setGroups] = useState<EventGroupResponse[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [page, setPage] = useState(1);
@@ -106,6 +107,10 @@ export function EventGroupsPage() {
               onChange: setPage,
               showSizeChanger: false,
             }}
+            onRow={(record) => ({
+              onClick: () => void navigate(`/admin/tours/${record.id}`),
+              style: { cursor: 'pointer' },
+            })}
             columns={[
               {
                 title: 'Title',

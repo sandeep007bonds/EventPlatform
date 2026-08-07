@@ -52,7 +52,8 @@ src/
             (hold summary + countdown) orders/ (order+tickets, order history)
             auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
-            eventGroups/ (tour picker + inline quick-create, manage list,
+            eventGroups/ (create/manage tours, TourDetailPage with "Add
+                          leg", EventGroupPicker + inline quick-create,
                           TourLegsList — a tour's upcoming/past legs)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
             tickets/ (ScanTicketPage — check in a ticket by its scan token,
@@ -123,15 +124,20 @@ src/
   401, since that has to happen regardless of which call triggered it.
   `EventGroupPicker`'s own tours fetch degrades fully silently (no `LoadError`
   either) since it's a minor dropdown inside an otherwise-fully-usable form.
-- **Tour creation is inline in `CreateEventPage`, not a separate page-first flow.** Picking
-  "+ New tour" in the `EventGroupPicker` just reveals a title field on the same form — no tour is
-  created until the event itself is submitted (an abandoned form never leaves an orphan tour
-  behind), and the new tour inherits this first leg's own dates as its advertised range. Picking an
-  *existing* tour instead renders `TourLegsList` (upcoming legs visible, past ones collapsed) so the
-  organizer sees what's already scheduled before adding another leg. `CreateEventGroupPage`
-  (`/admin/tours/new`) still exists separately for managing a tour's full details (contact/social,
-  wider date range) after creation — the inline flow only covers the "give it a title, create with
-  my first leg" fast path.
+- **Tour-first is the primary flow; inline quick-create on `CreateEventPage` is the fast path.**
+  `CreateEventGroupPage` (`/admin/tours/new`) creates the tour itself and lands on its own
+  `TourDetailPage` (`/admin/tours/:id` — dates/contact summary + `TourLegsList`, upcoming visible,
+  past collapsed), which has an "Add leg" button that opens `CreateEventPage` with
+  `?eventGroupId=` pre-filled (read via `useSearchParams`), so growing a tour is
+  create-it-once-then-keep-adding-legs-from-its-page, not re-picking it from a dropdown each time.
+  `EventGroupsPage`'s rows are clickable through to the same `TourDetailPage`. Separately,
+  `CreateEventPage`'s own tour picker still offers "+ New tour" inline (just a title field on the
+  same form — no tour is created until the *event* submits, so an abandoned form never leaves an
+  orphan tour behind, and the new tour inherits this first leg's own dates as its advertised range)
+  for the "I'm creating an event and realize it needs a tour" case, without leaving the page.
+  Picking an *existing* tour from that same picker also renders `TourLegsList` inline, for context
+  before adding another leg. Both paths reuse the same `TourLegsList`/`EventGroupPicker` components
+  and the same create-then-conditionally-`updateEventGroup` sequence server-side.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft

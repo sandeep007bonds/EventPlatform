@@ -15,7 +15,7 @@ import {
   Typography,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   createEvent,
   createEventGroup,
@@ -52,6 +52,10 @@ const CURRENCIES = ['USD', 'EUR', 'GBP', 'INR'];
 /** Creates a new draft event for the caller's tenant. */
 export function CreateEventPage() {
   const navigate = useNavigate();
+  // Arriving via a tour's own "Add leg" button (TourDetailPage) pre-scopes this form to that
+  // tour, skipping the picker interaction entirely — "create tour once, keep adding legs to it."
+  const [searchParams] = useSearchParams();
+  const preselectedGroupId = searchParams.get('eventGroupId') ?? undefined;
   const [form] = Form.useForm<CreateEventFormValues>();
   const [submitting, setSubmitting] = useState(false);
   // The tour's own advertised date range, if the organizer picked one above — a leg's dates must
@@ -152,7 +156,7 @@ export function CreateEventPage() {
         <Form<CreateEventFormValues>
           form={form}
           layout="vertical"
-          initialValues={{ currency: 'USD' }}
+          initialValues={{ currency: 'USD', eventGroupId: preselectedGroupId }}
           onFinish={(values) => {
             void handleSubmit(values);
           }}
