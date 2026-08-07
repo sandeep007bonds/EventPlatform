@@ -15,9 +15,19 @@ export const NEW_TOUR_OPTION = '__new__';
 export function EventGroupPicker({
   value,
   onChange,
+  hideStandaloneOption = false,
+  disabled = false,
 }: {
   value?: string;
   onChange?: (eventGroupId: string | undefined) => void;
+  /**
+   * Prevents clearing back to "no tour" — used once a form has more than one leg, since a
+   * multi-leg batch always needs a tour to attach the legs to (either an existing one or
+   * {@link NEW_TOUR_OPTION}).
+   */
+  hideStandaloneOption?: boolean;
+  /** Locks the picker once a tour has already been created/chosen for this page visit. */
+  disabled?: boolean;
 }) {
   const [groups, setGroups] = useState<EventGroupResponse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,8 +44,11 @@ export function EventGroupPicker({
 
   return (
     <Select
-      placeholder="Standalone event (no tour)"
-      allowClear
+      placeholder={
+        hideStandaloneOption ? 'Pick a tour, or "+ New tour"' : 'Standalone event (no tour)'
+      }
+      allowClear={!hideStandaloneOption}
+      disabled={disabled}
       loading={loading}
       value={value}
       onChange={onChange}
