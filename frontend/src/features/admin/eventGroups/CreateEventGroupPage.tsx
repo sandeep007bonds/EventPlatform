@@ -60,7 +60,9 @@ export function CreateEventGroupPage() {
       }
 
       toast.success('Tour created.');
-      void navigate('/admin/tours');
+      // Straight to the tour's own page, not the list — "create tour once, keep adding legs to
+      // it" via the "Add leg" button there (TourDetailPage), not a re-navigate-and-find-it step.
+      void navigate(`/admin/tours/${result.id}`);
     } catch {
       toast.error('Could not create the tour.');
     } finally {
