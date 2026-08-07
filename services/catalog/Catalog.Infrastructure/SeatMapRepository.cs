@@ -4,13 +4,6 @@ namespace Catalog.Infrastructure;
 /// <param name="dbContext">The Catalog database context.</param>
 internal sealed class SeatMapRepository(CatalogDbContext dbContext) : ISeatMapRepository
 {
-    // AsSplitQuery avoids the Seats × GeneralAdmissionSections cartesian product a single query
-    // with two sibling collection Includes would otherwise produce. On the tracked read
-    // (GetTrackedByEventIdAsync) this matters for correctness, not just performance: a section
-    // edit (SeatMap.RemoveSection + AddReservedSection/AddGeneralAdmissionSection in one unit of
-    // work) was hitting a spurious DbUpdateConcurrencyException ("0 rows affected") on the DELETE
-    // for a just-loaded, genuinely-existing Seat row — traced to the cartesian-product single
-    // query EF warns about (MultipleCollectionIncludeWarning) and resolved by split queries.
     /// <inheritdoc />
     public void Add(SeatMap seatMap) => dbContext.SeatMaps.Add(seatMap);
 
@@ -22,6 +15,14 @@ internal sealed class SeatMapRepository(CatalogDbContext dbContext) : ISeatMapRe
             .Include(m => m.Seats)
             .Include(m => m.GeneralAdmissionSections)
             .FirstOrDefaultAsync(m => m.EventId == eventId, cancellationToken);
+
+    // AsSplitQuery avoids the Seats × GeneralAdmissionSections cartesian product a single query
+    // with two sibling collection Includes would otherwise produce. On this tracked read it
+    // matters for correctness, not just performance: a section edit (SeatMap.RemoveSection +
+    // AddReservedSection/AddGeneralAdmissionSection in one unit of work) was hitting a spurious
+    // DbUpdateConcurrencyException ("0 rows affected") on the DELETE for a just-loaded,
+    // genuinely-existing Seat row — traced to the cartesian-product single query EF warns about
+    // (MultipleCollectionIncludeWarning) and resolved by split queries.
 
     /// <inheritdoc />
     public Task<SeatMap?> GetTrackedByEventIdAsync(Guid eventId, CancellationToken cancellationToken) =>
