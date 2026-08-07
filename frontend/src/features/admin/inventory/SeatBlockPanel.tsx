@@ -11,6 +11,7 @@ import {
 } from '../../../services/inventory/inventoryApi';
 import { getEventTickets, type TicketResponse } from '../../../services/ticketing/ticketingApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
 
@@ -46,6 +47,8 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [statusLoadError, setStatusLoadError] = useState(false);
   const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -63,6 +66,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
           if (seats.length > 0 || map.seats.length === 0) {
             setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
             setProvisioning(false);
+            setStatusLoadError(false);
             return;
           }
           attempts += 1;
@@ -79,7 +83,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         })
         .catch(() => {
           if (!cancelled) {
-            toast.error('Could not load seat inventory.');
+            setStatusLoadError(true);
             setProvisioning(false);
           }
         });
@@ -91,12 +95,13 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
           return;
         }
         setSeatMap(map);
+        setLoadError(false);
         setLoading(false);
         pollStatuses(map);
       })
       .catch(() => {
         if (!cancelled) {
-          toast.error('Could not load seat inventory.');
+          setLoadError(true);
           setLoading(false);
         }
       });
@@ -194,8 +199,20 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
     }
   };
 
-  if (loading || !seatMap) {
+  if (loading) {
     return null;
+  }
+
+  if (loadError || !seatMap) {
+    return (
+      <LoadError
+        description="Could not load seat inventory."
+        onRetry={() => {
+          setLoading(true);
+          setReloadToken((token) => token + 1);
+        }}
+      />
+    );
   }
 
   return (
@@ -240,6 +257,19 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         </Space>
       </div>
 
+      {statusLoadError && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Couldn't load seat status — the grid below may be out of date."
+          action={
+            <Button size="small" onClick={() => setReloadToken((token) => token + 1)}>
+              Retry
+            </Button>
+          }
+          style={{ marginBottom: 16 }}
+        />
+      )}
       {provisioning ? (
         <Alert
           type="info"

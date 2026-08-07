@@ -10,5 +10,9 @@
   "serverError": {
     "title": "Something went wrong",
     "subtitle": "An unexpected error occurred. Please try again."
+  },
+  "loadError": {
+    "title": "Couldn't load this",
+    "subtitle": "Please try again in a moment."
   }
 }

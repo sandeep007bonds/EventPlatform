@@ -12,7 +12,7 @@ import { CardSkeleton } from '../../../components/common/skeletons/CardSkeleton'
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { eventStatusColor } from '../../../utils/eventStatus';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 
 const PAGE_SIZE = 12;
 const STATUS_OPTIONS: EventStatus[] = ['Published', 'OnSale', 'SoldOut', 'Cancelled', 'Completed'];
@@ -25,6 +25,10 @@ export function EventsListPage() {
   const [status, setStatus] = useState<EventStatus | undefined>(undefined);
   const [titleFilter, setTitleFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  // Distinguishes "the fetch failed" from "the fetch succeeded with zero results" — both would
+  // otherwise render the same empty list, which misleadingly implies there really are no events.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,8 +40,13 @@ export function EventsListPage() {
         }
         setEvents(result.events);
         setTotalCount(result.totalCount);
+        setLoadError(false);
       })
-      .catch(() => toast.error('Could not load events.'))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -47,7 +56,7 @@ export function EventsListPage() {
     return () => {
       cancelled = true;
     };
-  }, [page, status]);
+  }, [page, status, reloadToken]);
 
   const header = (
     <PageHeader
@@ -102,7 +111,15 @@ export function EventsListPage() {
     <>
       {header}
       {toolbar}
-      {visibleEvents.length === 0 ? (
+      {loadError ? (
+        <LoadError
+          description="Could not load events."
+          onRetry={() => {
+            setLoading(true);
+            setReloadToken((token) => token + 1);
+          }}
+        />
+      ) : visibleEvents.length === 0 ? (
         <Empty description="No events found" style={{ margin: '64px 0' }} />
       ) : (
         <Row gutter={[20, 20]}>

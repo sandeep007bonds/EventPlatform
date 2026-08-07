@@ -11,6 +11,7 @@ import {
 } from '../../../services/ticketing/ticketingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
+import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 
@@ -43,6 +44,7 @@ export function OrderPage() {
   const [loading, setLoading] = useState(true);
   const [ticketsPending, setTicketsPending] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
@@ -57,7 +59,16 @@ export function OrderPage() {
           setOrder(result);
         }
       })
-      .catch(() => setNotFound(true))
+      .catch((error: AxiosError) => {
+        if (cancelled) {
+          return;
+        }
+        if (error.response?.status === 404) {
+          setNotFound(true);
+        } else {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -170,6 +181,10 @@ export function OrderPage() {
 
   if (loading) {
     return <DetailSkeleton />;
+  }
+
+  if (loadError) {
+    return <ServerErrorPage />;
   }
 
   if (notFound || !order) {

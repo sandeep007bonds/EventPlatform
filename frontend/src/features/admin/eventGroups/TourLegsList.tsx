@@ -9,7 +9,7 @@ import {
   type EventResponse,
 } from '../../../services/catalog/catalogApi';
 import { eventStatusColor } from '../../../utils/eventStatus';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 
 interface TourLegsListProps {
   eventGroupId: string;
@@ -26,11 +26,17 @@ interface TourLegsListProps {
  * an organizer context (dates already claimed, how many legs exist) right where they're about to
  * add another leg or are looking at one. Every leg's own page-detail lives at `/admin/events/{id}`.
  */
-export function TourLegsList({ eventGroupId, excludeEventId, showTitle = true }: TourLegsListProps) {
+export function TourLegsList({
+  eventGroupId,
+  excludeEventId,
+  showTitle = true,
+}: TourLegsListProps) {
   const [tour, setTour] = useState<EventGroupResponse | null>(null);
   const [legs, setLegs] = useState<EventResponse[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [showPast, setShowPast] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,8 +51,13 @@ export function TourLegsList({ eventGroupId, excludeEventId, showTitle = true }:
         }
         setTour(group);
         setLegs(result.events.filter((leg) => leg.id !== excludeEventId));
+        setLoadError(false);
       })
-      .catch(() => toast.error("Could not load this tour's legs."))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -56,13 +67,25 @@ export function TourLegsList({ eventGroupId, excludeEventId, showTitle = true }:
     return () => {
       cancelled = true;
     };
-  }, [eventGroupId, excludeEventId, showTitle]);
+  }, [eventGroupId, excludeEventId, showTitle, reloadToken]);
 
   if (loading) {
     return (
       <Typography.Text type="secondary" style={{ display: 'block' }}>
         Loading tour legs…
       </Typography.Text>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <LoadError
+        description="Could not load this tour's legs."
+        onRetry={() => {
+          setLoading(true);
+          setReloadToken((token) => token + 1);
+        }}
+      />
     );
   }
 
@@ -110,7 +133,11 @@ export function TourLegsList({ eventGroupId, excludeEventId, showTitle = true }:
 
       {past.length > 0 && (
         <div style={{ marginTop: upcoming.length > 0 ? 12 : 0 }}>
-          <Button type="link" style={{ paddingLeft: 0 }} onClick={() => setShowPast((prev) => !prev)}>
+          <Button
+            type="link"
+            style={{ paddingLeft: 0 }}
+            onClick={() => setShowPast((prev) => !prev)}
+          >
             {showPast ? 'Hide' : 'Show'} {past.length} past leg{past.length === 1 ? '' : 's'}
           </Button>
           {showPast && (

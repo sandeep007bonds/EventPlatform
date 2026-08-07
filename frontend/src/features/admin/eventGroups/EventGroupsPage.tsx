@@ -6,7 +6,7 @@ import { listEventGroups, type EventGroupResponse } from '../../../services/cata
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { Toolbar } from '../../../components/common/layout/Toolbar';
-import { toast } from '../../../components/common/feedback/toast';
+import { LoadError } from '../../../components/common/errors/LoadError';
 
 const PAGE_SIZE = 20;
 
@@ -17,6 +17,8 @@ export function EventGroupsPage() {
   const [page, setPage] = useState(1);
   const [titleFilter, setTitleFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,8 +30,13 @@ export function EventGroupsPage() {
         }
         setGroups(result.eventGroups);
         setTotalCount(result.totalCount);
+        setLoadError(false);
       })
-      .catch(() => toast.error('Could not load your tours.'))
+      .catch(() => {
+        if (!cancelled) {
+          setLoadError(true);
+        }
+      })
       .finally(() => {
         if (!cancelled) {
           setLoading(false);
@@ -39,7 +46,7 @@ export function EventGroupsPage() {
     return () => {
       cancelled = true;
     };
-  }, [page]);
+  }, [page, reloadToken]);
 
   if (loading) {
     return (
@@ -77,26 +84,38 @@ export function EventGroupsPage() {
         />
       </Toolbar>
 
-      <Card styles={{ body: { padding: 0 } }}>
-        <Table<EventGroupResponse>
-          rowKey="id"
-          dataSource={visibleGroups}
-          pagination={{
-            current: page,
-            pageSize: PAGE_SIZE,
-            total: totalCount,
-            onChange: setPage,
-            showSizeChanger: false,
-          }}
-          columns={[
-            {
-              title: 'Title',
-              dataIndex: 'title',
-              sorter: (a, b) => a.title.localeCompare(b.title),
-            },
-          ]}
-        />
-      </Card>
+      {loadError ? (
+        <Card>
+          <LoadError
+            description="Could not load your tours."
+            onRetry={() => {
+              setLoading(true);
+              setReloadToken((token) => token + 1);
+            }}
+          />
+        </Card>
+      ) : (
+        <Card styles={{ body: { padding: 0 } }}>
+          <Table<EventGroupResponse>
+            rowKey="id"
+            dataSource={visibleGroups}
+            pagination={{
+              current: page,
+              pageSize: PAGE_SIZE,
+              total: totalCount,
+              onChange: setPage,
+              showSizeChanger: false,
+            }}
+            columns={[
+              {
+                title: 'Title',
+                dataIndex: 'title',
+                sorter: (a, b) => a.title.localeCompare(b.title),
+              },
+            ]}
+          />
+        </Card>
+      )}
     </>
   );
 }

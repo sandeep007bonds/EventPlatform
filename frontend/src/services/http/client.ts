@@ -29,13 +29,20 @@ httpClient.interceptors.response.use(
     endRequest();
 
     const status = error.response?.status;
+    // GET failures are page/panel data loads — the caller owns showing a graceful in-place state
+    // (LoadError, NotFoundPage, ServerErrorPage, an Empty view) for those, not a toast; a toast
+    // here on top of that would just double up (see the caller's own .catch(), which every load
+    // site has). Mutating requests (POST/PUT/DELETE) are user-triggered actions — most already
+    // show their own specific toast, but this stays as a fallback so an action with no bespoke
+    // handler still gives the user *some* feedback instead of failing silently.
+    const isLoad = error.config?.method?.toLowerCase() === 'get';
 
     if (status === 401) {
       clearSession();
       window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT));
-    } else if (status === 403) {
+    } else if (!isLoad && status === 403) {
       toast.error('You do not have permission to do that.');
-    } else if (status === undefined || status >= 500) {
+    } else if (!isLoad && (status === undefined || status >= 500)) {
       toast.error('Something went wrong. Please try again.');
     }
 

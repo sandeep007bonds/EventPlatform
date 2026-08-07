@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Select } from 'antd';
 import { listEventGroups, type EventGroupResponse } from '../../../services/catalog/catalogApi';
-import { toast } from '../../../components/common/feedback/toast';
 
 /** Sentinel value for "create a new tour inline" — never a real tour id. */
 export const NEW_TOUR_OPTION = '__new__';
@@ -24,9 +23,12 @@ export function EventGroupPicker({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Silently degrades to just the "+ New tour" option on failure — this picker sits inside
+    // CreateEventPage's form, where a toast would be noisy for what's still a fully usable form
+    // (standalone and new-tour creation both work without this list).
     listEventGroups({ page: 1, pageSize: 100 })
       .then((result) => setGroups(result.eventGroups))
-      .catch(() => toast.error('Could not load your tours.'))
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 

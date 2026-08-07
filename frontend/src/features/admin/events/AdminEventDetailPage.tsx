@@ -20,6 +20,7 @@ import {
 } from 'antd';
 import { DeleteOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
+import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   addSeatMapSections,
@@ -43,6 +44,7 @@ import {
 import { uploadImage } from '../../../services/media/mediaApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
+import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
@@ -98,6 +100,7 @@ export function AdminEventDetailPage() {
   const [entryGates, setEntryGates] = useState<EntryGateResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [togglingSales, setTogglingSales] = useState(false);
   const [savingDetails, setSavingDetails] = useState(false);
@@ -110,13 +113,25 @@ export function AdminEventDetailPage() {
   const [editSectionForm] = Form.useForm<EditSeatMapSectionFormValues>();
 
   const load = (eventId: string) => {
-    Promise.all([getEvent(eventId), getSeatMap(eventId).catch(() => null), listEntryGates(eventId)])
+    Promise.all([
+      getEvent(eventId),
+      getSeatMap(eventId).catch(() => null),
+      listEntryGates(eventId).catch(() => []),
+    ])
       .then(([eventResult, seatMapResult, gatesResult]) => {
         setEvent(eventResult);
         setSeatMap(seatMapResult);
         setEntryGates(gatesResult);
+        setNotFound(false);
+        setLoadError(false);
       })
-      .catch(() => setNotFound(true))
+      .catch((error: AxiosError) => {
+        if (error.response?.status === 404) {
+          setNotFound(true);
+        } else {
+          setLoadError(true);
+        }
+      })
       .finally(() => setLoading(false));
   };
 
@@ -313,6 +328,10 @@ export function AdminEventDetailPage() {
     return <DetailSkeleton />;
   }
 
+  if (loadError) {
+    return <ServerErrorPage />;
+  }
+
   if (notFound || !event) {
     return <NotFoundPage />;
   }
@@ -371,7 +390,11 @@ export function AdminEventDetailPage() {
       </Card>
 
       {event.eventGroupId && (
-        <Card title="Part of a tour" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
+        <Card
+          title="Part of a tour"
+          style={{ marginBottom: 24 }}
+          styles={{ body: { padding: 28 } }}
+        >
           <TourLegsList eventGroupId={event.eventGroupId} excludeEventId={event.id} />
         </Card>
       )}
