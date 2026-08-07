@@ -66,7 +66,7 @@ export function EventLegFields({
               <Card
                 key={field.key}
                 size="small"
-                title={fields.length === 1 ? 'Event details' : `City/date ${index + 1}`}
+                title={fields.length === 1 ? 'Event details' : `Leg ${index + 1} — city/date`}
                 style={{ marginBottom: 16 }}
                 extra={
                   <>
