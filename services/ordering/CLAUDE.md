@@ -12,16 +12,22 @@ is named `Ordering` so the type never clashes with its namespace.
 ## Owns
 
 - **Data store:** PostgreSQL `ordering` DB (this service only)
-- **Public API:** `POST /v1/checkout` (Idempotency-Key; body requires a
+- **Public API:** `POST /v1/checkout` (Idempotency-Key; body requires only a
   `BuyerEmail` — a plain checkout-time field for ticket delivery, not derived
-  from any token claim, see ADR-0021 — and a `PaymentMethodId`, the Stripe
-  `pm_...` id tokenized client-side via Stripe Elements, threaded through to
-  Payments' charge call unchanged), `GET /v1/orders`
-  (`?mine=true` — buyer's own; `?forTenant=true` — organizer's tenant; exactly
-  one is required), `GET /v1/orders/{id}`, `POST /v1/orders/{id}/cancel`
+  from any token claim, see ADR-0021 — no payment-method id any more: the
+  backend creates a Stripe PaymentIntent and the buyer authenticates
+  client-side via Payment Element, see ADR-0028. Returns `{ orderId,
+  clientSecret }` — `clientSecret` is `null` when payment already resolved
+  synchronously, otherwise the frontend mounts Payment Element against it),
+  `GET /v1/orders` (`?mine=true` — buyer's own; `?forTenant=true` —
+  organizer's tenant; exactly one is required), `GET /v1/orders/{id}` (the
+  response includes `paymentClientSecret` while `AwaitingPayment`, for a
+  buyer reload/redirect-return mid-authentication), `POST /v1/orders/{id}/cancel`
   (buyer-initiated cancellation + refund)
 - **Events published:** `OrderConfirmed` (via outbox)
-- **Events consumed:** — (calls Inventory + Payment synchronously in the saga)
+- **Events consumed:** `PaymentCaptured`, `PaymentFailed` (Payments, via
+  webhook) — resume a checkout saga waiting on payment authentication
+  (ADR-0028); Inventory is still called synchronously in the saga
 
 ## Design notes
 
@@ -47,14 +53,24 @@ is named `Ordering` so the type never clashes with its namespace.
   swallows the unique-violation so the loser re-fetches the winner and the
   workflow short-circuits to `Duplicate` (409) — never a 500, never a double
   charge.
-- **Saga (ADR-0010):** the checkout saga runs as a **Dapr Workflow**
-  (`Ordering.Workflow`): `CheckoutWorkflow` orchestrates activities (fetch hold →
-  create order → charge → convert-to-sold → confirm) with compensation (fail
-  order, refund, release hold). The orchestrator is deterministic — all I/O is in
-  activities — so a crash mid-flight resumes exactly where it left off. The Api
-  schedules the workflow and awaits its completion. Tenant is sourced from the
-  fetched hold (`hold.TenantId`, step 1 of the saga), not from
-  `CheckoutWorkflowInput` — that record has no `TenantId` field (ADR-0022).
+- **Saga (ADR-0010, async payment per ADR-0028):** the checkout saga runs as a
+  **Dapr Workflow** (`Ordering.Workflow`): `CheckoutWorkflow` orchestrates
+  activities (fetch hold → create order → create payment intent → record its
+  client secret → extend the hold → wait for the async payment outcome or a
+  timeout → convert-to-sold → confirm) with compensation (fail order, refund,
+  release hold). `OrderId` is minted by `OrderingEndpoints.CheckoutAsync`
+  *before* scheduling and doubles as the workflow's own Dapr instance id — a
+  webhook-driven `PaymentCaptured`/`PaymentFailed` subscriber raises an event
+  straight back into the running saga (`RaiseEventAsync(orderId.ToString("N"),
+  "PaymentOutcome", ...)`) with no lookup table. The wait races
+  `WaitForExternalEventAsync` against a `CreateTimer` deadline seeded by the
+  hold-extension activity's result. The orchestrator is deterministic — all I/O
+  is in activities — so a crash mid-flight resumes exactly where it left off.
+  The Api races a bounded poll of the `Order` row (for a fast return once a
+  client secret exists) against the full `WaitForWorkflowCompletionAsync`.
+  Tenant is sourced from the fetched hold (`hold.TenantId`, step 1 of the
+  saga), not from `CheckoutWorkflowInput` — that record has no `TenantId`
+  field (ADR-0022).
 - **Cross-service calls** go through ports: `IHoldClient` (Inventory),
   `IPaymentClient` (Payments), and `ITicketClient` (Ticketing), all via Dapr
   service invocation.

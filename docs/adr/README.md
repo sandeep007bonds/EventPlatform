@@ -39,6 +39,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0025](0025-scan-cache-and-qr-scanning.md) | Warm-once local scan cache, real QR codes, and camera scanning | Accepted |
 | [0026](0026-virtual-waiting-room-queue-service.md) | Virtual waiting-room Queue service | Accepted |
 | [0027](0027-manual-sales-pause-resume.md) | Manual sales pause/resume for a published event | Accepted |
+| [0028](0028-async-payment-authentication-and-hold-extension.md) | Async payment authentication (Stripe Payment Element) and hold extension | Accepted |
 
 ## Format
 

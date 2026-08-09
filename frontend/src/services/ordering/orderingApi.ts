@@ -24,6 +24,12 @@ export interface OrderResponse {
   catalogEventId: string;
   holdId: string;
   lines: OrderLineResponse[];
+  /**
+   * The Stripe PaymentIntent client secret, while the order is awaiting payment — lets a buyer who
+   * reloads mid-authentication (or the redirect-return page) resume Payment Element without a fresh
+   * checkout call. `null` once the order reaches a terminal status.
+   */
+  paymentClientSecret: string | null;
 }
 
 /** Read model for one order in a list (no lines). */
@@ -47,16 +53,19 @@ export interface OrderListResponse {
 /**
  * Checks out a hold. `idempotencyKey` should be generated once per checkout attempt and reused
  * across retries of that same attempt (never generated fresh on each retry).
+ *
+ * The backend creates (but does not confirm) a Stripe PaymentIntent as part of this call — a
+ * `clientSecret` comes back for the frontend to mount Payment Element against, or `null` when the
+ * payment already resolved synchronously (the no-Stripe-configured dev fallback).
  */
 export async function checkout(
   holdId: string,
   idempotencyKey: string,
   buyerEmail: string,
-  paymentMethodId: string,
-): Promise<{ orderId: string }> {
-  const response = await httpClient.post<{ orderId: string }>(
+): Promise<{ orderId: string; clientSecret: string | null }> {
+  const response = await httpClient.post<{ orderId: string; clientSecret: string | null }>(
     '/api/ordering/v1/checkout',
-    { holdId, buyerEmail, paymentMethodId },
+    { holdId, buyerEmail },
     { headers: { 'Idempotency-Key': idempotencyKey } },
   );
   return response.data;

@@ -18,6 +18,7 @@ public sealed class CreateOrderActivity(IOrderRepository orders, CheckoutOptions
         }
 
         var order = Order.Create(
+            input.OrderId,
             input.TenantId,
             input.UserId,
             input.CatalogEventId,

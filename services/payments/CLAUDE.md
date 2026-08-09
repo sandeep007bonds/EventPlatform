@@ -13,7 +13,8 @@ servers; only PSP references are stored.
 ## Owns
 
 - **Data store:** PostgreSQL `payments` DB (this service only)
-- **Public API:** internal `POST /v1/payments/charge`, `POST /v1/payments/refund`
+- **Public API:** internal `POST /v1/payments/intents` (creates, but does not
+  confirm, a payment intent — see below), `POST /v1/payments/refund`
   (called by the checkout saga's compensation path *and* by Ordering's
   buyer-initiated `CancelOrderWorkflow` — same endpoint, same `RefundActivity`,
   no Payments-side changes needed for cancellation to reuse it); public
@@ -23,19 +24,26 @@ servers; only PSP references are stored.
 
 ## Design notes
 
-- **Idempotent charge:** deduped on `(order_id, idempotency_key)` — unique index
-  + a pre-check. Two *concurrent* charges can both pass the pre-check; the unique
-  index lets one persist and `IPaymentRepository.TrySaveChangesAsync` swallows the
-  loser's violation so it re-fetches the winner (no 500). The gateway is called
-  with the same key, so the PSP dedupes it — no double charge — and the loser's
-  outbox events roll back with the failed save.
+- **Idempotent intent create:** deduped on `(order_id, idempotency_key)` — unique
+  index + a pre-check. Two *concurrent* create calls can both pass the pre-check;
+  the unique index lets one persist and `IPaymentRepository.TrySaveChangesAsync`
+  swallows the loser's violation so it re-fetches the winner — including its
+  already-recorded `ClientSecret`, so a retried call hands back the same secret
+  rather than creating a second intent (no 500, no duplicate intent). The gateway
+  is called with the same key, so the PSP dedupes it — and the loser's outbox
+  events roll back with the failed save.
 - **Gateway behind a port:** `IPaymentGateway`. Dev uses `SimulatedPaymentGateway`
-  (captures synchronously, ignores the payment-method id). The real **Stripe**
-  gateway (Stripe.net, secret key from Key Vault) drops in here. `ChargeAsync`
-  takes a `paymentMethodId` — the buyer's card, tokenized client-side via
-  Stripe Elements (`createPaymentMethod`) and threaded through the whole
-  checkout chain (`CheckoutRequest → CheckoutWorkflowInput → ChargeInput →
-  ChargeRequest`) — used to create-and-confirm the `PaymentIntent` server side.
+  (captures synchronously — `CapturedImmediately = true`). The real **Stripe**
+  gateway (Stripe.net, secret key from Key Vault) drops in here.
+  `CreateIntentAsync` takes **no payment-method id at all** — it creates a
+  PaymentIntent with `AutomaticPaymentMethods.Enabled = true` and deliberately
+  never confirms it server-side (no `Confirm`/`PaymentMethod`/
+  `PaymentMethodTypes`). The buyer attaches and authenticates a payment
+  method (card, UPI, etc.) entirely client-side via Stripe's Payment Element,
+  against the returned `ClientSecret` — this is what makes 3-D Secure/UPI
+  app-switch work natively, since Stripe handles the challenge in the
+  browser (ADR-0028). The resulting capture/decline is reported later,
+  exclusively via the webhook below — never returned from this call.
   **No card data or secrets in code.**
 - **Webhook inbox (async capture / 3-D Secure / refunds):** `IPaymentWebhookGateway`
   (Stripe impl) verifies the `Stripe-Signature` header against
@@ -45,9 +53,10 @@ servers; only PSP references are stored.
   `processed_webhook_event` ledger, committed in the **same transaction** as the
   payment change and the outbox message. The neutral `PaymentWebhookNotification`
   keeps the Stripe SDK out of the Application/Domain layers.
-- **Provider correlation:** the charge stores the PaymentIntent id
-  (`ProviderReference`) even when not yet captured, so a later webhook maps back
-  to the right payment.
+- **Provider correlation:** the intent create stores the PaymentIntent id
+  (`ProviderReference`) and its `ClientSecret` immediately, well before capture,
+  so a later webhook maps back to the right payment and a retried checkout call
+  can hand back the same client secret (ADR-0028).
 
 ## Structure
 

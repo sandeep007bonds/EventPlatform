@@ -9,18 +9,21 @@ public interface IPaymentGateway
     /// <summary>The provider name recorded on the payment (e.g. <c>stripe-test</c>).</summary>
     string Provider { get; }
 
-    /// <summary>Charges the given amount.</summary>
+    /// <summary>
+    /// Creates a payment intent for the given amount, without confirming it. Confirmation (attaching
+    /// and authenticating a payment method — card, UPI, etc.) happens client-side against the
+    /// returned client secret via Stripe's Payment Element; the outcome is reported later by the
+    /// provider's webhook, not returned here.
+    /// </summary>
     /// <param name="amountMinor">Amount in minor currency units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key passed to the PSP.</param>
-    /// <param name="paymentMethodId">The payment-method id to charge (tokenized client-side, PCI SAQ-A).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The gateway result.</returns>
-    Task<GatewayResult> ChargeAsync(
+    /// <returns>The created intent's reference and client secret.</returns>
+    Task<GatewayIntentResult> CreateIntentAsync(
         long amountMinor,
         string currency,
         string idempotencyKey,
-        string paymentMethodId,
         CancellationToken cancellationToken);
 
     /// <summary>Refunds a captured charge.</summary>

@@ -460,7 +460,9 @@ public sealed class HoldService(
 
     /// <summary>
     /// Reclaims an expired hold (called by the reaper). Releases its seats/quantities regardless of
-    /// owner; a no-op if the hold is already gone or no longer active.
+    /// owner; a no-op if the hold is already gone, no longer active, or — despite being in the
+    /// reaper's expired batch — no longer actually expired (e.g. it was extended for payment in the
+    /// narrow window between the reaper's batch query and this call).
     /// </summary>
     /// <param name="holdId">The hold to reap.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
@@ -473,7 +475,48 @@ public sealed class HoldService(
             return false;
         }
 
+        if (hold.ExpiresAt > DateTimeOffset.UtcNow)
+        {
+            return false;
+        }
+
         return await ReleaseInternalAsync(hold, "reap", cancellationToken);
+    }
+
+    /// <summary>
+    /// Extends an active hold's expiry — called by the checkout saga once payment authentication
+    /// begins, so a slow 3-D Secure challenge or UPI app-switch doesn't expire the buyer's seats.
+    /// Best-effort: a hold that is missing or no longer active isn't extended, but its current (or
+    /// absent) expiry is still returned so the caller can compute a saga timeout either way —
+    /// <see cref="ConvertToSoldAsync"/>'s own expiry check remains the real safety net regardless.
+    /// </summary>
+    /// <param name="holdId">The hold to extend.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The hold's (possibly unchanged) expiry, or <see langword="null"/> if it doesn't exist.</returns>
+    public async Task<DateTimeOffset?> ExtendHoldAsync(Guid holdId, CancellationToken cancellationToken)
+    {
+        var hold = await inventory.GetHoldAsync(holdId, cancellationToken);
+        if (hold is null)
+        {
+            return null;
+        }
+
+        if (hold.Status != HoldStatus.Active)
+        {
+            return hold.ExpiresAt;
+        }
+
+        var newExpiresAt = DateTimeOffset.UtcNow.Add(options.PaymentExtensionTtl);
+        hold.Extend(newExpiresAt);
+
+        // Hold carries no optimistic-concurrency token (unlike InventoryItem/GeneralAdmissionAllocation),
+        // so a plain save is correct here — no lost-race retry needed.
+        await inventory.SaveChangesAsync(cancellationToken);
+
+        // Postgres committed first (the authority); now extend the Redis bookkeeping TTLs to match.
+        await holdStore.ExtendAsync(hold.EventId, hold.Id, options.PaymentExtensionTtl, cancellationToken);
+
+        return hold.ExpiresAt;
     }
 
     /// <summary>

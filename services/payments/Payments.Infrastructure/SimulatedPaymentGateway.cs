@@ -11,13 +11,20 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
     public string Provider => "stripe-test";
 
     /// <inheritdoc />
-    public Task<GatewayResult> ChargeAsync(
+    public Task<GatewayIntentResult> CreateIntentAsync(
         long amountMinor,
         string currency,
         string idempotencyKey,
-        string paymentMethodId,
-        CancellationToken cancellationToken) =>
-        Task.FromResult(new GatewayResult(Succeeded: true, Reference: $"pi_sim_{Guid.CreateVersion7():N}", FailureReason: null));
+        CancellationToken cancellationToken)
+    {
+        var reference = $"pi_sim_{Guid.CreateVersion7():N}";
+        var clientSecret = $"{reference}_secret_sim";
+
+        // Self-confirms synchronously, exactly as before — but the caller still drives the resulting
+        // capture through the same outbox -> pub/sub -> Ordering-subscriber path real Stripe uses, so
+        // there is no fork in Ordering's saga logic between dev and prod.
+        return Task.FromResult(new GatewayIntentResult(reference, clientSecret, CapturedImmediately: true));
+    }
 
     /// <inheritdoc />
     public Task RefundAsync(string providerReference, CancellationToken cancellationToken) => Task.CompletedTask;

@@ -72,6 +72,12 @@ public sealed class Order
     /// <summary>Reason the order failed, when <see cref="Status"/> is <see cref="OrderStatus.Failed"/>.</summary>
     public string? FailureReason { get; private set; }
 
+    /// <summary>
+    /// The Stripe PaymentIntent client secret, once the checkout saga has created it — the frontend
+    /// mounts Payment Element against this. Set only while <see cref="OrderStatus.AwaitingPayment"/>.
+    /// </summary>
+    public string? PaymentClientSecret { get; private set; }
+
     /// <summary>When the order was created (UTC).</summary>
     public DateTimeOffset CreatedAt { get; private set; }
 
@@ -79,6 +85,11 @@ public sealed class Order
     public IReadOnlyCollection<OrderLine> Lines => _lines;
 
     /// <summary>Creates a pending order from the given held seats.</summary>
+    /// <param name="id">
+    /// The order's id, pre-minted by the caller (the checkout endpoint) rather than generated here —
+    /// it doubles as the Dapr Workflow instance id for the checkout saga, so a webhook-driven
+    /// payment-outcome subscriber can correlate straight back to the running saga with no lookup.
+    /// </param>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="catalogEventId">The show/event.</param>
@@ -89,6 +100,7 @@ public sealed class Order
     /// <param name="buyerEmail">The buyer's email, for ticket delivery.</param>
     /// <returns>A new pending <see cref="Order"/>.</returns>
     public static Order Create(
+        Guid id,
         Guid tenantId,
         Guid userId,
         Guid catalogEventId,
@@ -102,7 +114,7 @@ public sealed class Order
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentNullException.ThrowIfNull(lines);
 
-        var order = new Order(Guid.CreateVersion7(), tenantId, userId, catalogEventId, holdId, currency, idempotencyKey, buyerEmail);
+        var order = new Order(id, tenantId, userId, catalogEventId, holdId, currency, idempotencyKey, buyerEmail);
         foreach (var line in lines)
         {
             order._lines.Add(new OrderLine(order.Id, line));
@@ -123,6 +135,16 @@ public sealed class Order
     {
         Require(OrderStatus.Pending);
         Status = OrderStatus.AwaitingPayment;
+    }
+
+    /// <summary>Records the Stripe PaymentIntent client secret once the checkout saga has created it.</summary>
+    /// <param name="clientSecret">The PSP client secret.</param>
+    /// <exception cref="InvalidOperationException">The order is not awaiting payment.</exception>
+    public void RecordPaymentClientSecret(string clientSecret)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientSecret);
+        Require(OrderStatus.AwaitingPayment);
+        PaymentClientSecret = clientSecret;
     }
 
     /// <summary>Marks the order confirmed (paid and sold).</summary>

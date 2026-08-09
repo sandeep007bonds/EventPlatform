@@ -15,8 +15,25 @@ public static class OrderingEndpoints
         app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
         app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders");
 
+        // Dapr pub/sub: resume a checkout saga waiting on payment authentication (ADR-0028). The
+        // order id doubles as the saga's own Dapr instance id, so no lookup is needed.
+        app.MapPost("/integration/payments/payment-captured", OnPaymentCapturedAsync)
+            .WithTopic("pubsub", nameof(PaymentCaptured))
+            .WithName("OnPaymentCaptured")
+            .ExcludeFromDescription();
+        app.MapPost("/integration/payments/payment-failed", OnPaymentFailedAsync)
+            .WithTopic("pubsub", nameof(PaymentFailed))
+            .WithName("OnPaymentFailed")
+            .ExcludeFromDescription();
+
         return app;
     }
+
+    // How long CheckoutAsync polls the Order row for a client secret before falling back to a full
+    // blocking wait on the workflow's completion. Generous enough to cover the create-intent +
+    // record + extend-hold activities under normal load without making every checkout feel slow.
+    private static readonly TimeSpan CheckoutPollBudget = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CheckoutPollInterval = TimeSpan.FromMilliseconds(200);
 
     private static async Task<IResult> CheckoutAsync(
         CheckoutRequest request,
@@ -42,11 +59,6 @@ public static class OrderingEndpoints
             return Results.BadRequest(new { message = "A valid BuyerEmail is required." });
         }
 
-        if (string.IsNullOrWhiteSpace(request.PaymentMethodId))
-        {
-            return Results.BadRequest(new { message = "A PaymentMethodId is required." });
-        }
-
         // Idempotency: a prior attempt with this key (by this buyer) wins before starting a new
         // workflow. Scoped by buyer, not tenant — a checkout attempt is a buyer action, and the
         // buyer's own token may carry no tenant claim at all (ADR-0022).
@@ -58,18 +70,116 @@ public static class OrderingEndpoints
                 : Results.Conflict(new { message = "A prior checkout for this key did not complete.", orderId = existing.Id });
         }
 
-        var instanceId = Guid.CreateVersion7().ToString("N");
+        // The order id is minted here, before scheduling, and doubles as the workflow's own Dapr
+        // instance id — this lets the payment webhook subscriber raise an event straight back to the
+        // running saga with no lookup table (ADR-0028).
+        var orderId = Guid.CreateVersion7();
+        var instanceId = orderId.ToString("N");
         await workflowClient.ScheduleNewWorkflowAsync(
             nameof(CheckoutWorkflow),
             instanceId,
-            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail, request.PaymentMethodId));
+            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail, orderId));
 
-        var state = await workflowClient.WaitForWorkflowCompletionAsync(
-            instanceId,
-            getInputsAndOutputs: true,
-            cancellationToken);
+        var completionTask = workflowClient.WaitForWorkflowCompletionAsync(instanceId, getInputsAndOutputs: true, cancellationToken);
+        var pollTask = PollForClientSecretAsync(orderId, orders, cancellationToken);
 
+        var winner = await Task.WhenAny(completionTask, pollTask);
+        if (winner == pollTask)
+        {
+            var polled = await pollTask;
+            if (polled is not null)
+            {
+                return Results.Ok(new { orderId, clientSecret = polled.PaymentClientSecret });
+            }
+
+            // The poll budget elapsed with the saga still mid-flight (a genuinely slow intent-create
+            // call, or — rarely — a concurrent double-submit whose real order has a different,
+            // winning id our poll never finds) — degrade to a full blocking wait, same as before this
+            // change existed.
+        }
+
+        var state = await completionTask;
         return MapCheckoutOutcome(state.ReadOutputAs<CheckoutWorkflowResult>());
+    }
+
+    // Polls the order row until it either has a payment client secret (payment pending — the
+    // fast-return case) or reaches a terminal status with none (e.g. the simulated gateway's
+    // instant-capture path), or the poll budget elapses (returns null either way).
+    private static async Task<Order?> PollForClientSecretAsync(Guid orderId, IOrderRepository orders, CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(CheckoutPollBudget);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            var order = await orders.GetByIdAsync(orderId, cancellationToken);
+            if (order is not null && (order.PaymentClientSecret is not null || order.Status is OrderStatus.Confirmed or OrderStatus.Failed))
+            {
+                return order;
+            }
+
+            await Task.Delay(CheckoutPollInterval, cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static Task<IResult> OnPaymentCapturedAsync(
+        PaymentCaptured @event,
+        DaprWorkflowClient workflowClient,
+        IOrderRepository orders,
+        IPaymentClient payments,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RaisePaymentOutcomeAsync(@event.OrderId, captured: true, failureReason: null, workflowClient, orders, payments, loggerFactory, cancellationToken);
+
+    private static Task<IResult> OnPaymentFailedAsync(
+        PaymentFailed @event,
+        DaprWorkflowClient workflowClient,
+        IOrderRepository orders,
+        IPaymentClient payments,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        RaisePaymentOutcomeAsync(@event.OrderId, captured: false, failureReason: @event.Reason, workflowClient, orders, payments, loggerFactory, cancellationToken);
+
+    // Shared by both webhook-driven subscribers: raise the outcome into the still-running checkout
+    // saga (the common case), or — if the saga already finished, most likely because the extended
+    // hold's deadline already fired — handle a late arrival. A late PaymentFailed needs no action
+    // (the order is already Failed either way); a late PaymentCaptured means the buyer was actually
+    // charged after we already released their seats, so it's refunded directly rather than left
+    // silently orphaned.
+    private static async Task<IResult> RaisePaymentOutcomeAsync(
+        Guid orderId,
+        bool captured,
+        string? failureReason,
+        DaprWorkflowClient workflowClient,
+        IOrderRepository orders,
+        IPaymentClient payments,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        var instanceId = orderId.ToString("N");
+        var state = await workflowClient.GetWorkflowStateAsync(instanceId, cancellationToken: cancellationToken);
+        if (state.RuntimeStatus == WorkflowRuntimeStatus.Running)
+        {
+            await workflowClient.RaiseEventAsync(instanceId, "PaymentOutcome", new PaymentOutcomeSignal(captured, failureReason), cancellationToken);
+
+            // Ack so Dapr does not redeliver.
+            return Results.Ok();
+        }
+
+        if (captured)
+        {
+            var order = await orders.GetByIdAsync(orderId, cancellationToken);
+            if (order is not null && order.Status == OrderStatus.Failed)
+            {
+                var logger = loggerFactory.CreateLogger("Ordering.PaymentOutcome");
+                logger.LogWarning(
+                    "Payment for order {OrderId} captured after its checkout saga already failed; refunding.",
+                    orderId);
+                await payments.RefundAsync(orderId, $"late-capture-refund-{orderId:N}", cancellationToken);
+            }
+        }
+
+        return Results.Ok();
     }
 
     private static IResult MapCheckoutOutcome(CheckoutWorkflowResult? result)
@@ -89,6 +199,8 @@ public static class OrderingEndpoints
             CheckoutOutcome.HoldExpired => Results.Conflict(new { message = "The hold has expired." }),
             CheckoutOutcome.PaymentFailed =>
                 Results.UnprocessableEntity(new { message = "Payment failed.", orderId = result.OrderId }),
+            CheckoutOutcome.PaymentTimedOut =>
+                Results.UnprocessableEntity(new { message = "Payment was not completed in time.", orderId = result.OrderId }),
             CheckoutOutcome.ConvertFailed =>
                 Results.Conflict(new { message = "The seats could not be sold.", orderId = result.OrderId }),
             CheckoutOutcome.Failed =>
@@ -169,7 +281,8 @@ public static class OrderingEndpoints
             order.Currency,
             order.CatalogEventId,
             order.HoldId,
-            lines);
+            lines,
+            order.PaymentClientSecret);
 
         return Results.Ok(response);
     }

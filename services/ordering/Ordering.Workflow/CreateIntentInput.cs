@@ -1,16 +1,14 @@
 namespace Ordering.Workflow;
 
-/// <summary>Input to the charge activity.</summary>
+/// <summary>Input to the create-payment-intent activity.</summary>
 /// <param name="TenantId">Owning tenant.</param>
 /// <param name="OrderId">The order being paid.</param>
 /// <param name="AmountMinor">Amount in minor units.</param>
 /// <param name="Currency">Currency (ISO 4217).</param>
 /// <param name="IdempotencyKey">Idempotency key.</param>
-/// <param name="PaymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
-public sealed record ChargeInput(
+public sealed record CreateIntentInput(
     Guid TenantId,
     Guid OrderId,
     long AmountMinor,
     string Currency,
-    string IdempotencyKey,
-    string PaymentMethodId);
+    string IdempotencyKey);

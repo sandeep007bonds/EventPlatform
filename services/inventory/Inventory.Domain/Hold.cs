@@ -115,6 +115,22 @@ public sealed class Hold
         Status = HoldStatus.Released;
     }
 
+    /// <summary>
+    /// Extends the hold's expiry, e.g. once checkout submits and payment authentication begins.
+    /// Only ever moves <see cref="ExpiresAt"/> forward — a replayed/retried call with an
+    /// already-passed value is a safe no-op rather than a regression.
+    /// </summary>
+    /// <param name="newExpiresAt">The proposed new expiry (UTC).</param>
+    /// <exception cref="InvalidOperationException">The hold is not active.</exception>
+    public void Extend(DateTimeOffset newExpiresAt)
+    {
+        RequireActive();
+        if (newExpiresAt > ExpiresAt)
+        {
+            ExpiresAt = newExpiresAt;
+        }
+    }
+
     /// <summary>Marks a converted (sold) hold cancelled — a buyer-initiated cancellation/refund.</summary>
     /// <exception cref="InvalidOperationException">The hold is not converted.</exception>
     public void MarkCancelled()

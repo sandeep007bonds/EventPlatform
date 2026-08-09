@@ -18,8 +18,16 @@ public enum CheckoutOutcome
     /// <summary>The hold has expired.</summary>
     HoldExpired,
 
-    /// <summary>Payment failed; the hold was released.</summary>
+    /// <summary>Payment failed (declined, or authentication abandoned); the hold was released.</summary>
     PaymentFailed,
+
+    /// <summary>
+    /// The buyer never completed payment authentication (3-D Secure challenge, UPI app-switch, etc.)
+    /// before the extended hold's deadline; the hold was released. Distinct from
+    /// <see cref="PaymentFailed"/> so ops/frontend can tell "never finished authenticating" apart
+    /// from "the provider declined it."
+    /// </summary>
+    PaymentTimedOut,
 
     /// <summary>The seats could not be sold; payment was refunded and the hold released.</summary>
     ConvertFailed,

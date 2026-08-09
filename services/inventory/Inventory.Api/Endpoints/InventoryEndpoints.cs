@@ -64,6 +64,11 @@ public static class InventoryEndpoints
         holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").ExcludeFromDescription();
         holds.MapPost("/{holdId:guid}/release", SystemReleaseHoldAsync).WithName("SystemReleaseHold").ExcludeFromDescription();
 
+        // Internal (checkout saga, via Dapr service invocation): extend a hold's expiry once payment
+        // authentication begins. No request body — the extension duration is server-config-driven
+        // (HoldOptions.PaymentExtensionTtl), never client-supplied.
+        holds.MapPost("/{holdId:guid}/extend", ExtendHoldAsync).WithName("ExtendHold").ExcludeFromDescription();
+
         // Internal (Ordering's cancellation saga, via Dapr service invocation): release a converted
         // hold's sold seats/quantities back to available.
         holds.MapPost("/{holdId:guid}/cancel", CancelSoldAsync).WithName("CancelSold").ExcludeFromDescription();
@@ -78,6 +83,15 @@ public static class InventoryEndpoints
     {
         await holds.SystemReleaseAsync(holdId, cancellationToken);
         return Results.NoContent();
+    }
+
+    private static async Task<IResult> ExtendHoldAsync(
+        Guid holdId,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var expiresAt = await holds.ExtendHoldAsync(holdId, cancellationToken);
+        return expiresAt is null ? Results.NotFound() : Results.Ok(new { expiresAt = expiresAt.Value });
     }
 
     private static async Task<IResult> GetHoldAsync(

@@ -12,4 +12,9 @@
     <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Subscribes to PaymentCaptured/PaymentFailed to resume a waiting checkout saga (ADR-0028). -->
+    <PackageReference Include="Dapr.AspNetCore" />
+  </ItemGroup>
+
 </Project>

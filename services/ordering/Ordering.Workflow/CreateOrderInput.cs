@@ -8,6 +8,11 @@ namespace Ordering.Workflow;
 /// <param name="CatalogEventId">The show/event.</param>
 /// <param name="Lines">The held seats and their prices.</param>
 /// <param name="BuyerEmail">The buyer's email, for ticket delivery.</param>
+/// <param name="OrderId">
+/// The order's id, pre-minted by the checkout endpoint (also the workflow's own instance id) — used
+/// as <see cref="Order.Id"/> when a new order is actually created; unused on the already-existed
+/// fast path, which returns the winner's own real id instead.
+/// </param>
 public sealed record CreateOrderInput(
     Guid TenantId,
     Guid UserId,
@@ -15,4 +20,5 @@ public sealed record CreateOrderInput(
     string IdempotencyKey,
     Guid CatalogEventId,
     IReadOnlyList<HoldLineSnapshot> Lines,
-    string BuyerEmail);
+    string BuyerEmail,
+    Guid OrderId);

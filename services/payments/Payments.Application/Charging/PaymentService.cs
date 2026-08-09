@@ -12,37 +12,39 @@ public sealed class PaymentService(
     IPaymentGateway gateway,
     IEventPublisher events)
 {
-    /// <summary>Charges an order, idempotently.</summary>
+    /// <summary>Creates (or re-fetches an idempotent) payment intent for an order.</summary>
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The order being paid.</param>
     /// <param name="amountMinor">Amount in minor units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key (unique per order).</param>
-    /// <param name="paymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The charge result.</returns>
-    public async Task<ChargeResult> ChargeAsync(
+    /// <returns>The intent result.</returns>
+    public async Task<CreateIntentResult> CreatePaymentIntentAsync(
         Guid tenantId,
         Guid orderId,
         long amountMinor,
         string currency,
         string idempotencyKey,
-        string paymentMethodId,
         CancellationToken cancellationToken)
     {
         var existing = await payments.GetByOrderAndKeyAsync(orderId, idempotencyKey, cancellationToken);
         if (existing is not null)
         {
-            return ToChargeResult(existing);
+            // A retried/duplicate call must hand back the same client secret rather than re-calling
+            // the gateway — this is exactly why ClientSecret is persisted, not just returned transiently.
+            return ToIntentResult(existing);
         }
 
         var payment = Payment.Create(tenantId, orderId, gateway.Provider, idempotencyKey, amountMinor, currency);
         payments.Add(payment);
 
-        var result = await gateway.ChargeAsync(amountMinor, currency, idempotencyKey, paymentMethodId, cancellationToken);
-        if (result.Succeeded)
+        var intent = await gateway.CreateIntentAsync(amountMinor, currency, idempotencyKey, cancellationToken);
+        payment.RecordIntentDetails(intent.Reference, intent.ClientSecret);
+
+        if (intent.CapturedImmediately)
         {
-            payment.MarkCaptured(result.Reference ?? "unknown");
+            payment.MarkCaptured(intent.Reference);
             events.Enqueue(new PaymentCaptured(
                 Guid.CreateVersion7(),
                 DateTimeOffset.UtcNow,
@@ -53,36 +55,21 @@ public sealed class PaymentService(
                 currency,
                 payment.ProviderReference!));
         }
-        else
-        {
-            // Keep the provider reference on a non-captured payment (e.g. requires_action / 3-D
-            // Secure) so an out-of-band webhook can later reconcile it to a capture.
-            if (result.Reference is not null)
-            {
-                payment.RecordProviderReference(result.Reference);
-            }
 
-            payment.MarkFailed(result.FailureReason ?? "payment_failed");
-            events.Enqueue(new PaymentFailed(
-                Guid.CreateVersion7(),
-                DateTimeOffset.UtcNow,
-                tenantId,
-                payment.Id,
-                orderId,
-                payment.FailureReason!));
-        }
+        // Real Stripe path: the payment stays Initiated. No PaymentCaptured/PaymentFailed here — the
+        // outcome arrives later exclusively via the webhook (StripeWebhookGateway/PaymentWebhookService).
 
-        // Race window: two charges for the same (order, key) both passed the pre-check. The unique
+        // Race window: two creates for the same (order, key) both passed the pre-check. The unique
         // index lets exactly one persist; the loser re-fetches the winner (the gateway is idempotent
-        // on the key, so no double charge, and the loser's outbox events roll back with the save).
+        // on the key, so no duplicate intent, and the loser's outbox events roll back with the save).
         if (await payments.TrySaveChangesAsync(cancellationToken))
         {
-            return ToChargeResult(payment);
+            return ToIntentResult(payment);
         }
 
         var winner = await payments.GetByOrderAndKeyAsync(orderId, idempotencyKey, cancellationToken)
-            ?? throw new InvalidOperationException("Duplicate charge was rejected but no existing payment was found.");
-        return ToChargeResult(winner);
+            ?? throw new InvalidOperationException("Duplicate intent create was rejected but no existing payment was found.");
+        return ToIntentResult(winner);
     }
 
     /// <summary>Refunds the captured payment for an order, if any. Idempotent.</summary>
@@ -115,8 +102,10 @@ public sealed class PaymentService(
         return true;
     }
 
-    private static ChargeResult ToChargeResult(Payment payment) =>
-        payment.Status == PaymentStatus.Captured
-            ? new ChargeResult(ChargeOutcome.Captured, payment.Id, payment.ProviderReference, null)
-            : new ChargeResult(ChargeOutcome.Failed, payment.Id, null, payment.FailureReason ?? "payment_failed");
+    private static CreateIntentResult ToIntentResult(Payment payment) =>
+        new(
+            payment.Id,
+            payment.ProviderReference ?? throw new InvalidOperationException($"Payment {payment.Id} has no provider reference."),
+            payment.ClientSecret ?? throw new InvalidOperationException($"Payment {payment.Id} has no client secret."),
+            payment.Status == PaymentStatus.Captured);
 }
