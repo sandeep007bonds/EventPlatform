@@ -3,6 +3,12 @@ namespace Ordering.Api.Endpoints;
 /// <summary>Maps the Ordering HTTP endpoints.</summary>
 public static class OrderingEndpoints
 {
+    // How long CheckoutAsync polls the Order row for a client secret before falling back to a full
+    // blocking wait on the workflow's completion. Generous enough to cover the create-intent +
+    // record + extend-hold activities under normal load without making every checkout feel slow.
+    private static readonly TimeSpan CheckoutPollBudget = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan CheckoutPollInterval = TimeSpan.FromMilliseconds(200);
+
     /// <summary>Maps the checkout and order endpoints.</summary>
     /// <param name="app">The endpoint route builder.</param>
     /// <returns>The same <paramref name="app"/> for chaining.</returns>
@@ -28,12 +34,6 @@ public static class OrderingEndpoints
 
         return app;
     }
-
-    // How long CheckoutAsync polls the Order row for a client secret before falling back to a full
-    // blocking wait on the workflow's completion. Generous enough to cover the create-intent +
-    // record + extend-hold activities under normal load without making every checkout feel slow.
-    private static readonly TimeSpan CheckoutPollBudget = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan CheckoutPollInterval = TimeSpan.FromMilliseconds(200);
 
     private static async Task<IResult> CheckoutAsync(
         CheckoutRequest request,
@@ -157,7 +157,7 @@ public static class OrderingEndpoints
         CancellationToken cancellationToken)
     {
         var instanceId = orderId.ToString("N");
-        var state = await workflowClient.GetWorkflowStateAsync(instanceId, cancellationToken: cancellationToken);
+        var state = await workflowClient.GetWorkflowStateAsync(instanceId);
         if (state.RuntimeStatus == WorkflowRuntimeStatus.Running)
         {
             await workflowClient.RaiseEventAsync(instanceId, "PaymentOutcome", new PaymentOutcomeSignal(captured, failureReason), cancellationToken);
