@@ -13,7 +13,9 @@ builder.Services.AddDaprWorkflow(options =>
     options.RegisterWorkflow<CheckoutWorkflow>();
     options.RegisterActivity<FetchHoldActivity>();
     options.RegisterActivity<CreateOrderActivity>();
-    options.RegisterActivity<ChargeActivity>();
+    options.RegisterActivity<CreateIntentActivity>();
+    options.RegisterActivity<RecordPaymentIntentActivity>();
+    options.RegisterActivity<ExtendHoldActivity>();
     options.RegisterActivity<ConvertActivity>();
     options.RegisterActivity<ConfirmOrderActivity>();
     options.RegisterActivity<ReleaseHoldActivity>();
@@ -30,7 +32,9 @@ builder.Services.AddDaprWorkflow(options =>
 var app = builder.Build();
 
 app.UseServiceDefaults();
+app.UseCloudEvents();
 app.MapOrderingEndpoints();
+app.MapSubscribeHandler();
 
 // DEV ONLY: create the schema from the current model on startup, so the service runs against local
 // Postgres with zero setup — no `dotnet ef` command, no committed Migrations/ folder. This is

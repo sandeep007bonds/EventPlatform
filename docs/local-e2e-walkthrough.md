@@ -93,9 +93,11 @@ for E2E. To exercise real Stripe instead, set a **test** key *before* running
 `dev-up.sh`: `dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." --project services/payments/Payments.Api`
 (never commit it). Also set the matching **publishable** key in
 `frontend/.env.development.local` (`VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...`)
-so the buyer checkout page renders a real Stripe `CardElement` instead of its
-dev fallback — enter Stripe's test card `4242 4242 4242 4242` (any future
-expiry/CVC/postal code) to complete a real tokenized charge.
+so the buyer checkout page renders a real Stripe Payment Element instead of
+resolving instantly — enter Stripe's test card `4242 4242 4242 4242` (any
+future expiry/CVC/postal code) for a no-3DS charge, or `4000 0025 0000 3155`
+to exercise the 3-D Secure challenge (ADR-0028); complete or abandon the
+challenge to see the order reach `Confirmed`/`Failed` accordingly.
 
 > **Under the hood:** `dev-up.sh` wraps `dapr run -f platform/dapr/dapr.yaml`,
 > which is equivalent to running `dapr run --app-id catalog --app-port 5080

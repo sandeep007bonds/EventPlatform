@@ -39,9 +39,12 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
 
         // 2. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
         //    organizer who owns the event/inventory, not necessarily present on the buyer's own token.
+        //    OrderId is pre-minted by the checkout endpoint (it's also this workflow's own instance
+        //    id), so a webhook-driven subscriber can raise an event straight back with no lookup.
         var order = await context.CallActivityAsync<CreateOrderOutput>(
             nameof(CreateOrderActivity),
-            new CreateOrderInput(hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail));
+            new CreateOrderInput(
+                hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail, input.OrderId));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
@@ -51,17 +54,50 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Duplicate), order.OrderId);
         }
 
-        // 3. Charge. On failure: fail the order and release the hold.
-        var charge = await context.CallActivityAsync<ChargeOutput>(
-            nameof(ChargeActivity),
-            new ChargeInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey, input.PaymentMethodId));
-        if (!charge.Succeeded)
+        // 3. Create (not confirm) a payment intent — the buyer authenticates client-side via Stripe's
+        //    Payment Element (card 3-D Secure, UPI app-switch, etc.). Record the client secret on the
+        //    order so the checkout endpoint's fast-return poll can hand it to the frontend, then
+        //    extend the hold to cover however long authentication takes.
+        var intent = await context.CallActivityAsync<CreateIntentOutput>(
+            nameof(CreateIntentActivity),
+            new CreateIntentInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
+
+        await context.CallActivityAsync<bool>(
+            nameof(RecordPaymentIntentActivity),
+            new RecordPaymentIntentInput(order.OrderId, intent.ClientSecret));
+
+        var extendedExpiresAt = await context.CallActivityAsync<DateTimeOffset?>(nameof(ExtendHoldActivity), input.HoldId);
+        var deadline = extendedExpiresAt?.UtcDateTime ?? context.CurrentUtcDateTime;
+
+        // Race the async payment outcome (raised by Ordering's PaymentCaptured/PaymentFailed webhook
+        // subscriber) against the extended-hold deadline. Standard Dapr Workflow/Durable Task
+        // external-event-with-timeout idiom — first use in this repo, so double-check the exact
+        // CreateTimer/WaitForExternalEventAsync overloads against the installed Dapr.Workflow version
+        // during a real build.
+        using var timeoutCts = new CancellationTokenSource();
+        var paymentOutcomeTask = context.WaitForExternalEventAsync<PaymentOutcomeSignal>("PaymentOutcome");
+        var timeoutTask = context.CreateTimer(deadline, timeoutCts.Token);
+        var winner = await Task.WhenAny(paymentOutcomeTask, timeoutTask);
+
+        var captured = false;
+        string outcomeOnFailure = nameof(CheckoutOutcome.PaymentTimedOut);
+        string failureReason = "payment_timed_out";
+        if (winner == paymentOutcomeTask)
+        {
+            timeoutCts.Cancel();
+            var signal = await paymentOutcomeTask;
+            captured = signal.Captured;
+            outcomeOnFailure = nameof(CheckoutOutcome.PaymentFailed);
+            failureReason = signal.FailureReason ?? "payment_failed";
+        }
+
+        if (!captured)
         {
             await context.CallActivityAsync<bool>(
                 nameof(FailOrderActivity),
-                new FailInput(order.OrderId, charge.FailureReason ?? "payment_failed"));
+                new FailInput(order.OrderId, failureReason));
             await context.CallActivityAsync<bool>(nameof(ReleaseHoldActivity), input.HoldId);
-            return new CheckoutWorkflowResult(nameof(CheckoutOutcome.PaymentFailed), order.OrderId);
+            return new CheckoutWorkflowResult(outcomeOnFailure, order.OrderId);
         }
 
         // 4. Convert the hold to a sale. On failure: fail the order, refund, release the hold.

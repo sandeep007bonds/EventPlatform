@@ -49,9 +49,10 @@ src/
                  (email+password register/login), LogoutPage
   features/
     buyer/  events/ (list + detail) seatmap/ (interactive picker) checkout/
-            (hold summary + countdown + Stripe Elements card collection via
-            CheckoutPaymentForm) orders/ (order+tickets, order history)
-            auth/ (OtpLoginFlow)
+            (hold summary + countdown + Stripe Payment Element via
+            CheckoutPaymentForm, plus CheckoutReturnPage for the
+            redirect-out-and-back authentication flows) orders/
+            (order+tickets, order history) auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
             eventGroups/ (create/manage tours, TourDetailPage with "Add
                           leg", EventGroupPicker + inline quick-create,
@@ -163,21 +164,32 @@ src/
   has no "list everything" mode — the endpoint 400s without one of these.
   `orderingApi.listMyOrders`/`listTenantOrders` set the right one; don't call
   the raw endpoint without going through them.
-- **Stripe Elements is a deliberate, justified exception to "no UI library
-  beyond Ant Design."** `@stripe/stripe-js`/`@stripe/react-stripe-js` collect
-  card details for `CheckoutPage` — but the only UI surface is `CardElement`,
-  a Stripe-controlled iframe, not a competing component/design-system
-  library, so it doesn't collide with that rule's actual intent.
-  `services/payments/stripeClient.ts` loads Stripe.js once at module scope
-  (`stripePromise`, `isStripeConfigured` off `VITE_STRIPE_PUBLISHABLE_KEY`);
-  `CheckoutPaymentForm.tsx` is the only place `useStripe`/`useElements` are
+- **Stripe Payment Element is a deliberate, justified exception to "no UI
+  library beyond Ant Design."** `@stripe/stripe-js`/`@stripe/react-stripe-js`
+  collect payment details for `CheckoutPage` — but the only UI surface is
+  `PaymentElement`, a Stripe-controlled iframe, not a competing
+  component/design-system library, so it doesn't collide with that rule's
+  actual intent. `services/payments/stripeClient.ts` loads Stripe.js once at
+  module scope (`stripePromise`, `isStripeConfigured` off
+  `VITE_STRIPE_PUBLISHABLE_KEY`). **The intent is created before the payment
+  form ever mounts** (ADR-0028): `CheckoutPage.tsx` calls `checkout(...)`
+  directly on submit, which creates (but doesn't confirm) a PaymentIntent
+  server-side; only once a `clientSecret` comes back does it mount
+  `<Elements stripe={stripePromise} options={{ clientSecret }}>` around
+  `CheckoutPaymentForm.tsx` — the only place `useStripe`/`useElements` are
   called (it only ever renders inside `<Elements>`, so there's no
-  conditional-hook hazard) and calls `stripe.createPaymentMethod()` — never
-  `confirmCardPayment` — so raw card data only ever reaches Stripe's own
-  iframe/API, never our backend (PCI SAQ-A). When no publishable key is
-  configured, `CheckoutPage` skips `<Elements>` entirely and submits
-  `DEV_FALLBACK_PAYMENT_METHOD_ID` (`'pm_card_visa'`) instead, so local/CI
-  checkout needs zero Stripe setup.
+  conditional-hook hazard). `CheckoutPaymentForm` calls
+  `stripe.confirmPayment({ elements, confirmParams: { return_url }, redirect:
+  'if_required' })` — this handles 3-D Secure/UPI-app-switch authentication
+  natively; most methods resolve in-page, the rest redirect out and back via
+  `CheckoutReturnPage.tsx` (`/checkout/:holdId/return`, reads Stripe's own
+  `payment_intent_client_secret` query param via `stripePromise` directly,
+  since there's no `<Elements>` context on that page). Raw payment details
+  only ever reach Stripe's own iframe/API, never our backend (PCI SAQ-A).
+  When `clientSecret` comes back `null` (payment already resolved
+  synchronously — the no-Stripe-configured dev fallback), `CheckoutPage`
+  navigates straight to the order page with no payment form ever shown, so
+  local/CI checkout needs zero Stripe setup.
 
 ## Local run
 

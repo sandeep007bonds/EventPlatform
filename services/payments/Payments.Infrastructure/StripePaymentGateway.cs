@@ -2,10 +2,11 @@ namespace Payments.Infrastructure;
 
 /// <summary>
 /// Stripe-backed <see cref="IPaymentGateway"/> (test or live, per the configured secret key).
-/// Card data never touches our servers (PCI SAQ-A): the client tokenizes the card via Stripe
-/// Elements' <c>createPaymentMethod</c>, and we create and confirm a PaymentIntent server side
-/// against the resulting payment-method id. The secret key comes from configuration (Key Vault in
-/// cloud, user-secrets/env locally) — never from code.
+/// Card data never touches our servers (PCI SAQ-A): we only ever create a PaymentIntent server side
+/// (never confirm it) — the client attaches and authenticates a payment method (card, UPI, etc.)
+/// entirely client-side via Stripe's Payment Element, against the returned client secret. The
+/// resulting capture/decline is reported later by Stripe's webhook, not by this call. The secret key
+/// comes from configuration (Key Vault in cloud, user-secrets/env locally) — never from code.
 /// </summary>
 internal sealed class StripePaymentGateway : IPaymentGateway
 {
@@ -25,32 +26,30 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     public string Provider => "stripe";
 
     /// <inheritdoc />
-    public async Task<GatewayResult> ChargeAsync(
+    public async Task<GatewayIntentResult> CreateIntentAsync(
         long amountMinor,
         string currency,
         string idempotencyKey,
-        string paymentMethodId,
         CancellationToken cancellationToken)
     {
         var options = new PaymentIntentCreateOptions
         {
             Amount = amountMinor,
             Currency = ToStripeCurrency(currency),
-            PaymentMethod = paymentMethodId,
-            PaymentMethodTypes = ["card"],
-            Confirm = true,
+
+            // Deliberately no PaymentMethod/PaymentMethodTypes/Confirm — Payment Element attaches and
+            // confirms client-side. AutomaticPaymentMethods surfaces every method enabled for the
+            // account's region/currency (cards, UPI, and anything else configured in the Stripe
+            // Dashboard), not just cards.
+            AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
         };
 
-        // Stripe idempotency: a retried charge with the same key returns the same PaymentIntent.
+        // Stripe idempotency: a retried create with the same key returns the same PaymentIntent.
         var requestOptions = new RequestOptions { IdempotencyKey = idempotencyKey };
 
         var intent = await paymentIntents.CreateAsync(options, requestOptions, cancellationToken);
 
-        // Always surface the PaymentIntent id (even when not yet captured) so the payment can record
-        // it and a later `payment_intent.*` webhook correlates back — see StripeWebhookGateway.
-        return string.Equals(intent.Status, "succeeded", StringComparison.Ordinal)
-            ? new GatewayResult(Succeeded: true, Reference: intent.Id, FailureReason: null)
-            : new GatewayResult(Succeeded: false, Reference: intent.Id, FailureReason: intent.Status);
+        return new GatewayIntentResult(intent.Id, intent.ClientSecret, CapturedImmediately: false);
     }
 
     /// <inheritdoc />

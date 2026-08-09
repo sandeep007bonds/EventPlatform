@@ -73,6 +73,23 @@ internal sealed class DaprHoldClient : IHoldClient
     }
 
     /// <inheritdoc />
+    public async Task<DateTimeOffset?> ExtendAsync(Guid holdId, CancellationToken cancellationToken)
+    {
+        using var http = DaprClient.CreateInvokeHttpClient(InventoryAppId);
+        using var response = await http.PostAsync($"v1/holds/{holdId}/extend", content: null, cancellationToken);
+
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<ExtendHoldResponse>(JsonOptions, cancellationToken);
+        return body?.ExpiresAt;
+    }
+
+    /// <inheritdoc />
     public async Task<bool> CancelSoldAsync(Guid holdId, Guid orderId, CancellationToken cancellationToken)
     {
         using var http = DaprClient.CreateInvokeHttpClient(InventoryAppId);

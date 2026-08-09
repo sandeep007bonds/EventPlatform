@@ -18,7 +18,9 @@ event, and enforces that event's booking cutoff.
   (`.AllowAnonymous()` — every seat's status), `/v1/events/{id}/inventory/block`,
   `/v1/events/{id}/inventory/unblock`; internal (saga-only, not gateway-routed)
   `POST /v1/holds/{holdId}/cancel` — releases a converted hold's sold
-  seats/quantities back to available, called by Ordering's cancellation saga
+  seats/quantities back to available, called by Ordering's cancellation saga;
+  `POST /v1/holds/{holdId}/extend` — extends a hold's expiry for payment
+  authentication, called by Ordering's checkout saga (ADR-0028)
 - **Events published:** `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`,
   `SeatUnblocked` (via outbox) — seat-only today; general-admission holds don't
   yet appear on these events (no external consumer needs them this pass)
@@ -98,6 +100,22 @@ event, and enforces that event's booking cutoff.
   individually addressable like a seat. Called by Ordering's cancellation
   saga (an activity, so retried/replayed on crash-recovery) via
   `POST /v1/holds/{holdId}/cancel`.
+- **Hold extension for async payment (ADR-0028):** `HoldOptions.PaymentExtensionTtl`
+  (default 15 minutes, longer than the base 2-minute `Ttl`) governs how long a
+  hold is extended once checkout submits and payment authentication begins (a
+  3-D Secure challenge, a UPI app-switch) — losing seats after the buyer has
+  committed to paying is worse than a strict pre-payment countdown.
+  `HoldService.ExtendHoldAsync` (called by Ordering's checkout saga via the
+  internal `POST /v1/holds/{id}/extend`, saga-only, not gateway-routed) uses a
+  plain `SaveChangesAsync` — `Hold` carries no optimistic-concurrency token,
+  unlike `InventoryItem`/`GeneralAdmissionAllocation` — then extends Redis's
+  bookkeeping-key TTLs (`IHoldStore.ExtendAsync`; the per-seat/per-allocation
+  markers themselves carry no TTL and need no change). `Hold.Extend` only ever
+  moves `ExpiresAt` forward, so a replayed/retried call is a safe no-op.
+  **`ExpiredHoldReaper`/`HoldService.ReapHoldAsync` re-checks `hold.ExpiresAt`**
+  (not just `Status`) before reaping — without this, a hold extended in the
+  narrow race window between the reaper's batch query and its per-hold reap
+  call would be incorrectly reaped anyway, defeating the extension.
 - **Not extended for GA in this pass:** `InventoryReconciler` only rebuilds the
   seat fast gate from Postgres after a flush. A GA capacity counter lost to a
   flush degrades fast-path availability (Redis under-reports remaining

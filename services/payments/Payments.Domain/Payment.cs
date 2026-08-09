@@ -46,6 +46,13 @@ public sealed class Payment
     /// <summary>Provider reference (e.g. Stripe PaymentIntent id), once known.</summary>
     public string? ProviderReference { get; private set; }
 
+    /// <summary>
+    /// The provider's client secret (e.g. Stripe's PaymentIntent client secret), once known — used
+    /// by the frontend to mount Stripe's Payment Element and confirm the payment. Never re-derivable
+    /// from <see cref="ProviderReference"/> alone, so it is stored, not recomputed.
+    /// </summary>
+    public string? ClientSecret { get; private set; }
+
     /// <summary>Idempotency key; unique per order, dedupes retried charges.</summary>
     public string IdempotencyKey { get; private set; } = default!;
 
@@ -121,15 +128,18 @@ public sealed class Payment
     }
 
     /// <summary>
-    /// Records the provider reference (e.g. Stripe PaymentIntent id) while the payment is still in
-    /// flight, so an out-of-band provider webhook can correlate back to this payment. Setting the
-    /// same reference again is a no-op.
+    /// Records the provider reference and client secret for the just-created intent, while the
+    /// payment is still in flight — so an out-of-band provider webhook can correlate back to this
+    /// payment, and the frontend can mount Stripe's Payment Element. Setting the same reference again
+    /// is a no-op (an idempotent retry of the same create call).
     /// </summary>
     /// <param name="providerReference">The PSP reference.</param>
+    /// <param name="clientSecret">The PSP client secret.</param>
     /// <exception cref="InvalidOperationException">The payment is no longer initiated.</exception>
-    public void RecordProviderReference(string providerReference)
+    public void RecordIntentDetails(string providerReference, string clientSecret)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(providerReference);
+        ArgumentException.ThrowIfNullOrWhiteSpace(clientSecret);
         if (string.Equals(ProviderReference, providerReference, StringComparison.Ordinal))
         {
             return;
@@ -137,6 +147,7 @@ public sealed class Payment
 
         Require(PaymentStatus.Initiated);
         ProviderReference = providerReference;
+        ClientSecret = clientSecret;
     }
 
     /// <summary>

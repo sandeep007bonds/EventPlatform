@@ -57,17 +57,27 @@ local development. Update this with each meaningful change.
   - ✅ Service scaffold: `Payment` domain, `PaymentService` (idempotent charge/refund on `(order, key)`), EF + Postgres, outbox, migration scaffolding; internal `POST /v1/payments/charge` + `/refund`; emits `PaymentCaptured`/`PaymentFailed`/`PaymentRefunded`
   - ✅ Gateway behind `IPaymentGateway`; dev `SimulatedPaymentGateway`. **Ordering calls Payments** (`DaprPaymentClient`).
   - ✅ Concurrent-duplicate charge: `IPaymentRepository.TrySaveChangesAsync` swallows the `(order, idempotency_key)` unique-violation (Postgres 23505); the losing racer re-fetches the winner (PSP dedupes the charge on the same key, loser's outbox events roll back) — no 500, no double charge — verified by CI
-  - ✅ **Stripe gateway (Stripe.net):** `StripePaymentGateway` creates + confirms a PaymentIntent (Stripe idempotency key), refunds via the Refund API. Selected automatically when `Payments:Stripe:SecretKey` is configured (Key Vault / user-secrets / env) — **never committed**. PCI SAQ-A.
+  - ✅ **Stripe gateway (Stripe.net):** `StripePaymentGateway.CreateIntentAsync` creates (never
+    confirms) a PaymentIntent with `AutomaticPaymentMethods.Enabled = true` (Stripe idempotency
+    key), refunds via the Refund API. Selected automatically when `Payments:Stripe:SecretKey` is
+    configured (Key Vault / user-secrets / env) — **never committed**. PCI SAQ-A.
   - ✅ **Stripe webhook inbox (async capture / 3DS / refunds):** `POST /v1/payments/webhooks/stripe` verifies the `Stripe-Signature` against `Payments:Stripe:WebhookSecret` (`StripeWebhookGateway`), reconciles the `Payment` idempotently (`PaymentWebhookService`, new idempotent domain transitions), and emits the matching outbox event. At-least-once → exactly-once via a `processed_webhook_event` dedupe ledger committed in the same transaction; neutral `PaymentWebhookNotification` keeps the Stripe SDK out of Application/Domain — verified by CI
-  - ✅ **T-stripe:** real client-side card collection via Stripe Elements (`CardElement` +
-    `stripe.createPaymentMethod()`, tokenized directly against Stripe's API — raw card data never
-    reaches our servers). The resulting `pm_...` id (`PaymentMethodId`) is threaded through
-    `CheckoutRequest → CheckoutWorkflowInput → ChargeInput → ChargeRequest →
-    IPaymentGateway.ChargeAsync`, replacing the `pm_card_visa` constant `StripePaymentGateway` used
-    to hardcode for every charge. Frontend falls back to that same constant when no
-    `VITE_STRIPE_PUBLISHABLE_KEY` is configured, so local/CI checkout needs zero Stripe setup.
-    Async 3DS/SCA (`confirmCardPayment`, `requires_action`) is still future work — this only makes
-    the plumbing for it possible.
+  - ✅ **T-stripe (ADR-0028): full async Payment Element — cards + UPI + 3-D Secure, no longer
+    just plumbing.** Checkout is now genuinely asynchronous: `IPaymentGateway.CreateIntentAsync`
+    takes no payment-method id at all — the buyer attaches and authenticates a payment method
+    (card 3DS challenge, UPI app-switch, etc.) entirely client-side via Stripe's `PaymentElement`
+    against the returned `ClientSecret`. `CheckoutWorkflow` creates the intent, extends the hold
+    (`HoldOptions.PaymentExtensionTtl`, 15 min), then races
+    `WaitForExternalEventAsync<PaymentOutcomeSignal>` against a timer — a new
+    `PaymentCaptured`/`PaymentFailed` webhook subscriber in Ordering resumes the saga
+    (`OrderId` doubles as the Dapr Workflow instance id, so no lookup table is needed).
+    `OrderingEndpoints.CheckoutAsync` races a fast poll of the `Order` row against the full
+    blocking wait so the buyer sees Payment Element promptly instead of waiting on saga
+    completion. Frontend: `CheckoutPage.tsx` creates the intent before ever showing a payment
+    form; `CheckoutPaymentForm.tsx` calls `stripe.confirmPayment({ redirect: 'if_required' })`;
+    a new `CheckoutReturnPage.tsx` (`/checkout/:holdId/return`) handles the methods that redirect
+    out and back. Local/CI checkout with no Stripe key configured still resolves instantly (the
+    simulated gateway self-confirms, same saga path as real Stripe).
   - ⬜ Real EF Core migrations `InitialCreate` (payment, outbox, **processed_webhook_event**) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
 - ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
   - ⬜ Real EF Core migrations `InitialCreate` (ticket, outbox) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)

@@ -26,6 +26,15 @@ public interface IHoldClient
     Task<bool> ReleaseAsync(Guid holdId, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Extends a hold's expiry once payment authentication begins, so a slow 3-D Secure challenge or
+    /// UPI app-switch doesn't expire the buyer's seats mid-checkout.
+    /// </summary>
+    /// <param name="holdId">The hold id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The hold's new expiry, or <see langword="null"/> if it no longer exists.</returns>
+    Task<DateTimeOffset?> ExtendAsync(Guid holdId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Releases a converted hold's sold seats/quantities back to available — a buyer-initiated
     /// cancellation/refund, the reverse of <see cref="ConvertAsync"/>.
     /// </summary>

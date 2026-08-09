@@ -1,5 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Col, Modal, Result, Row, Skeleton, Space, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Modal,
+  Result,
+  Row,
+  Skeleton,
+  Space,
+  Tag,
+  Typography,
+} from 'antd';
 import { CheckCircleFilled } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import type { AxiosError } from 'axios';
@@ -21,6 +33,11 @@ interface ConflictBody {
 
 const TICKET_POLL_INTERVAL_MS = 2000;
 const TICKET_POLL_MAX_ATTEMPTS = 8;
+
+// No max-attempts cap here, unlike the ticket poll above — payment authentication (a 3-D Secure
+// challenge, a UPI app-switch) can legitimately take a while, and the order's own extended hold
+// already bounds how long this can run before the checkout saga itself times the buyer out.
+const ORDER_STATUS_POLL_INTERVAL_MS = 1500;
 
 const ORDER_STATUS_COLOR: Record<OrderResponse['status'], string> = {
   Pending: 'default',
@@ -79,6 +96,40 @@ export function OrderPage() {
       cancelled = true;
     };
   }, [orderId]);
+
+  // While the order is awaiting payment (the buyer is mid-authentication — a 3-D Secure challenge,
+  // a UPI app-switch, or the webhook simply hasn't landed yet), poll for it to flip to a terminal
+  // status so the page updates organically instead of looking stuck.
+  useEffect(() => {
+    if (!orderId || order?.status !== 'AwaitingPayment') {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = () => {
+      getOrder(orderId)
+        .then((result) => {
+          if (cancelled) {
+            return;
+          }
+          setOrder(result);
+          if (result.status === 'AwaitingPayment') {
+            setTimeout(poll, ORDER_STATUS_POLL_INTERVAL_MS);
+          }
+        })
+        .catch(() => {
+          // Transient failure — the buyer can still refresh manually.
+        });
+    };
+
+    const timer = setTimeout(poll, ORDER_STATUS_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [orderId, order?.status]);
 
   useEffect(() => {
     if (!orderId) {
@@ -199,6 +250,16 @@ export function OrderPage() {
           title="You're all set!"
           subTitle={`Order confirmed — ${formatMoney(order.totalMinor, order.currency)} charged.`}
           style={{ paddingBottom: 8 }}
+        />
+      )}
+
+      {order.status === 'AwaitingPayment' && (
+        <Alert
+          type="info"
+          showIcon
+          message="Finishing your payment…"
+          description="This page will update automatically once your bank or payment app confirms it — no need to refresh."
+          style={{ marginBottom: 16 }}
         />
       )}
 

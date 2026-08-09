@@ -11,7 +11,7 @@ public static class PaymentsEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/v1/payments").WithTags("Payments");
-        group.MapPost("/charge", ChargeAsync).WithName("Charge").ExcludeFromDescription();
+        group.MapPost("/intents", CreateIntentAsync).WithName("CreateIntent").ExcludeFromDescription();
         group.MapPost("/refund", RefundAsync).WithName("Refund").ExcludeFromDescription();
 
         // Provider callback: authenticated by signature, not a bearer token, so anonymous.
@@ -59,29 +59,24 @@ public static class PaymentsEndpoints
         return Results.Ok();
     }
 
-    private static async Task<IResult> ChargeAsync(
-        ChargeRequest request,
+    private static async Task<IResult> CreateIntentAsync(
+        CreateIntentRequest request,
         PaymentService payments,
         CancellationToken cancellationToken)
     {
-        var result = await payments.ChargeAsync(
+        var result = await payments.CreatePaymentIntentAsync(
             request.TenantId,
             request.OrderId,
             request.AmountMinor,
             request.Currency,
             request.IdempotencyKey,
-            request.PaymentMethodId,
             cancellationToken);
 
-        var response = new ChargeResponse(
-            result.Outcome.ToString(),
-            result.PaymentId,
-            result.ProviderReference,
-            result.FailureReason);
-
-        return result.Outcome == ChargeOutcome.Captured
-            ? Results.Ok(response)
-            : Results.UnprocessableEntity(response);
+        // Always 200 — there is no synchronous-failure branch any more. A genuine hard failure at
+        // intent-creation time (bad amount, PSP outage) is left to propagate as an unhandled
+        // exception, same as it already implicitly was before this endpoint existed; the eventual
+        // capture/decline outcome, once the buyer authenticates, arrives later via the webhook.
+        return Results.Ok(new CreateIntentResponse(result.PaymentId, result.ProviderReference, result.ClientSecret, result.Captured));
     }
 
     private static async Task<IResult> RefundAsync(

@@ -177,6 +177,21 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     }
 
     /// <inheritdoc />
+    public async Task ExtendAsync(Guid eventId, Guid holdId, TimeSpan ttl, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        // Only the bookkeeping/TTL-bearing keys need extending — the per-seat/per-allocation markers
+        // themselves carry no TTL (cleared explicitly by the release/convert scripts instead).
+        // KeyExpireAsync on a key that doesn't exist for this hold (e.g. an all-GA hold has no
+        // HoldSeatsKey) is a safe no-op, so no need to branch on which kinds of items the hold has.
+        var db = redis.GetDatabase();
+        await db.KeyExpireAsync(HoldKey(eventId, holdId), ttl);
+        await db.KeyExpireAsync(HoldSeatsKey(eventId, holdId), ttl);
+        await db.KeyExpireAsync(GaHoldItemsKey(eventId, holdId), ttl);
+    }
+
+    /// <inheritdoc />
     public async Task MarkSoldAsync(
         Guid eventId,
         Guid holdId,

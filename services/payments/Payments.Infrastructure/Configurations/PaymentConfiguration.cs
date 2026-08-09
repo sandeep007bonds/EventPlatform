@@ -13,6 +13,7 @@ internal sealed class PaymentConfiguration : IEntityTypeConfiguration<Payment>
         builder.Property(p => p.TenantId).IsRequired();
         builder.Property(p => p.Provider).HasMaxLength(50).IsRequired();
         builder.Property(p => p.ProviderReference).HasMaxLength(200);
+        builder.Property(p => p.ClientSecret).HasMaxLength(500);
         builder.Property(p => p.IdempotencyKey).HasMaxLength(200).IsRequired();
         builder.Property(p => p.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(p => p.Currency).HasMaxLength(3).IsRequired();

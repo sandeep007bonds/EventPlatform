@@ -16,6 +16,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(o => o.FailureReason).HasMaxLength(200);
         builder.Property(o => o.BuyerEmail).HasMaxLength(320);
+        builder.Property(o => o.PaymentClientSecret).HasMaxLength(500);
 
         // Idempotent checkout: one order per (buyer, idempotency key) — a checkout attempt is a
         // buyer action, not a tenant action (ADR-0022); UserId is always populated (JWT `sub`) even

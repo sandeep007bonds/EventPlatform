@@ -10,6 +10,7 @@ import { EventDetailPage } from '../features/buyer/events/EventDetailPage';
 import { SeatSelectionPage } from '../features/buyer/seatmap/SeatSelectionPage';
 import { QueueWaitingRoomPage } from '../features/buyer/queue/QueueWaitingRoomPage';
 import { CheckoutPage } from '../features/buyer/checkout/CheckoutPage';
+import { CheckoutReturnPage } from '../features/buyer/checkout/CheckoutReturnPage';
 import { OrderPage } from '../features/buyer/orders/OrderPage';
 import { MyOrdersPage } from '../features/buyer/orders/MyOrdersPage';
 import { AdminEventsPage } from '../features/admin/events/AdminEventsPage';
@@ -47,6 +48,16 @@ export function AppRouter() {
           element={
             <ProtectedRoute>
               <CheckoutPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Landing page for payment methods that redirect out to authenticate and back (a 3-D
+            Secure challenge frame, a UPI app-switch) — see CheckoutPaymentForm's return_url. */}
+        <Route
+          path="/checkout/:holdId/return"
+          element={
+            <ProtectedRoute>
+              <CheckoutReturnPage />
             </ProtectedRoute>
           }
         />

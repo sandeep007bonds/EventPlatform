@@ -5,10 +5,14 @@ namespace Ordering.Workflow;
 /// <param name="HoldId">The hold to purchase.</param>
 /// <param name="IdempotencyKey">Idempotency key (unique per buyer).</param>
 /// <param name="BuyerEmail">The buyer's email, for ticket delivery.</param>
-/// <param name="PaymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
+/// <param name="OrderId">
+/// The order's id, pre-minted by the checkout endpoint before scheduling this workflow — also used
+/// as this workflow's own Dapr instance id, so a payment webhook can raise an event straight back to
+/// the running saga with no lookup table.
+/// </param>
 public sealed record CheckoutWorkflowInput(
     Guid UserId,
     Guid HoldId,
     string IdempotencyKey,
     string BuyerEmail,
-    string PaymentMethodId);
+    Guid OrderId);

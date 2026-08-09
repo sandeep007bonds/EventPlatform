@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Button, Card, Input, Progress, Result, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Input, Progress, Result, Tag, Typography } from 'antd';
 import { ClockCircleOutlined, MailOutlined } from '@ant-design/icons';
 import { Elements } from '@stripe/react-stripe-js';
 import type { AxiosError } from 'axios';
@@ -7,11 +7,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { getEvent } from '../../../services/catalog/catalogApi';
 import { getHold, type HoldView } from '../../../services/inventory/inventoryApi';
 import { checkout } from '../../../services/ordering/orderingApi';
-import {
-  DEV_FALLBACK_PAYMENT_METHOD_ID,
-  isStripeConfigured,
-  stripePromise,
-} from '../../../services/payments/stripeClient';
+import { isStripeConfigured, stripePromise } from '../../../services/payments/stripeClient';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
@@ -55,6 +51,11 @@ export function CheckoutPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [buyerEmail, setBuyerEmail] = useState(user?.email ?? '');
+  // Set once the backend has created (but not confirmed) a payment intent — the point at which the
+  // page swaps from the plain "Continue" button to Payment Element. `null` again means either
+  // nothing submitted yet, or the payment already resolved synchronously (dev fallback) and we
+  // navigated away.
+  const [intent, setIntent] = useState<{ orderId: string; clientSecret: string } | null>(null);
   // Generated once per mount and reused across retries of this same attempt — never regenerated
   // on retry, so the backend's idempotency check actually dedupes.
   const idempotencyKey = useRef(crypto.randomUUID());
@@ -92,7 +93,11 @@ export function CheckoutPage() {
 
   const secondsLeft = useCountdown(hold?.expiresAt ?? null);
 
-  const handleConfirm = async (paymentMethodId: string) => {
+  // Starts checkout: the backend creates (but does not confirm) a payment intent before the buyer
+  // ever sees a payment form — a deliberate flow inversion from the old card-only design, where
+  // tokenization happened first. A `null` clientSecret means the payment already resolved
+  // synchronously (the no-Stripe-configured dev fallback), so we navigate straight to the order.
+  const handleStartCheckout = async () => {
     if (!holdId) {
       return;
     }
@@ -109,8 +114,13 @@ export function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const result = await checkout(holdId, idempotencyKey.current, buyerEmail, paymentMethodId);
-      void navigate(`/orders/${result.orderId}`);
+      const result = await checkout(holdId, idempotencyKey.current, buyerEmail);
+      if (result.clientSecret === null) {
+        void navigate(`/orders/${result.orderId}`);
+        return;
+      }
+
+      setIntent({ orderId: result.orderId, clientSecret: result.clientSecret });
     } catch (error) {
       const axiosError = error as AxiosError<CheckoutErrorBody>;
       const status = axiosError.response?.status;
@@ -127,6 +137,12 @@ export function CheckoutPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePaymentResolved = () => {
+    if (intent) {
+      void navigate(`/orders/${intent.orderId}`);
     }
   };
 
@@ -218,29 +234,39 @@ export function CheckoutPage() {
           placeholder="you@example.com"
           value={buyerEmail}
           maxLength={320}
+          disabled={intent !== null}
           onChange={(event) => setBuyerEmail(event.target.value)}
           style={{ marginBottom: 20 }}
         />
 
-        {isStripeConfigured ? (
-          <Elements stripe={stripePromise}>
-            <CheckoutPaymentForm
-              expired={expired}
-              emailValid={EMAIL_PATTERN.test(buyerEmail)}
-              submitting={submitting}
-              onSubmit={(paymentMethodId) => void handleConfirm(paymentMethodId)}
+        {intent ? (
+          isStripeConfigured && stripePromise ? (
+            <Elements stripe={stripePromise} options={{ clientSecret: intent.clientSecret }}>
+              <CheckoutPaymentForm
+                holdId={hold.holdId}
+                orderId={intent.orderId}
+                expired={expired}
+                emailValid={EMAIL_PATTERN.test(buyerEmail)}
+                onResolved={handlePaymentResolved}
+              />
+            </Elements>
+          ) : (
+            <Alert
+              type="error"
+              showIcon
+              message="Payment could not be set up (Stripe is not configured for this app). Please try again shortly."
             />
-          </Elements>
+          )
         ) : (
           <Button
             type="primary"
             size="large"
             block
-            disabled={expired}
+            disabled={expired || !EMAIL_PATTERN.test(buyerEmail)}
             loading={submitting}
-            onClick={() => void handleConfirm(DEV_FALLBACK_PAYMENT_METHOD_ID)}
+            onClick={() => void handleStartCheckout()}
           >
-            {expired ? 'Hold expired' : 'Confirm purchase'}
+            {expired ? 'Hold expired' : 'Continue to payment'}
           </Button>
         )}
       </Card>

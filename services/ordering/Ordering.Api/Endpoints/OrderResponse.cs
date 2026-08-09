@@ -8,6 +8,11 @@ namespace Ordering.Api.Endpoints;
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
 /// <param name="HoldId">The hold the order was created from.</param>
 /// <param name="Lines">The order lines.</param>
+/// <param name="PaymentClientSecret">
+/// The Stripe PaymentIntent client secret, while the order is awaiting payment — lets a buyer who
+/// reloads mid-authentication (or a redirect-return page) resume Payment Element without a fresh
+/// checkout call. <see langword="null"/> once the order reaches a terminal status.
+/// </param>
 public sealed record OrderResponse(
     Guid Id,
     string Status,
@@ -15,4 +20,5 @@ public sealed record OrderResponse(
     string Currency,
     Guid CatalogEventId,
     Guid HoldId,
-    IReadOnlyList<OrderLineResponse> Lines);
+    IReadOnlyList<OrderLineResponse> Lines,
+    string? PaymentClientSecret);

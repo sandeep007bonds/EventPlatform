@@ -28,6 +28,17 @@ public interface IHoldStore
     /// <returns>A task that completes when the seats are released.</returns>
     Task ReleaseAsync(Guid eventId, Guid holdId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Extends the TTL of a hold's bookkeeping keys (the hold sentinel and its seat/general-admission
+    /// item sets) — the per-seat/per-allocation markers themselves carry no TTL and need no change.
+    /// </summary>
+    /// <param name="eventId">The event the hold belongs to.</param>
+    /// <param name="holdId">The hold being extended.</param>
+    /// <param name="ttl">The new TTL to set on the bookkeeping keys.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>A task that completes when the keys' TTLs are updated.</returns>
+    Task ExtendAsync(Guid eventId, Guid holdId, TimeSpan ttl, CancellationToken cancellationToken);
+
     /// <summary>Marks the seats held by a hold as sold (permanent).</summary>
     /// <param name="eventId">The event the seats belong to.</param>
     /// <param name="holdId">The hold being converted.</param>
