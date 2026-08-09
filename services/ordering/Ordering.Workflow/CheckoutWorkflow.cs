@@ -84,7 +84,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         string failureReason = "payment_timed_out";
         if (winner == paymentOutcomeTask)
         {
-            timeoutCts.Cancel();
+            await timeoutCts.CancelAsync();
             var signal = await paymentOutcomeTask;
             captured = signal.Captured;
             outcomeOnFailure = nameof(CheckoutOutcome.PaymentFailed);
