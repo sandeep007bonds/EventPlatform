@@ -2,16 +2,13 @@ namespace Payments.Infrastructure;
 
 /// <summary>
 /// Stripe-backed <see cref="IPaymentGateway"/> (test or live, per the configured secret key).
-/// Card data never touches our servers (PCI SAQ-A): we create and confirm a PaymentIntent server
-/// side against a Stripe payment method. The secret key comes from configuration (Key Vault in
+/// Card data never touches our servers (PCI SAQ-A): the client tokenizes the card via Stripe
+/// Elements' <c>createPaymentMethod</c>, and we create and confirm a PaymentIntent server side
+/// against the resulting payment-method id. The secret key comes from configuration (Key Vault in
 /// cloud, user-secrets/env locally) — never from code.
 /// </summary>
 internal sealed class StripePaymentGateway : IPaymentGateway
 {
-    // Stripe's test card payment method. In production the client collects and confirms the card
-    // (SAQ-A); the payment-method id would arrive on the charge request instead. See tracker T-stripe.
-    private const string TestPaymentMethod = "pm_card_visa";
-
     private readonly PaymentIntentService paymentIntents;
     private readonly RefundService refunds;
 
@@ -32,13 +29,14 @@ internal sealed class StripePaymentGateway : IPaymentGateway
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string paymentMethodId,
         CancellationToken cancellationToken)
     {
         var options = new PaymentIntentCreateOptions
         {
             Amount = amountMinor,
             Currency = ToStripeCurrency(currency),
-            PaymentMethod = TestPaymentMethod,
+            PaymentMethod = paymentMethodId,
             PaymentMethodTypes = ["card"],
             Confirm = true,
         };

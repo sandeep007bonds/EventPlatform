@@ -13,6 +13,7 @@ public sealed class ChargeActivity(IPaymentClient payments) : WorkflowActivity<C
             input.AmountMinor,
             input.Currency,
             input.IdempotencyKey,
+            input.PaymentMethodId,
             CancellationToken.None);
 
         return new ChargeOutput(result.Succeeded, result.FailureReason);

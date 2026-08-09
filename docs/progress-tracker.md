@@ -59,7 +59,15 @@ local development. Update this with each meaningful change.
   - ✅ Concurrent-duplicate charge: `IPaymentRepository.TrySaveChangesAsync` swallows the `(order, idempotency_key)` unique-violation (Postgres 23505); the losing racer re-fetches the winner (PSP dedupes the charge on the same key, loser's outbox events roll back) — no 500, no double charge — verified by CI
   - ✅ **Stripe gateway (Stripe.net):** `StripePaymentGateway` creates + confirms a PaymentIntent (Stripe idempotency key), refunds via the Refund API. Selected automatically when `Payments:Stripe:SecretKey` is configured (Key Vault / user-secrets / env) — **never committed**. PCI SAQ-A.
   - ✅ **Stripe webhook inbox (async capture / 3DS / refunds):** `POST /v1/payments/webhooks/stripe` verifies the `Stripe-Signature` against `Payments:Stripe:WebhookSecret` (`StripeWebhookGateway`), reconciles the `Payment` idempotently (`PaymentWebhookService`, new idempotent domain transitions), and emits the matching outbox event. At-least-once → exactly-once via a `processed_webhook_event` dedupe ledger committed in the same transaction; neutral `PaymentWebhookNotification` keeps the Stripe SDK out of Application/Domain — verified by CI
-  - ⬜ **T-stripe (remaining):** client-side card collection + `payment_method` on the charge (replace `pm_card_visa`, enables real 3DS)
+  - ✅ **T-stripe:** real client-side card collection via Stripe Elements (`CardElement` +
+    `stripe.createPaymentMethod()`, tokenized directly against Stripe's API — raw card data never
+    reaches our servers). The resulting `pm_...` id (`PaymentMethodId`) is threaded through
+    `CheckoutRequest → CheckoutWorkflowInput → ChargeInput → ChargeRequest →
+    IPaymentGateway.ChargeAsync`, replacing the `pm_card_visa` constant `StripePaymentGateway` used
+    to hardcode for every charge. Frontend falls back to that same constant when no
+    `VITE_STRIPE_PUBLISHABLE_KEY` is configured, so local/CI checkout needs zero Stripe setup.
+    Async 3DS/SCA (`confirmCardPayment`, `requires_action`) is still future work — this only makes
+    the plumbing for it possible.
   - ⬜ Real EF Core migrations `InitialCreate` (payment, outbox, **processed_webhook_event**) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)
 - ✅ **Ticketing (#10):** `Ticket` domain, `TicketIssuingService` (idempotent, one ticket per sold seat, CSPRNG scan token), EF + Postgres, outbox, migration scaffolding; consumes `OrderConfirmed` via Dapr pub/sub, emits `TicketIssued`; `GET /v1/orders/{id}/tickets`, `GET /v1/tickets/{id}` — verified by CI
   - ⬜ Real EF Core migrations `InitialCreate` (ticket, outbox) — deferred to cloud-deployment work; local dev uses `EnsureCreated` instead (see Catalog note above)

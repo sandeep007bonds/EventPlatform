@@ -54,7 +54,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         // 3. Charge. On failure: fail the order and release the hold.
         var charge = await context.CallActivityAsync<ChargeOutput>(
             nameof(ChargeActivity),
-            new ChargeInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
+            new ChargeInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey, input.PaymentMethodId));
         if (!charge.Succeeded)
         {
             await context.CallActivityAsync<bool>(

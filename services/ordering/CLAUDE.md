@@ -14,7 +14,9 @@ is named `Ordering` so the type never clashes with its namespace.
 - **Data store:** PostgreSQL `ordering` DB (this service only)
 - **Public API:** `POST /v1/checkout` (Idempotency-Key; body requires a
   `BuyerEmail` — a plain checkout-time field for ticket delivery, not derived
-  from any token claim, see ADR-0021), `GET /v1/orders`
+  from any token claim, see ADR-0021 — and a `PaymentMethodId`, the Stripe
+  `pm_...` id tokenized client-side via Stripe Elements, threaded through to
+  Payments' charge call unchanged), `GET /v1/orders`
   (`?mine=true` — buyer's own; `?forTenant=true` — organizer's tenant; exactly
   one is required), `GET /v1/orders/{id}`, `POST /v1/orders/{id}/cancel`
   (buyer-initiated cancellation + refund)

@@ -6,4 +6,11 @@ namespace Ordering.Workflow;
 /// <param name="AmountMinor">Amount in minor units.</param>
 /// <param name="Currency">Currency (ISO 4217).</param>
 /// <param name="IdempotencyKey">Idempotency key.</param>
-public sealed record ChargeInput(Guid TenantId, Guid OrderId, long AmountMinor, string Currency, string IdempotencyKey);
+/// <param name="PaymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
+public sealed record ChargeInput(
+    Guid TenantId,
+    Guid OrderId,
+    long AmountMinor,
+    string Currency,
+    string IdempotencyKey,
+    string PaymentMethodId);

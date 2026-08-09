@@ -49,7 +49,8 @@ src/
                  (email+password register/login), LogoutPage
   features/
     buyer/  events/ (list + detail) seatmap/ (interactive picker) checkout/
-            (hold summary + countdown) orders/ (order+tickets, order history)
+            (hold summary + countdown + Stripe Elements card collection via
+            CheckoutPaymentForm) orders/ (order+tickets, order history)
             auth/ (OtpLoginFlow)
     admin/  events/ (list, create, detail with seat-map form + publish)
             eventGroups/ (create/manage tours, TourDetailPage with "Add
@@ -162,6 +163,21 @@ src/
   has no "list everything" mode — the endpoint 400s without one of these.
   `orderingApi.listMyOrders`/`listTenantOrders` set the right one; don't call
   the raw endpoint without going through them.
+- **Stripe Elements is a deliberate, justified exception to "no UI library
+  beyond Ant Design."** `@stripe/stripe-js`/`@stripe/react-stripe-js` collect
+  card details for `CheckoutPage` — but the only UI surface is `CardElement`,
+  a Stripe-controlled iframe, not a competing component/design-system
+  library, so it doesn't collide with that rule's actual intent.
+  `services/payments/stripeClient.ts` loads Stripe.js once at module scope
+  (`stripePromise`, `isStripeConfigured` off `VITE_STRIPE_PUBLISHABLE_KEY`);
+  `CheckoutPaymentForm.tsx` is the only place `useStripe`/`useElements` are
+  called (it only ever renders inside `<Elements>`, so there's no
+  conditional-hook hazard) and calls `stripe.createPaymentMethod()` — never
+  `confirmCardPayment` — so raw card data only ever reaches Stripe's own
+  iframe/API, never our backend (PCI SAQ-A). When no publishable key is
+  configured, `CheckoutPage` skips `<Elements>` entirely and submits
+  `DEV_FALLBACK_PAYMENT_METHOD_ID` (`'pm_card_visa'`) instead, so local/CI
+  checkout needs zero Stripe setup.
 
 ## Local run
 

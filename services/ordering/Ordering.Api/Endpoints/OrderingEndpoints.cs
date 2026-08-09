@@ -42,6 +42,11 @@ public static class OrderingEndpoints
             return Results.BadRequest(new { message = "A valid BuyerEmail is required." });
         }
 
+        if (string.IsNullOrWhiteSpace(request.PaymentMethodId))
+        {
+            return Results.BadRequest(new { message = "A PaymentMethodId is required." });
+        }
+
         // Idempotency: a prior attempt with this key (by this buyer) wins before starting a new
         // workflow. Scoped by buyer, not tenant — a checkout attempt is a buyer action, and the
         // buyer's own token may carry no tenant claim at all (ADR-0022).
@@ -57,7 +62,7 @@ public static class OrderingEndpoints
         await workflowClient.ScheduleNewWorkflowAsync(
             nameof(CheckoutWorkflow),
             instanceId,
-            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail));
+            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail, request.PaymentMethodId));
 
         var state = await workflowClient.WaitForWorkflowCompletionAsync(
             instanceId,

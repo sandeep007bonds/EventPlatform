@@ -1,9 +1,6 @@
 namespace Ordering.Application.Abstractions;
 
-/// <summary>
-/// Talks to the Payment service for the checkout saga. Currently a dev stub; the real Stripe-backed
-/// Payment service arrives with issue #9.
-/// </summary>
+/// <summary>Talks to the Payment service for the checkout saga.</summary>
 public interface IPaymentClient
 {
     /// <summary>Charges the buyer for an order.</summary>
@@ -12,6 +9,7 @@ public interface IPaymentClient
     /// <param name="amountMinor">Amount in minor currency units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key for the charge.</param>
+    /// <param name="paymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The payment result.</returns>
     Task<PaymentResult> ChargeAsync(
@@ -20,6 +18,7 @@ public interface IPaymentClient
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string paymentMethodId,
         CancellationToken cancellationToken);
 
     /// <summary>Refunds a charge (compensation).</summary>

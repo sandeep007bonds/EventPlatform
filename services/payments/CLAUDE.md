@@ -30,8 +30,13 @@ servers; only PSP references are stored.
   with the same key, so the PSP dedupes it — no double charge — and the loser's
   outbox events roll back with the failed save.
 - **Gateway behind a port:** `IPaymentGateway`. Dev uses `SimulatedPaymentGateway`
-  (captures synchronously). The real **Stripe** gateway (Stripe.net, secret key
-  from Key Vault) drops in here. **No card data or secrets in code.**
+  (captures synchronously, ignores the payment-method id). The real **Stripe**
+  gateway (Stripe.net, secret key from Key Vault) drops in here. `ChargeAsync`
+  takes a `paymentMethodId` — the buyer's card, tokenized client-side via
+  Stripe Elements (`createPaymentMethod`) and threaded through the whole
+  checkout chain (`CheckoutRequest → CheckoutWorkflowInput → ChargeInput →
+  ChargeRequest`) — used to create-and-confirm the `PaymentIntent` server side.
+  **No card data or secrets in code.**
 - **Webhook inbox (async capture / 3-D Secure / refunds):** `IPaymentWebhookGateway`
   (Stripe impl) verifies the `Stripe-Signature` header against
   `Payments:Stripe:WebhookSecret`, then `PaymentWebhookService` reconciles the

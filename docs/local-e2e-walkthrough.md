@@ -91,7 +91,11 @@ for the gateway's exact route list.
 `SimulatedPaymentGateway` (captures synchronously, always succeeds) — perfect
 for E2E. To exercise real Stripe instead, set a **test** key *before* running
 `dev-up.sh`: `dotnet user-secrets set "Payments:Stripe:SecretKey" "sk_test_..." --project services/payments/Payments.Api`
-(never commit it).
+(never commit it). Also set the matching **publishable** key in
+`frontend/.env.development.local` (`VITE_STRIPE_PUBLISHABLE_KEY=pk_test_...`)
+so the buyer checkout page renders a real Stripe `CardElement` instead of its
+dev fallback — enter Stripe's test card `4242 4242 4242 4242` (any future
+expiry/CVC/postal code) to complete a real tokenized charge.
 
 > **Under the hood:** `dev-up.sh` wraps `dapr run -f platform/dapr/dapr.yaml`,
 > which is equivalent to running `dapr run --app-id catalog --app-port 5080

@@ -18,6 +18,7 @@ public sealed class PaymentService(
     /// <param name="amountMinor">Amount in minor units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key (unique per order).</param>
+    /// <param name="paymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The charge result.</returns>
     public async Task<ChargeResult> ChargeAsync(
@@ -26,6 +27,7 @@ public sealed class PaymentService(
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string paymentMethodId,
         CancellationToken cancellationToken)
     {
         var existing = await payments.GetByOrderAndKeyAsync(orderId, idempotencyKey, cancellationToken);
@@ -37,7 +39,7 @@ public sealed class PaymentService(
         var payment = Payment.Create(tenantId, orderId, gateway.Provider, idempotencyKey, amountMinor, currency);
         payments.Add(payment);
 
-        var result = await gateway.ChargeAsync(amountMinor, currency, idempotencyKey, cancellationToken);
+        var result = await gateway.ChargeAsync(amountMinor, currency, idempotencyKey, paymentMethodId, cancellationToken);
         if (result.Succeeded)
         {
             payment.MarkCaptured(result.Reference ?? "unknown");

@@ -6,9 +6,11 @@ namespace Payments.Api.Endpoints;
 /// <param name="AmountMinor">Amount in minor currency units.</param>
 /// <param name="Currency">ISO 4217 currency code.</param>
 /// <param name="IdempotencyKey">Idempotency key (unique per order).</param>
+/// <param name="PaymentMethodId">The Stripe payment-method id tokenized client-side (PCI SAQ-A).</param>
 public sealed record ChargeRequest(
     Guid TenantId,
     Guid OrderId,
     long AmountMinor,
     string Currency,
-    string IdempotencyKey);
+    string IdempotencyKey,
+    string PaymentMethodId);
