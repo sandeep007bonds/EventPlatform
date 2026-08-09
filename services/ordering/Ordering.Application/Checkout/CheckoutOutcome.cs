@@ -24,8 +24,8 @@ public enum CheckoutOutcome
     /// <summary>
     /// The buyer never completed payment authentication (3-D Secure challenge, UPI app-switch, etc.)
     /// before the extended hold's deadline; the hold was released. Distinct from
-    /// <see cref="PaymentFailed"/> so ops/frontend can tell "never finished authenticating" apart
-    /// from "the provider declined it."
+    /// <see cref="PaymentFailed"/> so ops/frontend can tell a buyer who never finished authenticating
+    /// apart from one the provider actively declined.
     /// </summary>
     PaymentTimedOut,
 
