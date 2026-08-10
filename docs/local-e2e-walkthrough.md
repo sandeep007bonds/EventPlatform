@@ -204,33 +204,38 @@ purchase, end to end.
 
 ## 5. Payments webhooks (REQUIRED whenever a real Stripe key is configured)
 
-**This is not optional any more.** Since ADR-0028 the checkout saga is
-asynchronous: it creates a PaymentIntent, then *waits* for Stripe's webhook to
-tell it whether the payment was captured. With a real Stripe key configured but
-no webhook reaching you, an order gets stuck in `AwaitingPayment` forever — the
-buyer sees "Finishing your payment…" indefinitely and the saga eventually times
-out and releases the seats. Stripe cannot reach `localhost` on its own, so the
-Stripe CLI has to forward events to you.
+**`dev-up.sh` handles this automatically — no manual step.** It starts
+`stripe listen` for you and wires the signing secret into Payments via the
+`Payments__Stripe__WebhookSecret` environment variable (ASP.NET Core maps `__`
+to `:`), so there's nothing to copy/paste and no `user-secrets` call. Ctrl+C
+stops the listener along with everything else.
 
-Run this **in its own terminal, alongside `dev-up.sh`**, and leave it running:
+For that to kick in, install the [Stripe CLI](https://docs.stripe.com/stripe-cli)
+and authenticate once:
+
+```bash
+stripe login
+```
+
+If the CLI is missing or unauthenticated, `dev-up.sh` prints a one-line note and
+carries on — fine, because Payments then falls back to `SimulatedPaymentGateway`,
+which captures synchronously and needs no webhook at all.
+
+**Why it's needed with a real Stripe key:** since ADR-0028 the checkout saga is
+asynchronous — it creates a PaymentIntent, then *waits* for Stripe's
+`payment_intent.succeeded` webhook to learn the outcome. Stripe can't reach
+`localhost`, so without a forwarder an order sits in `AwaitingPayment` until the
+saga times out and releases the seats (the buyer just sees "Finishing your
+payment…" forever). The endpoint verifies the `Stripe-Signature`, dedupes on the
+Stripe event id, and reconciles the payment idempotently; without a signing
+secret it returns `503` and drops the events.
+
+To run the forwarder yourself instead (e.g. to watch the event stream):
 
 ```bash
 stripe listen --forward-to http://localhost:5083/v1/payments/webhooks/stripe
-```
-
-It prints a signing secret (`whsec_...`) on startup. Set that **before** starting
-`dev-up.sh`, then restart Payments so it picks it up:
-
-```bash
 dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project services/payments/Payments.Api
 ```
-
-The endpoint verifies the `Stripe-Signature`, dedupes on the Stripe event id, and
-reconciles the payment idempotently. Without a signing secret it returns `503` —
-so the forwarded events are dropped and orders never confirm.
-
-> No Stripe key configured at all? None of this applies — `SimulatedPaymentGateway`
-> captures synchronously and checkout completes without any webhook.
 
 ## Troubleshooting
 

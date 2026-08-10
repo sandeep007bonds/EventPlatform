@@ -53,6 +53,45 @@ if [ ! -x "$dapr_home/bin/daprd" ] && [ ! -x "$dapr_home/bin/daprd.exe" ]; then
   dapr init
 fi
 
+# Stripe webhooks: since ADR-0028 the checkout saga is asynchronous — it creates a
+# PaymentIntent and then waits for Stripe's `payment_intent.succeeded` webhook to learn
+# the outcome. Stripe can't reach localhost, so without a forwarder an order sits in
+# AwaitingPayment until the saga times out. `stripe listen` holds an outbound connection
+# and relays events back to Payments.
+#
+# Fully automatic when the Stripe CLI is installed and logged in: we read the session's
+# signing secret up front and export it so Payments picks it up as configuration
+# (ASP.NET Core maps `__` to `:`), then run the forwarder in the background. When the CLI
+# is missing or not authenticated this is a no-op — Payments falls back to
+# SimulatedPaymentGateway, which captures synchronously and needs no webhook at all.
+stripe_pid=""
+start_stripe_listener() {
+  if ! command -v stripe >/dev/null 2>&1; then
+    echo "==> Stripe CLI not found — skipping webhook forwarding."
+    echo "    Only needed when running against a real Stripe key; install it to enable:"
+    echo "    https://docs.stripe.com/stripe-cli"
+    return
+  fi
+
+  # --print-secret doesn't start a listener; it just reports the secret this machine's
+  # session would use. It fails when the CLI isn't authenticated, which is our signal to
+  # skip rather than abort the whole startup (hence the guard under `set -e`).
+  local secret=""
+  if ! secret="$(stripe listen --print-secret 2>/dev/null)" || [ -z "$secret" ]; then
+    echo "==> Stripe CLI found but not authenticated — skipping webhook forwarding."
+    echo "    Run 'stripe login' once to enable it."
+    return
+  fi
+
+  export Payments__Stripe__WebhookSecret="$secret"
+  stripe listen --forward-to "http://localhost:5083/v1/payments/webhooks/stripe" \
+    >/dev/null 2>&1 &
+  stripe_pid="$!"
+  echo "==> Stripe webhook forwarding started (signing secret wired into Payments)."
+}
+
+start_stripe_listener
+
 # Build once, up front. All seven services (and the gateway) reference the same
 # building-blocks projects (EventPlatform.Contracts, .Hosting, .Messaging);
 # launching several concurrent `dotnet run`s without this can make two of them
@@ -109,9 +148,10 @@ if [ "$is_windows" -eq 0 ]; then
 
   cleanup_non_windows() {
     echo
-    echo "==> Stopping the gateway and Media.Api..."
+    echo "==> Stopping the gateway, Media.Api and the Stripe listener..."
     kill "$gateway_pid" 2>/dev/null || true
     kill "$media_pid" 2>/dev/null || true
+    kill "$stripe_pid" 2>/dev/null || true
   }
   trap cleanup_non_windows EXIT INT TERM
 
@@ -142,6 +182,7 @@ cleanup() {
   echo "==> Stopping all services..."
   kill "$gateway_pid" 2>/dev/null || true
   kill "$media_pid" 2>/dev/null || true
+  kill "$stripe_pid" 2>/dev/null || true
   for pid in "${pids[@]}"; do
     kill "$pid" 2>/dev/null || true
   done
