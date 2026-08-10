@@ -180,7 +180,7 @@ src/
   called (it only ever renders inside `<Elements>`, so there's no
   conditional-hook hazard). `CheckoutPaymentForm` calls
   `stripe.confirmPayment({ elements, confirmParams: { return_url }, redirect:
-  'if_required' })` — this handles 3-D Secure/UPI-app-switch authentication
+'if_required' })` — this handles 3-D Secure/UPI-app-switch authentication
   natively; most methods resolve in-page, the rest redirect out and back via
   `CheckoutReturnPage.tsx` (`/checkout/:holdId/return`, reads Stripe's own
   `payment_intent_client_secret` query param via `stripePromise` directly,
@@ -190,6 +190,13 @@ src/
   synchronously — the no-Stripe-configured dev fallback), `CheckoutPage`
   navigates straight to the order page with no payment form ever shown, so
   local/CI checkout needs zero Stripe setup.
+  `CheckoutPaymentForm` also renders an `<AddressElement mode="billing">`
+  next to the `PaymentElement`: Stripe requires a customer name + address on
+  export transactions from an India-registered account (RBI rules) and
+  rejects the payment without one. Because it sits inside the same
+  `<Elements>` group, `confirmPayment({ elements })` picks it up
+  automatically as the payment method's billing details — it is never posted
+  to our own backend, so it doesn't widen the PCI/PII surface.
 
 ## Local run
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Alert, Button } from 'antd';
-import { PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { Alert, Button, Typography } from 'antd';
+import { AddressElement, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
 
 export interface CheckoutPaymentFormProps {
   /** The hold being purchased — used to build the redirect-return URL. */
@@ -72,6 +72,18 @@ export function CheckoutPaymentForm({
   return (
     <div>
       <PaymentElement />
+
+      {/*
+        Billing name + address. Required by Stripe for export transactions from an India-registered
+        account (RBI rules) — without it the payment is rejected outright. Because this sits inside
+        the same <Elements> group, confirmPayment({ elements }) picks it up automatically as the
+        payment method's billing details; it never passes through our own backend.
+      */}
+      <Typography.Text strong style={{ display: 'block', marginTop: 20, marginBottom: 8 }}>
+        Billing details
+      </Typography.Text>
+      <AddressElement options={{ mode: 'billing' }} />
+
       {stripeError && (
         <Alert
           type="error"
