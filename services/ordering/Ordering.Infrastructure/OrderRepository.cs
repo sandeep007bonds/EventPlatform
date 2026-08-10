@@ -29,6 +29,13 @@ internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepos
             .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public Task<Order?> GetSnapshotByIdAsync(Guid id, CancellationToken cancellationToken) =>
+        dbContext.Orders
+            .AsNoTracking()
+            .Include(o => o.Lines)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+    /// <inheritdoc />
     public Task<Order?> GetByIdempotencyKeyAsync(
         Guid userId,
         string idempotencyKey,

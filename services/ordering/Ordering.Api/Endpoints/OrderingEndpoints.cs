@@ -110,7 +110,10 @@ public static class OrderingEndpoints
         var deadline = DateTimeOffset.UtcNow.Add(CheckoutPollBudget);
         while (DateTimeOffset.UtcNow < deadline)
         {
-            var order = await orders.GetByIdAsync(orderId, cancellationToken);
+            // Untracked: the saga's activities write the client secret from a *different* DbContext,
+            // and a tracking read would keep handing back the first-loaded (null-secret) instance
+            // from this scope's identity map for every subsequent poll.
+            var order = await orders.GetSnapshotByIdAsync(orderId, cancellationToken);
             if (order is not null && (order.PaymentClientSecret is not null || order.Status is OrderStatus.Confirmed or OrderStatus.Failed))
             {
                 return order;
