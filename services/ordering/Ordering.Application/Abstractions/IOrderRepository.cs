@@ -18,11 +18,23 @@ public interface IOrderRepository
     /// concurrent duplicate already claimed the idempotency key.</returns>
     Task<bool> TryAddAsync(Order order, CancellationToken cancellationToken);
 
-    /// <summary>Gets an order (with lines) by id, or <see langword="null"/>.</summary>
+    /// <summary>Gets an order (with lines) by id, or <see langword="null"/>. Tracked — use for writes.</summary>
     /// <param name="id">The order id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The order, or <see langword="null"/>.</returns>
     Task<Order?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Reads an order by id **untracked**, so repeated calls on the same scope always observe the
+    /// current database state. Required by any read-only poll that watches for a change another
+    /// process is making concurrently (e.g. checkout waiting for the saga to record the payment
+    /// client secret) — <see cref="GetByIdAsync"/>'s tracking identity map would otherwise keep
+    /// returning the first-loaded instance with stale values for the life of the scope.
+    /// </summary>
+    /// <param name="id">The order id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The order, or <see langword="null"/>.</returns>
+    Task<Order?> GetSnapshotByIdAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>Gets an order by its buyer-scoped idempotency key (checkout dedupe).</summary>
     /// <param name="userId">The buyer.</param>
