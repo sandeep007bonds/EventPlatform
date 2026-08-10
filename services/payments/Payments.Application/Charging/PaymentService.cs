@@ -39,7 +39,10 @@ public sealed class PaymentService(
         var payment = Payment.Create(tenantId, orderId, gateway.Provider, idempotencyKey, amountMinor, currency);
         payments.Add(payment);
 
-        var intent = await gateway.CreateIntentAsync(amountMinor, currency, idempotencyKey, cancellationToken);
+        // Stripe requires a description for export transactions from an India-registered account
+        // (RBI rules), and it's what shows on the PSP dashboard for every other account too.
+        var description = $"Event tickets — order {orderId:N}";
+        var intent = await gateway.CreateIntentAsync(amountMinor, currency, idempotencyKey, description, cancellationToken);
         payment.RecordIntentDetails(intent.Reference, intent.ClientSecret);
 
         if (intent.CapturedImmediately)
