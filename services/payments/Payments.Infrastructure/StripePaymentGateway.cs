@@ -16,7 +16,6 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     // timeout and surface as a confusing 499/504 instead of a fast, clear failure.
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
 
-    private readonly HttpClient httpClient;
     private readonly PaymentIntentService paymentIntents;
     private readonly RefundService refunds;
 
@@ -24,7 +23,7 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     /// <param name="secretKey">The Stripe secret key (from configuration).</param>
     public StripePaymentGateway(string secretKey)
     {
-        httpClient = new HttpClient { Timeout = RequestTimeout };
+        var httpClient = new HttpClient { Timeout = RequestTimeout };
         var client = new StripeClient(secretKey, httpClient: new SystemNetHttpClient(httpClient));
         paymentIntents = new PaymentIntentService(client);
         refunds = new RefundService(client);
