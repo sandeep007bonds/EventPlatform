@@ -15,6 +15,7 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string description,
         CancellationToken cancellationToken)
     {
         var reference = $"pi_sim_{Guid.CreateVersion7():N}";

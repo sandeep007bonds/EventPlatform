@@ -37,6 +37,7 @@ internal sealed class StripePaymentGateway : IPaymentGateway
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string description,
         CancellationToken cancellationToken)
     {
         var options = new PaymentIntentCreateOptions
@@ -44,10 +45,15 @@ internal sealed class StripePaymentGateway : IPaymentGateway
             Amount = amountMinor,
             Currency = ToStripeCurrency(currency),
 
+            // Required for export transactions from an India-registered Stripe account (RBI rules) —
+            // without it Stripe rejects the payment outright, not just at the dashboard level.
+            Description = description,
+
             // Deliberately no PaymentMethod/PaymentMethodTypes/Confirm — Payment Element attaches and
             // confirms client-side. AutomaticPaymentMethods surfaces every method enabled for the
             // account's region/currency (cards, UPI, and anything else configured in the Stripe
-            // Dashboard), not just cards.
+            // Dashboard), not just cards. Note UPI is INR-only: a non-INR charge will only ever
+            // surface cards, however the account is configured.
             AutomaticPaymentMethods = new PaymentIntentAutomaticPaymentMethodsOptions { Enabled = true },
         };
 

@@ -10,7 +10,8 @@ public static class DependencyInjection
     {
         ArgumentNullException.ThrowIfNull(services);
 
-        // CheckoutOptions is consumed by the checkout workflow's create-order activity.
+        // CheckoutOptions supplies the fallback currency for the checkout workflow's
+        // fetch-event-currency activity.
         services.AddSingleton(new CheckoutOptions());
 
         return services;

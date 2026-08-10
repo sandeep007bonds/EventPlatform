@@ -2,8 +2,7 @@ namespace Ordering.Workflow;
 
 /// <summary>Creates the order (awaiting payment) and persists it.</summary>
 /// <param name="orders">The order repository.</param>
-/// <param name="options">Checkout options (currency).</param>
-public sealed class CreateOrderActivity(IOrderRepository orders, CheckoutOptions options)
+public sealed class CreateOrderActivity(IOrderRepository orders)
     : WorkflowActivity<CreateOrderInput, CreateOrderOutput>
 {
     /// <inheritdoc />
@@ -23,7 +22,7 @@ public sealed class CreateOrderActivity(IOrderRepository orders, CheckoutOptions
             input.UserId,
             input.CatalogEventId,
             input.HoldId,
-            options.DefaultCurrency,
+            input.Currency,
             input.IdempotencyKey,
             input.Lines.Select(line => new OrderLineSpec(
                 line.InventoryItemId,

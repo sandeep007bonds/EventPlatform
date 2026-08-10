@@ -37,14 +37,22 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.HoldExpired), null);
         }
 
-        // 2. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
+        // 2. Price the order in the event's own currency, not a platform-wide default — the
+        //    available payment methods depend on it (Stripe only offers UPI on INR, for instance).
+        //    Falls back to the configured default if Catalog can't be read, so an unreachable
+        //    Catalog degrades to today's behavior rather than failing the checkout outright.
+        var currency = await context.CallActivityAsync<string>(
+            nameof(FetchEventCurrencyActivity),
+            hold.CatalogEventId);
+
+        // 3. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
         //    organizer who owns the event/inventory, not necessarily present on the buyer's own token.
         //    OrderId is pre-minted by the checkout endpoint (it's also this workflow's own instance
         //    id), so a webhook-driven subscriber can raise an event straight back with no lookup.
         var order = await context.CallActivityAsync<CreateOrderOutput>(
             nameof(CreateOrderActivity),
             new CreateOrderInput(
-                hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail, input.OrderId));
+                hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail, input.OrderId, currency));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
@@ -54,7 +62,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Duplicate), order.OrderId);
         }
 
-        // 3. Create (not confirm) a payment intent — the buyer authenticates client-side via Stripe's
+        // 4. Create (not confirm) a payment intent — the buyer authenticates client-side via Stripe's
         //    Payment Element (card 3-D Secure, UPI app-switch, etc.). Record the client secret on the
         //    order so the checkout endpoint's fast-return poll can hand it to the frontend, then
         //    extend the hold to cover however long authentication takes.
@@ -100,7 +108,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(outcomeOnFailure, order.OrderId);
         }
 
-        // 4. Convert the hold to a sale. On failure: fail the order, refund, release the hold.
+        // 5. Convert the hold to a sale. On failure: fail the order, refund, release the hold.
         var converted = await context.CallActivityAsync<bool>(
             nameof(ConvertActivity),
             new ConvertInput(input.HoldId, order.OrderId));
@@ -112,7 +120,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.ConvertFailed), order.OrderId);
         }
 
-        // 5. Confirm.
+        // 6. Confirm.
         var lines = hold.Lines
             .Select(line => new OrderLineSummary(line.SeatId, line.GeneralAdmissionAllocationId, line.Quantity))
             .ToList();

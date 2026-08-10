@@ -25,6 +25,7 @@ public static class DependencyInjection
         services.AddScoped<IHoldClient, DaprHoldClient>();
         services.AddScoped<IPaymentClient, DaprPaymentClient>();
         services.AddScoped<ITicketClient, DaprTicketClient>();
+        services.AddScoped<ICatalogEventClient, DaprCatalogEventClient>();
         services.AddOutbox<OrderingDbContext>();
 
         return services;

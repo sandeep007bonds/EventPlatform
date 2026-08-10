@@ -12,6 +12,7 @@ builder.Services.AddDaprWorkflow(options =>
 {
     options.RegisterWorkflow<CheckoutWorkflow>();
     options.RegisterActivity<FetchHoldActivity>();
+    options.RegisterActivity<FetchEventCurrencyActivity>();
     options.RegisterActivity<CreateOrderActivity>();
     options.RegisterActivity<CreateIntentActivity>();
     options.RegisterActivity<RecordPaymentIntentActivity>();

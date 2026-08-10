@@ -18,12 +18,18 @@ public interface IPaymentGateway
     /// <param name="amountMinor">Amount in minor currency units.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key passed to the PSP.</param>
+    /// <param name="description">
+    /// What the buyer is paying for. Surfaced on the PSP dashboard, and **required** by Stripe for
+    /// export transactions from an India-registered account (RBI rules) — a missing description
+    /// fails those charges outright, so this is not merely cosmetic.
+    /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The created intent's reference and client secret.</returns>
     Task<GatewayIntentResult> CreateIntentAsync(
         long amountMinor,
         string currency,
         string idempotencyKey,
+        string description,
         CancellationToken cancellationToken);
 
     /// <summary>Refunds a captured charge.</summary>
