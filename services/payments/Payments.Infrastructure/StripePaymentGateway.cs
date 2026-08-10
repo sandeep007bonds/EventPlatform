@@ -10,6 +10,13 @@ namespace Payments.Infrastructure;
 /// </summary>
 internal sealed class StripePaymentGateway : IPaymentGateway
 {
+    // Stripe.net's own HttpClient carries no timeout by default, so a network-level hang (blocked
+    // outbound HTTPS, DNS failure, an unreachable proxy, etc.) would otherwise sit for .NET's
+    // HttpClient default of 100 seconds — long enough to blow past the gateway's own forwarding
+    // timeout and surface as a confusing 499/504 instead of a fast, clear failure.
+    private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
+
+    private readonly HttpClient httpClient;
     private readonly PaymentIntentService paymentIntents;
     private readonly RefundService refunds;
 
@@ -17,7 +24,8 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     /// <param name="secretKey">The Stripe secret key (from configuration).</param>
     public StripePaymentGateway(string secretKey)
     {
-        var client = new StripeClient(secretKey);
+        httpClient = new HttpClient { Timeout = RequestTimeout };
+        var client = new StripeClient(secretKey, httpClient: new SystemNetHttpClient(httpClient));
         paymentIntents = new PaymentIntentService(client);
         refunds = new RefundService(client);
     }
