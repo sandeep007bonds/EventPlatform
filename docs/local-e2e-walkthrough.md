@@ -202,19 +202,35 @@ purchase, end to end.
   span across Catalog → Inventory → Ordering → Payments → Ticketing.
 - **Health:** `curl http://localhost:508x/health/ready` for each service.
 
-## 5. Payments webhooks (optional, real Stripe only)
+## 5. Payments webhooks (REQUIRED whenever a real Stripe key is configured)
 
-If you ran Payments with a real Stripe test key and want to exercise async
-capture/refunds, set a webhook signing secret before starting `dev-up.sh` and
-forward events with the Stripe CLI:
+**This is not optional any more.** Since ADR-0028 the checkout saga is
+asynchronous: it creates a PaymentIntent, then *waits* for Stripe's webhook to
+tell it whether the payment was captured. With a real Stripe key configured but
+no webhook reaching you, an order gets stuck in `AwaitingPayment` forever — the
+buyer sees "Finishing your payment…" indefinitely and the saga eventually times
+out and releases the seats. Stripe cannot reach `localhost` on its own, so the
+Stripe CLI has to forward events to you.
+
+Run this **in its own terminal, alongside `dev-up.sh`**, and leave it running:
 
 ```bash
-dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project services/payments/Payments.Api
 stripe listen --forward-to http://localhost:5083/v1/payments/webhooks/stripe
 ```
 
+It prints a signing secret (`whsec_...`) on startup. Set that **before** starting
+`dev-up.sh`, then restart Payments so it picks it up:
+
+```bash
+dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project services/payments/Payments.Api
+```
+
 The endpoint verifies the `Stripe-Signature`, dedupes on the Stripe event id, and
-reconciles the payment idempotently. Without a signing secret it returns `503`.
+reconciles the payment idempotently. Without a signing secret it returns `503` —
+so the forwarded events are dropped and orders never confirm.
+
+> No Stripe key configured at all? None of this applies — `SimulatedPaymentGateway`
+> captures synchronously and checkout completes without any webhook.
 
 ## Troubleshooting
 
