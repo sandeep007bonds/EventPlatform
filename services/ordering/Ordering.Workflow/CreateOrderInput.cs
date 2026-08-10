@@ -13,6 +13,10 @@ namespace Ordering.Workflow;
 /// as <see cref="Order.Id"/> when a new order is actually created; unused on the already-existed
 /// fast path, which returns the winner's own real id instead.
 /// </param>
+/// <param name="Currency">
+/// ISO 4217 currency the order is priced in, read from the Catalog event (falling back to
+/// <c>CheckoutOptions.DefaultCurrency</c> when Catalog can't be reached).
+/// </param>
 public sealed record CreateOrderInput(
     Guid TenantId,
     Guid UserId,
@@ -21,4 +25,5 @@ public sealed record CreateOrderInput(
     Guid CatalogEventId,
     IReadOnlyList<HoldLineSnapshot> Lines,
     string BuyerEmail,
-    Guid OrderId);
+    Guid OrderId,
+    string Currency);
