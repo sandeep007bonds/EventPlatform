@@ -305,8 +305,10 @@ public static class OrderingEndpoints
     private static async Task<IResult> SyncOrderPaymentAsync(
         Guid id,
         ClaimsPrincipal principal,
+        DaprWorkflowClient workflowClient,
         IOrderRepository orders,
         IPaymentClient payments,
+        ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var userId = GetUserId(principal);
@@ -324,6 +326,26 @@ public static class OrderingEndpoints
         }
 
         var status = await payments.SyncStatusAsync(id, cancellationToken);
+
+        // Hand the outcome straight to the saga rather than letting it come back around via
+        // Payments' outbox -> pub/sub -> our own subscriber. That chain is fine as an independent
+        // route, but it must not be the *only* one this path depends on: reconciliation emits
+        // PaymentCaptured only on the transition, so a payment already captured by an earlier call
+        // (or by a webhook whose delivery was then lost) reports "Captured" here while emitting
+        // nothing at all — leaving the saga parked forever with no further event coming.
+        // Raising it directly is also several hops faster, and RaisePaymentOutcomeAsync already
+        // no-ops safely when the saga is no longer running.
+        if (string.Equals(status, "Captured", StringComparison.Ordinal))
+        {
+            await RaisePaymentOutcomeAsync(
+                id, captured: true, failureReason: null, workflowClient, orders, payments, loggerFactory, cancellationToken);
+        }
+        else if (string.Equals(status, "Failed", StringComparison.Ordinal))
+        {
+            await RaisePaymentOutcomeAsync(
+                id, captured: false, failureReason: "payment_failed", workflowClient, orders, payments, loggerFactory, cancellationToken);
+        }
+
         return Results.Ok(new PaymentSyncStatusResponse(status));
     }
 
