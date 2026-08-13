@@ -54,16 +54,18 @@ if [ ! -x "$dapr_home/bin/daprd" ] && [ ! -x "$dapr_home/bin/daprd.exe" ]; then
 fi
 
 # Stripe webhooks: since ADR-0028 the checkout saga is asynchronous — it creates a
-# PaymentIntent and then waits for Stripe's `payment_intent.succeeded` webhook to learn
-# the outcome. Stripe can't reach localhost, so without a forwarder an order sits in
-# AwaitingPayment until the saga times out. `stripe listen` holds an outbound connection
-# and relays events back to Payments.
+# PaymentIntent and then waits to learn the outcome. It learns it either way:
+#   push — Stripe's webhook (instant, the production path). Stripe can't reach localhost,
+#          so `stripe listen` holds an outbound connection and relays events back.
+#   pull — the saga polls Payments, which re-reads the PaymentIntent straight from Stripe
+#          with the secret key (no inbound connectivity needed at all).
+# So this listener is a *latency* optimization locally, not a requirement — checkout
+# completes within a few seconds either way.
 #
 # Fully automatic when the Stripe CLI is installed and logged in: we read the session's
 # signing secret up front and export it so Payments picks it up as configuration
 # (ASP.NET Core maps `__` to `:`), then run the forwarder in the background. When the CLI
-# is missing or not authenticated this is a no-op — Payments falls back to
-# SimulatedPaymentGateway, which captures synchronously and needs no webhook at all.
+# is missing or not authenticated this is a no-op — the polling path covers it.
 stripe_pid=""
 start_stripe_listener() {
   if ! command -v stripe >/dev/null 2>&1; then

@@ -64,7 +64,16 @@ is named `Ordering` so the type never clashes with its namespace.
   straight back into the running saga (`RaiseEventAsync(orderId.ToString("N"),
   "PaymentOutcome", ...)`) with no lookup table. The wait races
   `WaitForExternalEventAsync` against a `CreateTimer` deadline seeded by the
-  hold-extension activity's result. The orchestrator is deterministic — all I/O
+  hold-extension activity's result. The wait is a **poll loop**, not a single
+  timer: on each tick that no webhook has arrived, `SyncPaymentStatusActivity`
+  asks Payments to re-read the intent straight from the provider, so the saga
+  can learn the outcome by *asking* as well as by being told — checkout
+  completes even where the provider can't call back (localhost) or a webhook
+  is dropped (ADR-0028). Both routes land on the same idempotent
+  reconciliation in Payments, so whichever is second is a no-op. The external-
+  event subscription is created once, outside the loop — re-subscribing per
+  tick would leave abandoned waiters able to swallow the event.
+  The orchestrator is deterministic — all I/O
   is in activities — so a crash mid-flight resumes exactly where it left off.
   The Api races a bounded poll of the `Order` row (for a fast return once a
   client secret exists) against the full `WaitForWorkflowCompletionAsync`.

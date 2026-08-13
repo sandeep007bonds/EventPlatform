@@ -14,7 +14,10 @@ servers; only PSP references are stored.
 
 - **Data store:** PostgreSQL `payments` DB (this service only)
 - **Public API:** internal `POST /v1/payments/intents` (creates, but does not
-  confirm, a payment intent — see below), `POST /v1/payments/refund`
+  confirm, a payment intent — see below), internal
+  `POST /v1/payments/{orderId}/sync` (re-reads the payment from the provider
+  and reconciles it — the pull counterpart to the webhook, see below),
+  `POST /v1/payments/refund`
   (called by the checkout saga's compensation path *and* by Ordering's
   buyer-initiated `CancelOrderWorkflow` — same endpoint, same `RefundActivity`,
   no Payments-side changes needed for cancellation to reuse it); public
@@ -42,9 +45,19 @@ servers; only PSP references are stored.
   method (card, UPI, etc.) entirely client-side via Stripe's Payment Element,
   against the returned `ClientSecret` — this is what makes 3-D Secure/UPI
   app-switch work natively, since Stripe handles the challenge in the
-  browser (ADR-0028). The resulting capture/decline is reported later,
-  exclusively via the webhook below — never returned from this call.
+  browser (ADR-0028). The resulting capture/decline is reported later, via
+  the webhook or the sync endpoint below — never returned from this call.
   **No card data or secrets in code.**
+- **Push *and* pull, one reconciliation:** `PaymentSyncService`
+  (`POST /v1/payments/{orderId}/sync`) re-reads the PaymentIntent straight
+  from the provider (`IPaymentGateway.GetStatusAsync`) and applies the
+  *same* transitions and emits the *same* outbox events as the webhook
+  path. The checkout saga polls it while waiting, so an outcome is learned
+  even when the provider can't call back — which is always true on
+  `localhost`, and occasionally true in production when a webhook is
+  dropped. Safe to run alongside the webhook: every transition is a
+  `TryMark*`, so whichever observes the outcome second is a no-op and no
+  event is emitted twice (ADR-0028).
 - **Webhook inbox (async capture / 3-D Secure / refunds):** `IPaymentWebhookGateway`
   (Stripe impl) verifies the `Stripe-Signature` header against
   `Payments:Stripe:WebhookSecret`, then `PaymentWebhookService` reconciles the

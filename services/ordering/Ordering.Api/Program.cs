@@ -17,6 +17,7 @@ builder.Services.AddDaprWorkflow(options =>
     options.RegisterActivity<CreateIntentActivity>();
     options.RegisterActivity<RecordPaymentIntentActivity>();
     options.RegisterActivity<ExtendHoldActivity>();
+    options.RegisterActivity<SyncPaymentStatusActivity>();
     options.RegisterActivity<ConvertActivity>();
     options.RegisterActivity<ConfirmOrderActivity>();
     options.RegisterActivity<ReleaseHoldActivity>();

@@ -22,6 +22,16 @@ public interface IPaymentClient
         string idempotencyKey,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Asks Payments to re-read the order's payment from the provider and reconcile it. The pull
+    /// counterpart to the provider's webhook — lets the saga learn an outcome without depending on
+    /// the provider being able to call back into this environment.
+    /// </summary>
+    /// <param name="orderId">The order whose payment to re-read.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><c>NotFound</c>, <c>Pending</c>, <c>Captured</c> or <c>Failed</c>.</returns>
+    Task<string> SyncStatusAsync(Guid orderId, CancellationToken cancellationToken);
+
     /// <summary>Refunds a charge (compensation).</summary>
     /// <param name="orderId">The order to refund.</param>
     /// <param name="idempotencyKey">Idempotency key for the refund.</param>

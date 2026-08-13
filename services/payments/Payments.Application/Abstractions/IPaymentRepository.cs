@@ -23,6 +23,16 @@ public interface IPaymentRepository
     /// <returns>The captured payment, or <see langword="null"/>.</returns>
     Task<Payment?> GetCapturedByOrderAsync(Guid orderId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Gets the most recent payment for an order whatever its status, so its live state can be read
+    /// back from the provider. Unlike <see cref="GetCapturedByOrderAsync"/> this deliberately
+    /// includes still-<c>Initiated</c> payments — those are exactly the ones worth re-checking.
+    /// </summary>
+    /// <param name="orderId">The order id.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The latest payment for the order, or <see langword="null"/>.</returns>
+    Task<Payment?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken);
+
     /// <summary>Gets the payment with the given provider reference, if any (webhook correlation).</summary>
     /// <param name="providerReference">The PSP reference (e.g. Stripe PaymentIntent id).</param>
     /// <param name="cancellationToken">A cancellation token.</param>
