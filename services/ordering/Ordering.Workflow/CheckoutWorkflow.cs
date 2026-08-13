@@ -120,7 +120,16 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
 
             if (winner == paymentOutcomeTask)
             {
-                await tickCts.CancelAsync();
+                // MUST be the synchronous Cancel(), never CancelAsync(). An orchestrator may only
+                // ever await *durable* tasks — awaiting an ordinary Task here hands control to a
+                // non-durable continuation, and the executor completes the turn having produced
+                // zero actions ("Sending 0 action(s)"), leaving the saga idle forever: the payment
+                // is captured, the order never leaves AwaitingPayment, and the buyer's page polls
+                // it for eternity. Sonar's S6966 ("await CancelAsync instead") is simply wrong
+                // inside an orchestrator, so it is suppressed rather than followed.
+#pragma warning disable S6966 // Awaiting CancelAsync() inside an orchestrator breaks replay — see above.
+                tickCts.Cancel();
+#pragma warning restore S6966
                 var signal = await paymentOutcomeTask;
                 captured = signal.Captured;
                 resolved = true;
