@@ -66,6 +66,21 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     }
 
     /// <inheritdoc />
+    public async Task<GatewayPaymentStatus> GetStatusAsync(string providerReference, CancellationToken cancellationToken)
+    {
+        var intent = await paymentIntents.GetAsync(providerReference, cancellationToken: cancellationToken);
+
+        // Stripe's PaymentIntent statuses: requires_payment_method, requires_confirmation,
+        // requires_action, processing, requires_capture, succeeded, canceled.
+        return intent.Status switch
+        {
+            "succeeded" => GatewayPaymentStatus.Captured,
+            "canceled" => GatewayPaymentStatus.Failed,
+            _ => GatewayPaymentStatus.Pending,
+        };
+    }
+
+    /// <inheritdoc />
     public async Task RefundAsync(string providerReference, CancellationToken cancellationToken)
     {
         var options = new RefundCreateOptions { PaymentIntent = providerReference };

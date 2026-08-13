@@ -20,6 +20,13 @@ internal sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRe
             cancellationToken);
 
     /// <inheritdoc />
+    public Task<Payment?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken) =>
+        dbContext.Payments
+            .Where(p => p.OrderId == orderId)
+            .OrderByDescending(p => p.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<Payment?> GetByProviderReferenceAsync(string providerReference, CancellationToken cancellationToken) =>
         dbContext.Payments.FirstOrDefaultAsync(p => p.ProviderReference == providerReference, cancellationToken);
 

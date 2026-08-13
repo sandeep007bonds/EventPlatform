@@ -27,6 +27,12 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
         return Task.FromResult(new GatewayIntentResult(reference, clientSecret, CapturedImmediately: true));
     }
 
+    // This gateway captures at creation time, so a payment it knows about is always captured.
+
+    /// <inheritdoc />
+    public Task<GatewayPaymentStatus> GetStatusAsync(string providerReference, CancellationToken cancellationToken) =>
+        Task.FromResult(GatewayPaymentStatus.Captured);
+
     /// <inheritdoc />
     public Task RefundAsync(string providerReference, CancellationToken cancellationToken) => Task.CompletedTask;
 }

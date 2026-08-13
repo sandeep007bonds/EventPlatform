@@ -14,6 +14,11 @@ public static class PaymentsEndpoints
         group.MapPost("/intents", CreateIntentAsync).WithName("CreateIntent").ExcludeFromDescription();
         group.MapPost("/refund", RefundAsync).WithName("Refund").ExcludeFromDescription();
 
+        // Pull counterpart to the Stripe webhook: re-reads a payment's live state from the provider
+        // and applies the same reconciliation. Lets the checkout saga learn an outcome by asking,
+        // so it doesn't depend on the provider being able to call us back (ADR-0028).
+        group.MapPost("/{orderId:guid}/sync", SyncPaymentAsync).WithName("SyncPayment").ExcludeFromDescription();
+
         // Provider callback: authenticated by signature, not a bearer token, so anonymous.
         group.MapPost("/webhooks/stripe", StripeWebhookAsync)
             .WithName("StripeWebhook")
@@ -77,6 +82,15 @@ public static class PaymentsEndpoints
         // exception, same as it already implicitly was before this endpoint existed; the eventual
         // capture/decline outcome, once the buyer authenticates, arrives later via the webhook.
         return Results.Ok(new CreateIntentResponse(result.PaymentId, result.ProviderReference, result.ClientSecret, result.Captured));
+    }
+
+    private static async Task<IResult> SyncPaymentAsync(
+        Guid orderId,
+        PaymentSyncService sync,
+        CancellationToken cancellationToken)
+    {
+        var result = await sync.SyncAsync(orderId, cancellationToken);
+        return Results.Ok(new PaymentSyncResponse(result.ToString()));
     }
 
     private static async Task<IResult> RefundAsync(

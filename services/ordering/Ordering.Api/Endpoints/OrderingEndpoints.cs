@@ -20,6 +20,9 @@ public static class OrderingEndpoints
         app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders");
         app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
         app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders");
+        app.MapPost("/v1/orders/{id:guid}/payment/sync", SyncOrderPaymentAsync)
+            .WithName("SyncOrderPayment")
+            .WithTags("Orders");
 
         // Dapr pub/sub: resume a checkout saga waiting on payment authentication (ADR-0028). The
         // order id doubles as the saga's own Dapr instance id, so no lookup is needed.
@@ -288,6 +291,40 @@ public static class OrderingEndpoints
             order.PaymentClientSecret);
 
         return Results.Ok(response);
+    }
+
+    /// <remarks>
+    /// Called by the buyer's browser the moment Stripe's <c>confirmPayment</c> resolves. The browser
+    /// is the first to know the payment succeeded — it holds the confirmed PaymentIntent — so rather
+    /// than make the backend rediscover that by waiting for a webhook (which cannot reach a
+    /// developer machine) or by polling on a timer, it simply tells us to look now. This only
+    /// *triggers* reconciliation: Payments still re-reads the intent from Stripe itself, so a
+    /// client claiming success it didn't have changes nothing. The webhook and the saga's own poll
+    /// remain as backstops for a buyer who closes the tab mid-payment (ADR-0028).
+    /// </remarks>
+    private static async Task<IResult> SyncOrderPaymentAsync(
+        Guid id,
+        ClaimsPrincipal principal,
+        IOrderRepository orders,
+        IPaymentClient payments,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        // Ownership check: a buyer may only nudge their own order. A mismatch is reported as
+        // not-found rather than forbidden, so this never confirms another buyer's order exists.
+        var order = await orders.GetSnapshotByIdAsync(id, cancellationToken);
+        if (order is null || order.UserId != userId.Value)
+        {
+            return Results.NotFound();
+        }
+
+        var status = await payments.SyncStatusAsync(id, cancellationToken);
+        return Results.Ok(new PaymentSyncStatusResponse(status));
     }
 
     private static async Task<IResult> CancelOrderAsync(

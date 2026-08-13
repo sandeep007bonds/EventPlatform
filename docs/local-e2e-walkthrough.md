@@ -202,33 +202,40 @@ purchase, end to end.
   span across Catalog → Inventory → Ordering → Payments → Ticketing.
 - **Health:** `curl http://localhost:508x/health/ready` for each service.
 
-## 5. Payments webhooks (REQUIRED whenever a real Stripe key is configured)
+## 5. Payments webhooks (optional — a latency optimization, not a requirement)
 
-**`dev-up.sh` handles this automatically — no manual step.** It starts
+**You do not need the Stripe CLI to take a payment locally.** Since ADR-0028 the
+checkout saga is asynchronous — it creates a PaymentIntent, the buyer
+authenticates in the browser, and the saga then learns the outcome by **either**
+route:
+
+- **push** — Stripe's `payment_intent.succeeded` webhook lands. Instant, and the
+  production path. Stripe can't reach `localhost`, so locally this needs a
+  `stripe listen` forwarder.
+- **pull** — the saga polls Payments every few seconds, and Payments re-reads the
+  PaymentIntent straight from Stripe using your secret key. Plain outbound API
+  call — no inbound connectivity, no CLI, nothing to configure.
+
+So with no CLI at all, a completed payment still confirms the order within a few
+seconds. The forwarder just makes it immediate.
+
+**`dev-up.sh` handles the forwarder automatically — no manual step.** It starts
 `stripe listen` for you and wires the signing secret into Payments via the
 `Payments__Stripe__WebhookSecret` environment variable (ASP.NET Core maps `__`
 to `:`), so there's nothing to copy/paste and no `user-secrets` call. Ctrl+C
-stops the listener along with everything else.
-
-For that to kick in, install the [Stripe CLI](https://docs.stripe.com/stripe-cli)
-and authenticate once:
+stops the listener along with everything else. To enable it, install the
+[Stripe CLI](https://docs.stripe.com/stripe-cli) and authenticate once:
 
 ```bash
 stripe login
 ```
 
 If the CLI is missing or unauthenticated, `dev-up.sh` prints a one-line note and
-carries on — fine, because Payments then falls back to `SimulatedPaymentGateway`,
-which captures synchronously and needs no webhook at all.
+carries on — the polling path covers it.
 
-**Why it's needed with a real Stripe key:** since ADR-0028 the checkout saga is
-asynchronous — it creates a PaymentIntent, then *waits* for Stripe's
-`payment_intent.succeeded` webhook to learn the outcome. Stripe can't reach
-`localhost`, so without a forwarder an order sits in `AwaitingPayment` until the
-saga times out and releases the seats (the buyer just sees "Finishing your
-payment…" forever). The endpoint verifies the `Stripe-Signature`, dedupes on the
-Stripe event id, and reconciles the payment idempotently; without a signing
-secret it returns `503` and drops the events.
+The webhook endpoint verifies the `Stripe-Signature`, dedupes on the Stripe event
+id, and reconciles the payment idempotently; without a signing secret it returns
+`503` and drops the events — which is harmless now that polling is the backstop.
 
 To run the forwarder yourself instead (e.g. to watch the event stream):
 
@@ -248,6 +255,7 @@ dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project se
 | `401 Unauthorized` on a write | `$TOKEN` expired (1 h) — mint a new one (section 2) |
 | `inventory` stays `seatCount: 0` | Check the inventory sidecar's logs in the `dev-up.sh` output for a pub/sub delivery error |
 | Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`, already wired into `platform/dapr/dapr.yaml` |
+| Stripe shows the payment succeeded, but the order stays `AwaitingPayment` and the order page keeps polling | The saga polls Payments every ~3s and reconciles against Stripe directly, so this should clear on its own within seconds. If it doesn't, check Ordering's logs for `SyncPaymentStatusActivity` errors and confirm `Payments:Stripe:SecretKey` is set for **Payments** (the pull path needs it; the publishable key alone isn't enough) |
 | `relation "X.Y" does not exist` | That service's connection string in `appsettings.Development.json` must point at its **own** database (`catalog`/`inventory`/`ordering`/`payments`/`ticketing`), not a shared one — `EnsureCreatedAsync()` silently skips table creation if the database already exists, which it would if two services pointed at the same one |
 | Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` (already set correctly in `platform/dapr/dapr.yaml`) |
 | `secretstore ... open platform/dapr/secrets.local.json: ... cannot find the file` | `dev-up.sh` now creates this automatically (local dummy values, git-ignored) — pull the latest script, or create it by hand per [local-development.md](local-development.md#secrets-local) |

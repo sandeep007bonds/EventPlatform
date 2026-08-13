@@ -37,6 +37,17 @@ internal sealed class DaprPaymentClient : IPaymentClient
     }
 
     /// <inheritdoc />
+    public async Task<string> SyncStatusAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        using var http = DaprClient.CreateInvokeHttpClient(PaymentsAppId);
+        using var response = await http.PostAsync($"v1/payments/{orderId}/sync", content: null, cancellationToken);
+        response.EnsureSuccessStatusCode();
+
+        var body = await response.Content.ReadFromJsonAsync<PaymentSyncResponse>(JsonOptions, cancellationToken);
+        return body?.Status ?? "Pending";
+    }
+
+    /// <inheritdoc />
     public async Task RefundAsync(Guid orderId, string idempotencyKey, CancellationToken cancellationToken)
     {
         // Compensation is best-effort; a failed refund is retried by ops, not the saga.

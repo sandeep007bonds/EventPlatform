@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Alert, Button, Typography } from 'antd';
 import { AddressElement, PaymentElement, useElements, useStripe } from '@stripe/react-stripe-js';
+import { syncOrderPayment } from '../../../services/ordering/orderingApi';
 
 export interface CheckoutPaymentFormProps {
   /** The hold being purchased — used to build the redirect-return URL. */
@@ -60,6 +61,16 @@ export function CheckoutPaymentForm({
       }
 
       if (paymentIntent?.status === 'succeeded' || paymentIntent?.status === 'processing') {
+        // We are the first to know this succeeded. Tell the backend to reconcile immediately
+        // rather than leaving it to discover the outcome via webhook or the saga's slower poll.
+        // Best-effort by design: if this call fails, those backstops still resolve the order, so a
+        // network blip here must not block the buyer from reaching their order page.
+        try {
+          await syncOrderPayment(orderId);
+        } catch {
+          // Ignored — see above.
+        }
+
         onResolved();
       }
       // Any other in-page outcome (e.g. requires_payment_method after a decline) stays on this

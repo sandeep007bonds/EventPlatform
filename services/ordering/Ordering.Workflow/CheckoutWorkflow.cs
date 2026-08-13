@@ -8,6 +8,14 @@ namespace Ordering.Workflow;
 /// </summary>
 public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutWorkflowResult>
 {
+    // How often the saga re-reads the payment from the provider while waiting for the buyer to
+    // finish authenticating. This is the *last* of three routes to an outcome — the buyer's browser
+    // nudges us the moment it resolves, and Stripe's webhook lands independently — so it only has
+    // to cover the case where both are absent (buyer closed the tab AND no webhook reached us).
+    // Deliberately unhurried: a tight interval would spend hundreds of provider API calls per
+    // abandoned checkout to shave seconds off a case nobody is waiting on.
+    private static readonly TimeSpan PaymentPollInterval = TimeSpan.FromSeconds(20);
+
     /// <inheritdoc />
     public override async Task<CheckoutWorkflowResult> RunAsync(WorkflowContext context, CheckoutWorkflowInput input)
     {
@@ -77,26 +85,65 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         var extendedExpiresAt = await context.CallActivityAsync<DateTimeOffset?>(nameof(ExtendHoldActivity), input.HoldId);
         var deadline = extendedExpiresAt?.UtcDateTime ?? context.CurrentUtcDateTime;
 
-        // Race the async payment outcome (raised by Ordering's PaymentCaptured/PaymentFailed webhook
-        // subscriber) against the extended-hold deadline. Standard Dapr Workflow/Durable Task
-        // external-event-with-timeout idiom — first use in this repo, so double-check the exact
-        // CreateTimer/WaitForExternalEventAsync overloads against the installed Dapr.Workflow version
-        // during a real build.
-        using var timeoutCts = new CancellationTokenSource();
+        // Wait for the payment to resolve, by whichever route reports it first:
+        //
+        //   push — Stripe's webhook lands, Ordering's PaymentCaptured/PaymentFailed subscriber
+        //          raises "PaymentOutcome" into this instance. Instant, and the production path.
+        //   pull — on each tick we ask Payments to re-read the intent straight from Stripe. This is
+        //          what makes checkout work where Stripe can't call back (localhost), and a backstop
+        //          anywhere a webhook is dropped.
+        //
+        // Both funnel through the same reconciliation in Payments, and every transition is a
+        // TryMark*, so whichever arrives second is a harmless no-op.
+        //
+        // The external-event subscription is created ONCE, outside the loop, with only the timer
+        // recreated per tick — re-subscribing each iteration would leave abandoned waiters that can
+        // swallow an event.
         var paymentOutcomeTask = context.WaitForExternalEventAsync<PaymentOutcomeSignal>("PaymentOutcome");
-        var timeoutTask = context.CreateTimer(deadline, timeoutCts.Token);
-        var winner = await Task.WhenAny(paymentOutcomeTask, timeoutTask);
 
         var captured = false;
+        var resolved = false;
         string outcomeOnFailure = nameof(CheckoutOutcome.PaymentTimedOut);
         string failureReason = "payment_timed_out";
-        if (winner == paymentOutcomeTask)
+
+        while (!resolved && context.CurrentUtcDateTime < deadline)
         {
-            await timeoutCts.CancelAsync();
-            var signal = await paymentOutcomeTask;
-            captured = signal.Captured;
-            outcomeOnFailure = nameof(CheckoutOutcome.PaymentFailed);
-            failureReason = signal.FailureReason ?? "payment_failed";
+            var nextTick = context.CurrentUtcDateTime.Add(PaymentPollInterval);
+            if (nextTick > deadline)
+            {
+                nextTick = deadline;
+            }
+
+            using var tickCts = new CancellationTokenSource();
+            var tickTask = context.CreateTimer(nextTick, tickCts.Token);
+            var winner = await Task.WhenAny(paymentOutcomeTask, tickTask);
+
+            if (winner == paymentOutcomeTask)
+            {
+                await tickCts.CancelAsync();
+                var signal = await paymentOutcomeTask;
+                captured = signal.Captured;
+                resolved = true;
+                outcomeOnFailure = nameof(CheckoutOutcome.PaymentFailed);
+                failureReason = signal.FailureReason ?? "payment_failed";
+                break;
+            }
+
+            var status = await context.CallActivityAsync<string>(
+                nameof(SyncPaymentStatusActivity),
+                order.OrderId);
+
+            if (string.Equals(status, "Captured", StringComparison.Ordinal))
+            {
+                captured = true;
+                resolved = true;
+            }
+            else if (string.Equals(status, "Failed", StringComparison.Ordinal))
+            {
+                resolved = true;
+                outcomeOnFailure = nameof(CheckoutOutcome.PaymentFailed);
+                failureReason = "payment_failed";
+            }
         }
 
         if (!captured)

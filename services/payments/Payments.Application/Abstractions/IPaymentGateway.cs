@@ -32,6 +32,17 @@ public interface IPaymentGateway
         string description,
         CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Reads the provider's current status for a payment. This is the pull counterpart to the
+    /// provider's webhook: it lets us learn a payment's outcome by asking, rather than waiting to
+    /// be told — which is what makes the flow work on a machine the provider can't call back
+    /// (localhost), and a backstop if a webhook is ever missed in production.
+    /// </summary>
+    /// <param name="providerReference">The PSP reference to read (e.g. Stripe PaymentIntent id).</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The provider's current status for that payment.</returns>
+    Task<GatewayPaymentStatus> GetStatusAsync(string providerReference, CancellationToken cancellationToken);
+
     /// <summary>Refunds a captured charge.</summary>
     /// <param name="providerReference">The provider reference to refund.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
