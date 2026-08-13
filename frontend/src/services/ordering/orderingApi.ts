@@ -78,6 +78,17 @@ export async function getOrder(id: string): Promise<OrderResponse> {
 }
 
 /**
+ * Tells the backend to reconcile this order's payment with Stripe *now*, instead of waiting for
+ * Stripe's webhook (which can't reach a developer machine) or the checkout saga's slower poll.
+ * Call it the moment `confirmPayment` resolves — the browser knows the payment succeeded before
+ * anything server-side does. Purely a nudge: the backend re-reads the real state from Stripe, so
+ * this can't fake a payment. Safe to ignore failures — the saga still resolves on its own.
+ */
+export async function syncOrderPayment(id: string): Promise<void> {
+  await httpClient.post(`/api/ordering/v1/orders/${id}/payment/sync`);
+}
+
+/**
  * Cancels a confirmed order: voids its tickets, releases the inventory, and refunds the payment.
  * Only a `Confirmed` order with no already-checked-in tickets can be cancelled.
  */

@@ -86,6 +86,33 @@ gap. This is Ordering's first outbound Dapr *subscription* (it previously
 only called Inventory/Payments synchronously), so `Ordering.Api` gained a
 `Dapr.AspNetCore` reference and `UseCloudEvents()`/`MapSubscribeHandler()`.
 
+### Three routes to the outcome, in order of who knows first
+
+The browser is the first to know a payment succeeded — `confirmPayment`
+resolves with the confirmed PaymentIntent in its hand. Waiting for that fact
+to arrive back by a slower route is wasted time, so the outcome now reaches
+the saga by whichever of three routes gets there first:
+
+1. **The buyer's browser tells us** (`POST /v1/orders/{id}/payment/sync`,
+   called the instant `confirmPayment` resolves, and again from
+   `CheckoutReturnPage` for redirecting methods). Fastest, and the common
+   case. This only *triggers* reconciliation — Payments still re-reads the
+   intent from Stripe itself, so a client claiming a success it never had
+   changes nothing. Best-effort on the client: a failed nudge falls through
+   to the routes below rather than blocking the buyer.
+2. **Stripe's webhook**, unchanged. Authoritative, and the only route that
+   works when the buyer closes the tab mid-payment.
+3. **The saga's own poll**, below.
+
+The trigger endpoint lives on **Ordering**, not Payments: Payments has no
+browser-facing routes by design (saga-internal + webhook only, per the
+gateway's own allowlist rule), and Ordering already owns the `Order` so it
+can authorize the caller (`Order.UserId` vs. the token's `sub`, reported as
+404 on mismatch so it never confirms another buyer's order exists). It calls
+Payments' internal sync over Dapr; the resulting `PaymentCaptured` flows
+through the existing outbox → pub/sub → subscriber → `RaiseEventAsync` path,
+so the saga resumes through machinery that already existed.
+
 ### The saga also *pulls*, so a webhook is an optimization, not a dependency
 
 Waiting only to be told has a hard operational edge: Stripe cannot reach a
@@ -96,7 +123,7 @@ a hard prerequisite for the app to work locally. The same class of failure
 exists in production whenever a webhook is dropped or the endpoint is
 briefly unreachable.
 
-So the wait is a **poll loop**, not a single timer: each tick (3s) races
+So the wait is a **poll loop**, not a single timer: each tick (20s) races
 the external event against a short timer, and on a timer win calls a new
 `SyncPaymentStatusActivity` → Payments' `POST /v1/payments/{orderId}/sync`
 → `PaymentSyncService`, which re-reads the PaymentIntent straight from
@@ -201,11 +228,14 @@ pre-supplied method id.
   the CLI is installed and authenticated (instant confirmation), and
   silently skips it otherwise — the poll loop covers that case within a
   few seconds.
-- Polling costs one Stripe API read per in-flight payment per tick. Only
-  payments actually awaiting authentication are polled, and only until
-  they resolve, so the load scales with concurrent unfinished checkouts,
-  not with total volume. If that ever matters, lengthen
-  `PaymentPollInterval` — the webhook still carries the common case.
+- Polling costs one Stripe API read per in-flight payment per tick, but it
+  is now the third route rather than the first, so the interval is a relaxed
+  20s: an abandoned checkout costs ~45 reads over the 15-minute hold window
+  instead of ~300, and nobody is waiting on those reads anyway.
+- The browser-triggered sync is not a trust boundary — it carries no
+  outcome, only "look now." Anyone can call it for their own order; the
+  worst they achieve is making the backend re-read Stripe, which is exactly
+  what it does on its own anyway.
 - A genuine Stripe API exception at intent-creation time still has no
   saga-level compensation path (fails the whole workflow instance rather
   than reaching `FailOrderActivity`/`ReleaseHoldActivity`) — a pre-existing

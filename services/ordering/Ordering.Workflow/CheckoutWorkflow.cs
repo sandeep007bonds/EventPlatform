@@ -9,9 +9,12 @@ namespace Ordering.Workflow;
 public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutWorkflowResult>
 {
     // How often the saga re-reads the payment from the provider while waiting for the buyer to
-    // finish authenticating. Short enough that checkout feels responsive when no webhook can reach
-    // us, long enough not to hammer the provider's API for every in-flight payment.
-    private static readonly TimeSpan PaymentPollInterval = TimeSpan.FromSeconds(3);
+    // finish authenticating. This is the *last* of three routes to an outcome — the buyer's browser
+    // nudges us the moment it resolves, and Stripe's webhook lands independently — so it only has
+    // to cover the case where both are absent (buyer closed the tab AND no webhook reached us).
+    // Deliberately unhurried: a tight interval would spend hundreds of provider API calls per
+    // abandoned checkout to shave seconds off a case nobody is waiting on.
+    private static readonly TimeSpan PaymentPollInterval = TimeSpan.FromSeconds(20);
 
     /// <inheritdoc />
     public override async Task<CheckoutWorkflowResult> RunAsync(WorkflowContext context, CheckoutWorkflowInput input)

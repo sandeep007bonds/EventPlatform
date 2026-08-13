@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Result } from 'antd';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { stripePromise } from '../../../services/payments/stripeClient';
+import { syncOrderPayment } from '../../../services/ordering/orderingApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 
 type ReturnStatus = 'checking' | 'succeeded' | 'failed';
@@ -11,9 +12,9 @@ type ReturnStatus = 'checking' | 'succeeded' | 'failed';
  * challenge frame, a UPI app-switch) and back — `CheckoutPaymentForm`'s `confirmPayment` call sets
  * this as its `return_url`. Stripe appends `payment_intent_client_secret` itself; `orderId` is our
  * own addition. Retrieves the intent's final status directly from Stripe (no `<Elements>` context
- * here, so `stripePromise` is used directly rather than the `useStripe`/`useElements` hooks) and
- * routes accordingly — the actual capture/decline outcome still arrives at the backend separately,
- * via Stripe's webhook, exactly as it does for an in-page resolution.
+ * here, so `stripePromise` is used directly rather than the `useStripe`/`useElements` hooks), nudges
+ * the backend to reconcile immediately, and routes accordingly — exactly as an in-page resolution
+ * does. The webhook and the saga's own poll remain the backstops if this page is never reached.
  */
 export function CheckoutReturnPage() {
   const { holdId } = useParams<{ holdId: string }>();
@@ -41,9 +42,15 @@ export function CheckoutReturnPage() {
           return;
         }
         const paymentStatus = result?.paymentIntent?.status;
-        setStatus(
-          paymentStatus === 'succeeded' || paymentStatus === 'processing' ? 'succeeded' : 'failed',
-        );
+        const succeeded = paymentStatus === 'succeeded' || paymentStatus === 'processing';
+
+        // Best-effort nudge so the order confirms now rather than on the saga's next poll; the
+        // navigation below must not depend on it, hence the swallowed rejection.
+        if (succeeded && orderId) {
+          void syncOrderPayment(orderId).catch(() => {});
+        }
+
+        setStatus(succeeded ? 'succeeded' : 'failed');
       })
       .catch(() => {
         if (!cancelled) {
@@ -54,7 +61,7 @@ export function CheckoutReturnPage() {
     return () => {
       cancelled = true;
     };
-  }, [clientSecret]);
+  }, [clientSecret, orderId]);
 
   useEffect(() => {
     if (status === 'succeeded' && orderId) {

@@ -22,7 +22,11 @@ is named `Ordering` so the type never clashes with its namespace.
   `GET /v1/orders` (`?mine=true` — buyer's own; `?forTenant=true` —
   organizer's tenant; exactly one is required), `GET /v1/orders/{id}` (the
   response includes `paymentClientSecret` while `AwaitingPayment`, for a
-  buyer reload/redirect-return mid-authentication), `POST /v1/orders/{id}/cancel`
+  buyer reload/redirect-return mid-authentication),
+  `POST /v1/orders/{id}/payment/sync` (buyer-triggered "my payment just
+  resolved, reconcile it now" — ownership-checked, carries no outcome of its
+  own, only asks Payments to re-read the intent from Stripe, see ADR-0028),
+  `POST /v1/orders/{id}/cancel`
   (buyer-initiated cancellation + refund)
 - **Events published:** `OrderConfirmed` (via outbox)
 - **Events consumed:** `PaymentCaptured`, `PaymentFailed` (Payments, via
@@ -64,15 +68,17 @@ is named `Ordering` so the type never clashes with its namespace.
   straight back into the running saga (`RaiseEventAsync(orderId.ToString("N"),
   "PaymentOutcome", ...)`) with no lookup table. The wait races
   `WaitForExternalEventAsync` against a `CreateTimer` deadline seeded by the
-  hold-extension activity's result. The wait is a **poll loop**, not a single
-  timer: on each tick that no webhook has arrived, `SyncPaymentStatusActivity`
-  asks Payments to re-read the intent straight from the provider, so the saga
-  can learn the outcome by *asking* as well as by being told — checkout
-  completes even where the provider can't call back (localhost) or a webhook
-  is dropped (ADR-0028). Both routes land on the same idempotent
-  reconciliation in Payments, so whichever is second is a no-op. The external-
-  event subscription is created once, outside the loop — re-subscribing per
-  tick would leave abandoned waiters able to swallow the event.
+  hold-extension activity's result. The outcome reaches the saga by whichever
+  of three routes is first: the **buyer's browser** nudging
+  `/v1/orders/{id}/payment/sync` the instant `confirmPayment` resolves
+  (fastest, the common case); Stripe's **webhook** (authoritative, and the
+  only route that survives the buyer closing the tab); or the saga's own
+  **poll** every 20s via `SyncPaymentStatusActivity`. All three land on the
+  same idempotent reconciliation in Payments, so whichever is second is a
+  no-op, and checkout completes even where Stripe can't call back at all
+  (localhost) — ADR-0028. The external-event subscription is created once,
+  outside the poll loop — re-subscribing per tick would leave abandoned
+  waiters able to swallow the event.
   The orchestrator is deterministic — all I/O
   is in activities — so a crash mid-flight resumes exactly where it left off.
   The Api races a bounded poll of the `Order` row (for a fast return once a
