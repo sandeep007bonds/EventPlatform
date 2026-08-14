@@ -91,7 +91,12 @@ clashes with its namespace.
 `Ticketing.Domain` (`Ticket`, `EventScanContext`, `SeatEntryGate`,
 `GaAllocationGate` + invariants) · `Ticketing.Infrastructure` (EF Core +
 Postgres, outbox, the once-per-event Catalog/Inventory Dapr clients).
-`tests/` to follow.
+`tests/Ticketing.Tests` covers the `Ticket` lifecycle (seat and general
+admission as exclusive shapes, no double check-in, void being idempotent where
+check-in throws, and entry surviving a later void) and `TicketIssuingService`
+(one ticket per seat, N tickets per general-admission quantity, distinct
+tokens, idempotent redelivery, and one order-level `OrderTicketsIssued`
+alongside the per-ticket events).
 
 ## Local run
 
