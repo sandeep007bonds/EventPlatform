@@ -192,12 +192,23 @@ public sealed class PlaceHoldGateTests
     // means. The request still fails afterwards (no seats are stubbed), which is deliberate: these
     // tests are about the gates, not about a successful hold.
     private async Task ShouldHaveGoneOnToLoadInventory() =>
-        await inventory.ReceivedWithAnyArgs(1).GetItemsBySeatsAsync(default, default!, default);
+        await inventory.Received(1).GetItemsBySeatsAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
 
     private async Task ShouldNotHaveReachedTheFastGate()
     {
-        await inventory.DidNotReceiveWithAnyArgs().GetItemsBySeatsAsync(default, default!, default);
-        await holdStore.DidNotReceiveWithAnyArgs().TryHoldAsync(default, default, default!, default, default);
+        await inventory.DidNotReceive().GetItemsBySeatsAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<IReadOnlyCollection<Guid>>(),
+            Arg.Any<CancellationToken>());
+        await holdStore.DidNotReceive().TryHoldAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<Guid>(),
+            Arg.Any<IReadOnlyList<Guid>>(),
+            Arg.Any<TimeSpan>(),
+            Arg.Any<CancellationToken>());
     }
 
     private async Task<PlaceHoldResult> PlaceHoldAsync(
