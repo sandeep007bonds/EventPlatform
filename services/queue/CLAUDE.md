@@ -63,6 +63,28 @@ never have `Event.RequiresQueue` set and never touch this service at all.
   both services' `appsettings.Development.json`) — zero cross-service call
   at hold-placement time, the same "propagate once, verify locally"
   hot-path philosophy ADR-0025 established for Ticketing's scan.
+- **Join rate limiting is charged per session *created*, not per request.**
+  The waiting room paces access but says nothing about who is asking, so a
+  script minting fresh session ids could take as many places in line as it
+  liked. `IJoinRateLimiter`/`RedisJoinRateLimiter` caps new sessions per
+  client per event (default 10/minute, deliberately generous — shared
+  addresses are ordinary, and turning away real buyers mid-purchase costs
+  more than letting a script hold a few places). A buyer refreshing the page
+  resumes the same session and is never charged, which is why the enqueue
+  script reports `CREATED` vs `RESUMED` and `QueueStoreResult.WasCreated`
+  exists. The counter is in Redis, not process memory, so the allowance is
+  not multiplied by the replica count; `INCR` and `EXPIRE` run in one script
+  so a crash between them cannot leave a TTL-less counter locking a client
+  out permanently. Both limiter operations **fail open** — this is abuse
+  mitigation, not a security control, and denying genuine buyers during a
+  Redis blip would do more damage than the abuse.
+- **`Queue.Api` runs `UseForwardedHeaders`** so the limiter sees the real
+  caller rather than the gateway, which would otherwise bucket every buyer
+  together and let a handful of joins close the waiting room. The proxy
+  allow-list is cleared because a pod address is not knowable ahead of time,
+  so anything able to reach this service directly can choose its own bucket
+  — tolerable for a limiter, and **not** to be relied on by anything that
+  grants access on the strength of a caller's address.
 - **No replay/one-time-use enforcement on a token.** An admitted buyer could
   technically place more than one hold within their admission window — not
   fixed here; a hold is still fully capacity/limit-checked on its own
