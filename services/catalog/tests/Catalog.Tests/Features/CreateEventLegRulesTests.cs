@@ -9,6 +9,7 @@ namespace Catalog.Tests.Features;
 public sealed class CreateEventLegRulesTests
 {
     private static readonly Guid Organizer = Guid.CreateVersion7();
+
     // Relative to now, not a fixed year: CreateEventValidator requires StartsAt to be in the
     // future, so pinned calendar dates would turn these green tests red the year they arrive.
     private static readonly DateTimeOffset TourStarts = DateTimeOffset.UtcNow.AddMonths(6);
