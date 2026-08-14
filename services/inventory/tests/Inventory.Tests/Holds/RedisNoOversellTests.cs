@@ -181,25 +181,6 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
         (await TryHoldAdmissionsAsync(eventId, allocationId, quantity: 3)).Success.ShouldBeTrue();
     }
 
-    private Task<HoldStoreResult> TryHoldSeatsAsync(Guid eventId, Guid[] seatIds, Guid? holdId = null) =>
-        holdStore.TryHoldAsync(
-            eventId,
-            holdId ?? Guid.CreateVersion7(),
-            seatIds,
-            TimeSpan.FromMinutes(2),
-            CancellationToken.None);
-
-    private Task<GeneralAdmissionHoldStoreResult> TryHoldAdmissionsAsync(
-        Guid eventId,
-        Guid allocationId,
-        int quantity) =>
-        holdStore.TryHoldGeneralAdmissionAsync(
-            eventId,
-            Guid.CreateVersion7(),
-            [(allocationId, quantity)],
-            TimeSpan.FromMinutes(2),
-            CancellationToken.None);
-
     // Starts every attempt and releases them at once. Without the gate the tasks would trickle out
     // as the thread pool schedules them and mostly not overlap at all — the test would still pass
     // and would prove nothing.
@@ -219,4 +200,23 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
 
         return await Task.WhenAll(racers);
     }
+
+    private Task<HoldStoreResult> TryHoldSeatsAsync(Guid eventId, Guid[] seatIds, Guid? holdId = null) =>
+        holdStore.TryHoldAsync(
+            eventId,
+            holdId ?? Guid.CreateVersion7(),
+            seatIds,
+            TimeSpan.FromMinutes(2),
+            CancellationToken.None);
+
+    private Task<GeneralAdmissionHoldStoreResult> TryHoldAdmissionsAsync(
+        Guid eventId,
+        Guid allocationId,
+        int quantity) =>
+        holdStore.TryHoldGeneralAdmissionAsync(
+            eventId,
+            Guid.CreateVersion7(),
+            [(allocationId, quantity)],
+            TimeSpan.FromMinutes(2),
+            CancellationToken.None);
 }
