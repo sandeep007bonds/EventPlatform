@@ -1,4 +1,4 @@
-global using EventPlatform.Messaging;
+global using EventPlatform.Contracts;
 global using Inventory.Application.Abstractions;
 global using Inventory.Application.Holds;
 global using Inventory.Domain;
