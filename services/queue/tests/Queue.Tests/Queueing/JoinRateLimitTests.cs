@@ -9,36 +9,27 @@ public sealed class JoinRateLimitTests
     private static readonly Guid EventId = Guid.CreateVersion7();
 
     [Fact]
-    public void AResumedSession_IsNotCharged()
+    public async Task AResumedSession_IsNotCharged()
     {
-        var resumed = new QueueStoreResult(QueueSessionStatus.Waiting, 3, WasCreated: false);
-
-        var response = QueueStatusResponseFactory.FromStoreResult(
-            EnabledSettings(), resumed, TokenIssuer(), EventId, Guid.CreateVersion7());
+        var response = await JoinAsync(new QueueStoreResult(QueueSessionStatus.Waiting, 3, WasCreated: false));
 
         response.CreatedNewSession.ShouldBeFalse();
         response.Position.ShouldBe(3);
     }
 
     [Fact]
-    public void ANewlyEnqueuedSession_IsCharged()
+    public async Task ANewlyEnqueuedSession_IsCharged()
     {
-        var created = new QueueStoreResult(QueueSessionStatus.Waiting, 0, WasCreated: true);
-
-        var response = QueueStatusResponseFactory.FromStoreResult(
-            EnabledSettings(), created, TokenIssuer(), EventId, Guid.CreateVersion7());
+        var response = await JoinAsync(new QueueStoreResult(QueueSessionStatus.Waiting, 0, WasCreated: true));
 
         response.CreatedNewSession.ShouldBeTrue();
     }
 
     // An admitted session is leaving the queue, not taking a place in it.
     [Fact]
-    public void AnAdmittedSession_IsNotCharged()
+    public async Task AnAdmittedSession_IsNotCharged()
     {
-        var admitted = new QueueStoreResult(QueueSessionStatus.Admitted, null);
-
-        var response = QueueStatusResponseFactory.FromStoreResult(
-            EnabledSettings(), admitted, TokenIssuer(), EventId, Guid.CreateVersion7());
+        var response = await JoinAsync(new QueueStoreResult(QueueSessionStatus.Admitted, null));
 
         response.CreatedNewSession.ShouldBeFalse();
         response.Admitted.ShouldBeTrue();
@@ -47,16 +38,7 @@ public sealed class JoinRateLimitTests
     // An event that never opted into queueing admits immediately without touching the store, so
     // there is no session to charge for either.
     [Fact]
-    public void AnImmediateAdmit_IsNotCharged()
-    {
-        var response = QueueStatusResponseFactory.ImmediateAdmit(TokenIssuer(), EventId, Guid.CreateVersion7());
-
-        response.CreatedNewSession.ShouldBeFalse();
-        response.Admitted.ShouldBeTrue();
-    }
-
-    [Fact]
-    public async Task JoiningAnUnqueuedEvent_NeverConsultsTheStore()
+    public async Task JoiningAnUnqueuedEvent_AdmitsWithoutConsultingTheStore()
     {
         var settings = Substitute.For<IQueueSettingsRepository>();
         var store = Substitute.For<IQueueStore>();
@@ -94,8 +76,17 @@ public sealed class JoinRateLimitTests
         options.Window.ShouldBe(TimeSpan.FromMinutes(1));
     }
 
-    private static QueueSettings EnabledSettings() =>
-        QueueSettings.Create(EventId, Guid.CreateVersion7(), enabled: true);
+    private static async Task<QueueStatusResponse> JoinAsync(QueueStoreResult storeResult)
+    {
+        var settings = Substitute.For<IQueueSettingsRepository>();
+        var store = Substitute.For<IQueueStore>();
+        settings.GetByIdAsync(EventId, Arg.Any<CancellationToken>())
+            .Returns(QueueSettings.Create(EventId, Guid.CreateVersion7(), enabled: true));
+        store.EnqueueOrResumeAsync(EventId, Arg.Any<Guid>(), Arg.Any<CancellationToken>()).Returns(storeResult);
+
+        return await new JoinQueueHandler(settings, store, TokenIssuer())
+            .HandleAsync(EventId, Guid.CreateVersion7(), CancellationToken.None);
+    }
 
     private static IAdmissionTokenIssuer TokenIssuer()
     {
