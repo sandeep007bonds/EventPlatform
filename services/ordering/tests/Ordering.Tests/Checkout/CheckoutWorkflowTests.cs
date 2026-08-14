@@ -78,12 +78,10 @@ public sealed class CheckoutWorkflowTests
             nameof(CreateIntentActivity), Arg.Any<object?>());
     }
 
-    /// <summary>
-    /// The regression test for the stall that shipped in ADR-0028's first cut: the saga received
-    /// its <c>PaymentOutcome</c> event and then scheduled nothing at all, leaving a captured payment
-    /// with an order stuck in <c>AwaitingPayment</c> forever. Asserting that convert *and* confirm
-    /// are both scheduled is what makes that failure visible here rather than at a real card reader.
-    /// </summary>
+    // The regression test for the stall that shipped in ADR-0028's first cut: the saga received its
+    // PaymentOutcome event and then scheduled nothing at all, leaving a captured payment with an
+    // order stuck in AwaitingPayment forever. Asserting that convert *and* confirm are both
+    // scheduled is what makes that failure visible here rather than at a real card reader.
     [Fact]
     public async Task ConfirmsTheOrder_WhenThePaymentOutcomeEventReportsCapture()
     {
@@ -102,11 +100,9 @@ public sealed class CheckoutWorkflowTests
         await context.DidNotReceive().CallActivityAsync<bool>(nameof(ReleaseHoldActivity), Arg.Any<object?>());
     }
 
-    /// <summary>
-    /// The pull half of the same guarantee: no event ever arrives, but the saga's own poll of
-    /// Payments reports a capture. It must reach the same terminal state — this is what keeps
-    /// checkout working where the provider cannot call back (localhost, or a dropped webhook).
-    /// </summary>
+    // The pull half of the same guarantee: no event ever arrives, but the saga's own poll of
+    // Payments reports a capture. It must reach the same terminal state — this is what keeps
+    // checkout working where the provider cannot call back (localhost, or a dropped webhook).
     [Fact]
     public async Task ConfirmsTheOrder_WhenOnlyThePollReportsCapture()
     {
@@ -156,10 +152,8 @@ public sealed class CheckoutWorkflowTests
         await context.Received().CallActivityAsync<bool>(nameof(ReleaseHoldActivity), Arg.Any<object?>());
     }
 
-    /// <summary>
-    /// Money already moved by the time convert-to-sold failed, so the refund is mandatory — this
-    /// asserts the compensation that stops a buyer paying for seats they never received.
-    /// </summary>
+    // Money already moved by the time convert-to-sold failed, so the refund is mandatory — this
+    // asserts the compensation that stops a buyer paying for seats they never received.
     [Fact]
     public async Task RefundsAndReleases_WhenConvertToSoldFails()
     {
@@ -177,10 +171,8 @@ public sealed class CheckoutWorkflowTests
         await context.DidNotReceive().CallActivityAsync<bool>(nameof(ConfirmOrderActivity), Arg.Any<object?>());
     }
 
-    /// <summary>
-    /// The buyer abandoned authentication: the extended hold deadline has already passed, so the
-    /// saga never enters the wait loop and compensates straight away, freeing the seats.
-    /// </summary>
+    // The buyer abandoned authentication: the extended hold deadline has already passed, so the
+    // saga never enters the wait loop and compensates straight away, freeing the seats.
     [Fact]
     public async Task TimesOut_WhenTheExtendedHoldDeadlineHasAlreadyPassed()
     {
@@ -219,7 +211,7 @@ public sealed class CheckoutWorkflowTests
         return context;
     }
 
-    /// <summary>Stubs every step up to (and including) the hold extension, leaving the wait open.</summary>
+    // Stubs every step up to (and including) the hold extension, leaving the wait open.
     private static WorkflowContext CreateHappyPathContext(DateTimeOffset? extendedExpiresAt = null)
     {
         var context = CreateContext();
