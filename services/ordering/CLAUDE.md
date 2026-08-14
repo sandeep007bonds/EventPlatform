@@ -107,7 +107,25 @@ is named `Ordering` so the type never clashes with its namespace.
 `Ordering.Api` (host + endpoints + workflow registration) · `Ordering.Application`
 (ports + checkout contracts) · `Ordering.Workflow` (`CheckoutWorkflow` + activities) ·
 `Ordering.Domain` (`Order`, `OrderLine` + invariants) · `Ordering.Infrastructure`
-(EF Core + Postgres, Dapr hold client, payment stub, outbox). `tests/` to follow.
+(EF Core + Postgres, Dapr hold client, payment stub, outbox) ·
+`tests/Ordering.Tests` (checkout-saga decision logic, layering, orchestrator purity).
+
+## Testing the saga
+
+`CheckoutWorkflowTests` drives `CheckoutWorkflow` through a substituted `WorkflowContext`
+and asserts *which activities get scheduled* for a given set of results — the
+compensation ordering, the terminal outcome, and that a captured payment
+actually reaches convert-and-confirm.
+
+`OrchestratorPurityTests` is the one that matters most, and it is not a mock test.
+An orchestrator may only ever await **durable** tasks and must be deterministic
+across replays; break that and the workflow engine silently ends the turn having
+scheduled nothing (`Sending 0 action(s)`), so the saga stalls with no exception
+anywhere. A mocked context cannot reproduce that — there is no executor counting
+actions — so instead the orchestrator sources are scanned for the constructs that
+cause it (`CancelAsync`, `Task.Delay`/`Task.Run`, `DateTime.UtcNow`, `Guid.NewGuid`,
+`HttpClient`, blocking waits). This is not hypothetical: exactly one such line
+shipped and stranded captured payments in `AwaitingPayment` (ADR-0028).
 
 ## Local run
 
