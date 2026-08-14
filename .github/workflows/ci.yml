@@ -36,6 +36,16 @@ jobs:
       - name: Test
         run: dotnet test EventPlatform.slnx --no-build -c Release
 
+      # The one weakness ADR-0029 leaves open: the model is the source of truth and migrations are
+      # generated from it, so nothing otherwise stops a model change merging without the migration
+      # that carries it into a real database. Inert for any service with no migrations committed
+      # yet — see the script for why "never migrated" is not the same as "drifted".
+      - name: Install dotnet-ef
+        run: dotnet tool install --global dotnet-ef
+
+      - name: Check for model drift
+        run: ./scripts/db-check-drift.sh
+
   frontend:
     name: frontend
     runs-on: ubuntu-latest
