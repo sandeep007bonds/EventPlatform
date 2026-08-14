@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <!-- Pure domain: entities, value objects, invariants. No framework or infrastructure deps. -->
-
-  <PropertyGroup>
-    <RootNamespace>Catalog.Domain</RootNamespace>
-  </PropertyGroup>
-
-</Project>
