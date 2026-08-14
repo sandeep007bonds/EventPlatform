@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddScoped<PaymentService>();
         services.AddScoped<PaymentWebhookService>();
         services.AddScoped<PaymentSyncService>();
+        services.AddSingleton(new PaymentReconcilerOptions());
 
         return services;
     }

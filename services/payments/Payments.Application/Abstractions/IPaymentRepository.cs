@@ -33,6 +33,20 @@ public interface IPaymentRepository
     /// <returns>The latest payment for the order, or <see langword="null"/>.</returns>
     Task<Payment?> GetLatestByOrderAsync(Guid orderId, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Lists orders whose payment is still <c>Initiated</c> and older than <paramref name="createdBefore"/>
+    /// — payments nobody is coming back for. Left alone they are the platform's worst failure mode:
+    /// money captured at the provider with no order, no ticket, and nothing that ever looks again.
+    /// </summary>
+    /// <param name="createdBefore">Only payments created before this instant are considered stale.</param>
+    /// <param name="batchSize">Maximum orders to return.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>Order ids, oldest first.</returns>
+    Task<IReadOnlyList<Guid>> GetStaleInitiatedOrderIdsAsync(
+        DateTimeOffset createdBefore,
+        int batchSize,
+        CancellationToken cancellationToken);
+
     /// <summary>Gets the payment with the given provider reference, if any (webhook correlation).</summary>
     /// <param name="providerReference">The PSP reference (e.g. Stripe PaymentIntent id).</param>
     /// <param name="cancellationToken">A cancellation token.</param>

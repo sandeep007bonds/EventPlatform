@@ -43,6 +43,17 @@ public interface IPaymentGateway
     /// <returns>The provider's current status for that payment.</returns>
     Task<GatewayPaymentStatus> GetStatusAsync(string providerReference, CancellationToken cancellationToken);
 
+    /// <summary>
+    /// Best-effort cancellation of a payment that was never completed, releasing any authorization
+    /// the buyer's bank is still holding. Returns <see langword="false"/> when the provider refuses
+    /// — which almost always means the payment is no longer cancellable because it actually
+    /// succeeded, so the caller must re-read rather than treat it as failed.
+    /// </summary>
+    /// <param name="providerReference">The PSP reference to cancel.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if the provider accepted the cancellation.</returns>
+    Task<bool> TryCancelAsync(string providerReference, CancellationToken cancellationToken);
+
     /// <summary>Refunds a captured charge.</summary>
     /// <param name="providerReference">The provider reference to refund.</param>
     /// <param name="cancellationToken">A cancellation token.</param>

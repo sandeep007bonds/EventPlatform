@@ -45,6 +45,10 @@ public static class DependencyInjection
 
         services.AddOutbox<PaymentDbContext>();
 
+        // Closes out payments the buyer never came back to finish — the last route by which a
+        // captured payment could otherwise be stranded with no order behind it (ADR-0028).
+        services.AddHostedService<StalePaymentReconciler>();
+
         return services;
     }
 }

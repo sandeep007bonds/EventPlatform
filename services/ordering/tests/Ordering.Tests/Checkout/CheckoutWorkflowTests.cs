@@ -171,6 +171,35 @@ public sealed class CheckoutWorkflowTests
         await context.DidNotReceive().CallActivityAsync<bool>(nameof(ConfirmOrderActivity), Arg.Any<object?>());
     }
 
+    // A payment-provider outage. Left uncaught this kills the workflow instance outright, skipping
+    // compensation: the order sits AwaitingPayment and the seats stay held until the reaper takes
+    // them — minutes of locked inventory per attempt, exactly when the provider is least healthy.
+    [Fact]
+    public async Task CompensatesAndFails_WhenCreatingThePaymentIntentThrows()
+    {
+        var context = CreateContext();
+        StubHold(context, CreateHold());
+        StubCurrency(context);
+        StubCreateOrder(context, alreadyExisted: false);
+        context.CallActivityAsync<CreateIntentOutput>(nameof(CreateIntentActivity), Arg.Any<object?>())
+            .Throws(new TaskFailedException(
+                nameof(CreateIntentActivity),
+                taskId: 1,
+                new TaskFailureDetails("StripeException", "provider unavailable", null, null)));
+
+        var result = await new CheckoutWorkflow().RunAsync(context, CreateInput());
+
+        result.Outcome.ShouldBe(nameof(CheckoutOutcome.PaymentFailed));
+        result.OrderId.ShouldBe(OrderId);
+
+        await context.Received().CallActivityAsync<bool>(nameof(FailOrderActivity), Arg.Any<object?>());
+        await context.Received().CallActivityAsync<bool>(nameof(ReleaseHoldActivity), Arg.Any<object?>());
+
+        // No intent was ever created, so there is nothing to refund and nothing to convert.
+        await context.DidNotReceive().CallActivityAsync<bool>(nameof(RefundActivity), Arg.Any<object?>());
+        await context.DidNotReceive().CallActivityAsync<bool>(nameof(ConvertActivity), Arg.Any<object?>());
+    }
+
     // The buyer abandoned authentication: the extended hold deadline has already passed, so the
     // saga never enters the wait loop and compensates straight away, freeing the seats.
     [Fact]
