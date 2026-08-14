@@ -18,7 +18,7 @@ local development. Update this with each meaningful change.
 - ✅ Build config: `.editorconfig`, `Directory.Build.props`, CPM, PR template
 - ✅ Root + per-service `CLAUDE.md`
 - ✅ Roadmap issues (#1–#11) on GitHub
-- ✅ **Data flow & service boundaries reference** (`docs/data-flow-and-service-boundaries.md`): as-built (not pre-implementation) reference — the boundary/ownership table for all five services, the communication matrix (sync/Dapr service invocation, async/Dapr pub/sub, direct-Redis, external/Stripe, gRPC internals), the full purchase-flow sequence with a mermaid diagram, and the background processes
+- ✅ **System reference** (`docs/system-reference.md`): the single as-built description of the platform — capabilities by persona, buyer/organizer/gate-staff journeys, the checkout saga and no-oversell paths end to end, the ownership/API/event table for all nine services, cross-cutting mechanisms (outbox, idempotency, tenancy, auth), and an index into the other ~40 docs. Supersedes `data-flow-and-service-boundaries.md`, which was deleted: it documented **seven** services (no `queue`, no `media`) and predated the async-payment rewrite, so it had become actively misleading
 
 ### Code scaffold
 - ✅ Solution (`.slnx`)

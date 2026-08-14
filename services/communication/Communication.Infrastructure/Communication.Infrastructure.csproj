@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../Communication.Domain/Communication.Domain.csproj" />
     <ProjectReference Include="../Communication.Application/Communication.Application.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

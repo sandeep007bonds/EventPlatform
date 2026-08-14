@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The database-provider seam. Everything in this project is knowledge about *which* relational
+    engine we run on, deliberately collected in one place so a future port (ADR-0029) is a contained
+    job rather than a hunt through nine services. Nothing else in the solution should reference
+    Npgsql types directly.
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>EventPlatform.Persistence</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      Logging/DI abstractions arrive transitively through EF Core; referencing them explicitly
+      would trip NU1510 on .NET 10, where they are framework-provided and auto-pruned.
+    -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+  </ItemGroup>
+
+</Project>

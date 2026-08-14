@@ -40,6 +40,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0026](0026-virtual-waiting-room-queue-service.md) | Virtual waiting-room Queue service | Accepted |
 | [0027](0027-manual-sales-pause-resume.md) | Manual sales pause/resume for a published event | Accepted |
 | [0028](0028-async-payment-authentication-and-hold-extension.md) | Async payment authentication (Stripe Payment Element) and hold extension | Accepted |
+| [0029](0029-ef-core-migrations-and-the-database-provider-seam.md) | EF Core migrations, PostgreSQL-targeted, with the database-provider seam in one place | Accepted |
 
 ## Format
 

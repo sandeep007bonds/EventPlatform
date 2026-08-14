@@ -8,4 +8,5 @@ global using Communication.Infrastructure;
 global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Contracts.Ticketing;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;

@@ -13,7 +13,7 @@ internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepos
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
             // A concurrent checkout with the same idempotency key won the race. Drop the rejected
             // order graph (root + lines) so the context is clean, and let the caller re-fetch.

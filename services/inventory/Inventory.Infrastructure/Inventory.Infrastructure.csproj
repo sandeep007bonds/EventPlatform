@@ -11,6 +11,7 @@
     <ProjectReference Include="../Inventory.Domain/Inventory.Domain.csproj" />
     <ProjectReference Include="../Inventory.Application/Inventory.Application.csproj" />
     <ProjectReference Include="../../../building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>
