@@ -34,6 +34,17 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:media-storage"] = azurite.GetConnectionString(),
+
+                    // The test signs its own HS256 tokens, so it must also pin the validation side
+                    // rather than inherit whatever appsettings.Development.json happens to say.
+                    // Media.Api's dev config points Jwt:Authority at the Identity service (which is
+                    // not running here) and sets no DevSigningKey, so without these three keys
+                    // AuthenticationExtensions takes its production OIDC branch, fails discovery,
+                    // and rejects every token as 401. Issuer/Audience are set explicitly too, so
+                    // this stays green if the defaults in that helper ever change.
+                    ["Jwt:DevSigningKey"] = DevSigningKey,
+                    ["Jwt:Issuer"] = Issuer,
+                    ["Jwt:Audience"] = Audience,
                 });
             });
         });
