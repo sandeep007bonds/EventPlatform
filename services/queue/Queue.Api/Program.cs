@@ -23,14 +23,14 @@ if (MigrationRunner.IsMigrationRun(args))
 // and a handful of joins would lock out the whole waiting room. ForwardedHeaders replaces
 // RemoteIpAddress with the client address YARP forwarded.
 //
-// KnownNetworks/KnownProxies are cleared because the gateway's pod address is not knowable ahead of
+// KnownIPNetworks/KnownProxies are cleared because the gateway's pod address is not knowable ahead of
 // time in Kubernetes. The trade-off is explicit: anything that can reach this service directly,
 // bypassing the gateway, can set X-Forwarded-For and so pick its own rate-limit bucket. That is
 // acceptable only because the limiter is abuse mitigation rather than a security control, and
 // because in-cluster traffic is not attacker-reachable — do not extend this to anything that
 // grants access on the strength of the caller's address (ADR-0026).
 var forwardedHeaders = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor };
-forwardedHeaders.KnownNetworks.Clear();
+forwardedHeaders.KnownIPNetworks.Clear();
 forwardedHeaders.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedHeaders);
 
