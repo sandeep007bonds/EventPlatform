@@ -1,6 +1,8 @@
+global using System.Globalization;
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Hosting;
 global using EventPlatform.Persistence;
+global using Microsoft.AspNetCore.HttpOverrides;
 global using Microsoft.EntityFrameworkCore;
 global using Queue.Api.Endpoints;
 global using Queue.Application;

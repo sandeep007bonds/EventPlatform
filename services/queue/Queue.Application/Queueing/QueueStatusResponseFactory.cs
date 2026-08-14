@@ -39,6 +39,6 @@ internal static class QueueStatusResponseFactory
             ? position / settings.AdmissionRatePerInterval * settings.IntervalSeconds
             : (int?)null;
 
-        return new QueueStatusResponse(false, null, result.Position, estimatedWaitSeconds);
+        return new QueueStatusResponse(false, null, result.Position, estimatedWaitSeconds, result.WasCreated);
     }
 }

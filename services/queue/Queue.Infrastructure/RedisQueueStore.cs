@@ -24,12 +24,12 @@ internal sealed class RedisQueueStore(IConnectionMultiplexer redis) : IQueueStor
         end
         local rank = redis.call('ZRANK', KEYS[1], ARGV[1])
         if rank then
-          return 'WAITING:' .. rank
+          return 'WAITING:' .. rank .. ':RESUMED'
         end
         local time = redis.call('TIME')
         local score = tonumber(time[1]) + (tonumber(time[2]) / 1000000)
         redis.call('ZADD', KEYS[1], score, ARGV[1])
-        return 'WAITING:' .. redis.call('ZRANK', KEYS[1], ARGV[1])
+        return 'WAITING:' .. redis.call('ZRANK', KEYS[1], ARGV[1]) .. ':CREATED'
         """;
 
     // KEYS[1] = waiting set, KEYS[2] = admitted key. ARGV[1] = sessionId.
@@ -119,10 +119,16 @@ internal sealed class RedisQueueStore(IConnectionMultiplexer redis) : IQueueStor
             return new QueueStoreResult(QueueSessionStatus.Admitted, null);
         }
 
-        if (raw?.StartsWith("WAITING:", StringComparison.Ordinal) == true
-            && int.TryParse(raw.AsSpan("WAITING:".Length), out var position))
+        // "WAITING:{rank}" from the status script, "WAITING:{rank}:{CREATED|RESUMED}" from the
+        // enqueue script — the suffix is what tells a rate limiter whether a new session was minted.
+        if (raw?.StartsWith("WAITING:", StringComparison.Ordinal) == true)
         {
-            return new QueueStoreResult(QueueSessionStatus.Waiting, position);
+            var parts = raw.Split(':');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out var position))
+            {
+                var wasCreated = parts.Length > 2 && parts[2] == "CREATED";
+                return new QueueStoreResult(QueueSessionStatus.Waiting, position, wasCreated);
+            }
         }
 
         return new QueueStoreResult(QueueSessionStatus.NotFound, null);

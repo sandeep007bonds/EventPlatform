@@ -18,6 +18,22 @@ if (MigrationRunner.IsMigrationRun(args))
     return;
 }
 
+// The join rate limiter buckets by the caller's address, and this service only ever sees traffic
+// through the gateway — without this every buyer would share the gateway's address as one bucket
+// and a handful of joins would lock out the whole waiting room. ForwardedHeaders replaces
+// RemoteIpAddress with the client address YARP forwarded.
+//
+// KnownNetworks/KnownProxies are cleared because the gateway's pod address is not knowable ahead of
+// time in Kubernetes. The trade-off is explicit: anything that can reach this service directly,
+// bypassing the gateway, can set X-Forwarded-For and so pick its own rate-limit bucket. That is
+// acceptable only because the limiter is abuse mitigation rather than a security control, and
+// because in-cluster traffic is not attacker-reachable — do not extend this to anything that
+// grants access on the strength of the caller's address (ADR-0026).
+var forwardedHeaders = new ForwardedHeadersOptions { ForwardedHeaders = ForwardedHeaders.XForwardedFor };
+forwardedHeaders.KnownNetworks.Clear();
+forwardedHeaders.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeaders);
+
 app.UseServiceDefaults();
 
 // Dapr: unwrap the CloudEvent envelope so the topic handler binds the event payload directly.

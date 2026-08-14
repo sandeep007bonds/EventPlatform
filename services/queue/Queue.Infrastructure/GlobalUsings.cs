@@ -9,6 +9,7 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;
 global using Microsoft.Extensions.Logging;
 global using Queue.Application.Abstractions;
+global using Queue.Application.Queueing;
 global using Queue.Domain;
 global using Queue.Infrastructure.Admission;
 global using Queue.Infrastructure.Configurations;
