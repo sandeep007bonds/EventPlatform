@@ -20,6 +20,8 @@
     </PackageReference>
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NSubstitute" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" />
+    <PackageReference Include="Testcontainers.Redis" />
     <PackageReference Include="NetArchTest.Rules" />
   </ItemGroup>
 
