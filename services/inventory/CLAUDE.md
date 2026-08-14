@@ -152,7 +152,14 @@ Layers directly under this folder (no `src/`): `Inventory.Api` (host + endpoints
 Dapr subscription), `Inventory.Application` (ports + provisioning + blocking +
 reconciliation), `Inventory.Domain` (`InventoryItem`, `Hold`, `LedgerEntry` +
 invariants), `Inventory.Infrastructure` (EF Core + Postgres, Redis hold store, the
-Catalog seat-map client, the expiry reaper, the drift reconciler, outbox). `tests/` to follow.
+Catalog seat-map client, the expiry reaper, the drift reconciler, outbox).
+`tests/Inventory.Tests` covers the general-admission counter invariants, the
+`PlaceHoldAsync` gate sequence (each gate rejecting with its own outcome, and
+none of them reaching the Redis fast gate), layering, and — against a real
+Redis via Testcontainers — no-oversell under contention: many buyers racing
+for one seat, more buyers than seats, all-or-nothing multi-seat holds, and the
+same for general-admission capacity. **If you change a Lua script in
+`RedisHoldStore`, those are the tests that decide whether you got it right.**
 
 ## Local run
 
