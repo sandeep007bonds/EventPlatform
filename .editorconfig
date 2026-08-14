@@ -69,8 +69,22 @@ dotnet_diagnostic.SA1600.severity = none
 dotnet_diagnostic.CA1707.severity = none
 dotnet_diagnostic.CA1001.severity = none
 
-# Generated / migrations code: exclude from style
+# Generated / migrations code: exclude from style.
+#
+# EF writes these files, and rewrites them on every `migrations add` — so hand-fixing a style
+# violation here is undone the next time anyone changes a model. Style rules also have nothing to
+# say about generated DDL: whether `migrationBuilder.CreateTable`'s column initializer carries a
+# trailing comma is not a code-quality signal.
+#
+# ALL analyzer diagnostics are silenced, not a list of rule IDs. The first migrations tripped
+# IDE0161, SA1413 and CA1861; enumerating those would just move the whack-a-mole to whichever rule
+# the next generated file happens to violate. Safe to do broadly because nothing else in this file
+# sets those IDs explicitly, and a rule-ID entry would otherwise win over this. Compiler warnings
+# (CS####) are not analyzer diagnostics, so CS1591 still needs its own line.
+#
+# This does NOT weaken review: a migration is DDL against real data and is reviewed for what it
+# does to the schema, not for how it is formatted.
 [**/{Migrations,Generated}/**/*.cs]
 generated_code = true
+dotnet_analyzer_diagnostic.severity = none
 dotnet_diagnostic.CS1591.severity = none
-dotnet_diagnostic.SA1600.severity = none
