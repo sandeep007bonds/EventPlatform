@@ -23,6 +23,12 @@ internal sealed class RedisJoinRateLimiter(
     ILogger<RedisJoinRateLimiter> logger)
     : IJoinRateLimiter
 {
+    private const string CheckFailedMessage =
+        "Join rate-limit check failed for event {EventId}; allowing the join rather than closing the waiting room.";
+
+    private const string RecordFailedMessage =
+        "Could not record a join against the rate limit for event {EventId}.";
+
     // KEYS[1] = counter key, ARGV[1] = window seconds.
     private const string IncrementScript = """
         local used = redis.call('INCR', KEYS[1])
@@ -59,11 +65,7 @@ internal sealed class RedisJoinRateLimiter(
         }
         catch (RedisException exception)
         {
-            logger.LogWarning(
-                exception,
-                "Join rate-limit check failed for event {EventId}; allowing the join rather than " +
-                "closing the waiting room.",
-                eventId);
+            logger.LogWarning(exception, CheckFailedMessage, eventId);
 
             return JoinRateLimitDecision.Allow;
         }
@@ -86,10 +88,7 @@ internal sealed class RedisJoinRateLimiter(
         }
         catch (RedisException exception)
         {
-            logger.LogWarning(
-                exception,
-                "Could not record a join against the rate limit for event {EventId}.",
-                eventId);
+            logger.LogWarning(exception, RecordFailedMessage, eventId);
         }
     }
 
