@@ -197,3 +197,41 @@ resource "azurerm_key_vault_secret" "service_connection_strings" {
 
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }
+
+# Stripe credentials. Unlike every other secret here these cannot be generated —
+# they come from the Stripe dashboard — and they must not sit in Terraform state
+# or a tfvars file. So Terraform only creates the *objects*, with a placeholder
+# value, and `ignore_changes` keeps it from ever reverting the real one:
+#
+#   az keyvault secret set --vault-name <vault> --name stripe-secret-key    --value sk_live_...
+#   az keyvault secret set --vault-name <vault> --name stripe-webhook-secret --value whsec_...
+#
+# The objects have to exist unconditionally even when Stripe is unused, because
+# deploy/overlays/dev/keyvault-secretproviderclass.yaml lists them by name and a
+# missing object fails the CSI mount for every pod in the namespace, not just
+# Payments. Payments treats a value that is not a real Stripe key as "not
+# configured" and falls back to the simulator — see PaymentGatewayStartupLog for
+# how that choice is made visible rather than silent.
+resource "azurerm_key_vault_secret" "stripe_secret_key" {
+  name         = "stripe-secret-key"
+  value        = "placeholder-set-me-with-az-keyvault-secret-set"
+  key_vault_id = module.key_vault.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "stripe_webhook_secret" {
+  name         = "stripe-webhook-secret"
+  value        = "placeholder-set-me-with-az-keyvault-secret-set"
+  key_vault_id = module.key_vault.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
