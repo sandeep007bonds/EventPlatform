@@ -45,4 +45,9 @@ COPY --from=build /app/publish .
 USER app
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "exec dotnet \"${ASSEMBLY_NAME}.dll\""]
+
+# `sh -c` is needed to expand ${ASSEMBLY_NAME}, but a bare `sh -c '<script>'` assigns any further
+# arguments starting at $0 — so a Kubernetes `args: ["--migrate"]` would be silently swallowed and
+# the container would serve traffic instead of applying migrations. The trailing "--" fills the $0
+# slot so real arguments land in "$@" and reach the app. Keep both parts if you touch this line.
+ENTRYPOINT ["sh", "-c", "exec dotnet \"${ASSEMBLY_NAME}.dll\" \"$@\"", "--"]

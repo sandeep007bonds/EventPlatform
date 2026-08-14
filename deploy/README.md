@@ -6,12 +6,35 @@ by hand (see the root [CLAUDE.md](../CLAUDE.md)'s GitOps rule).
 ## Layout
 
 - `base/<service>/` — Deployment + Service + kustomization per service
-  (catalog, inventory, ordering, payments, ticketing, communication, gateway).
+  (catalog, inventory, ordering, payments, ticketing, communication, media,
+  identity, queue, gateway). Every service that owns a database also has a
+  `migrate-job.yaml` (see below).
 - `overlays/dev/` — the only overlay today. Namespaces everything under
   `eventplatform-dev`, generates the shared non-secret config, sets
   per-service image placeholders (overwritten by CI on each push — see
   `.github/workflows/`), and wires Key Vault secrets in via
   `keyvault-secretproviderclass.yaml`.
+
+## Schema migrations
+
+Services never migrate themselves. Each database-owning service ships a
+`base/<service>/migrate-job.yaml` — the *same image* as its Deployment, run
+with `args: ["--migrate"]`, annotated `argocd.argoproj.io/hook: PreSync` so
+Argo CD applies the schema and waits for the job to succeed before rolling a
+single new pod. A failed migration fails the sync with inspectable logs
+instead of crash-looping a replica (ADR-0029).
+
+Two things about these jobs that look like omissions but are not:
+
+- **No `dapr.io/*` annotations.** A Dapr sidecar never exits on its own, so
+  the pod would stay `Running` and the Job would never complete. Migrations
+  need nothing from Dapr.
+- **The image name matches the Deployment's placeholder exactly.** That is
+  what makes CI's `kustomize edit set image` rewrite both to the same tag, so
+  the schema is never applied by a different build than the one about to
+  serve traffic.
+
+`media` and `gateway` have no job — neither owns a database.
 
 ## Secrets
 

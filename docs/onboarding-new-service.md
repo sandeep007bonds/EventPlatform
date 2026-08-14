@@ -91,6 +91,15 @@ services/<name>/<Name>.Api/<Name>.Api.csproj -> <Name>.Api
       Provider never syncs `eventplatform-secrets`, and every service in the
       cluster (not just yours) silently loses its secrets on the next pod
       restart, since the sync is triggered by *any* pod mounting the class.
+- [ ] If `<name>` owns a database, add `migrate-job.yaml` too (copy
+      `deploy/base/catalog/migrate-job.yaml`) and list it in that service's
+      `kustomization.yaml` **before** `deployment.yaml`. It runs the same image
+      with `args: ["--migrate"]` as an Argo CD PreSync hook, so the schema lands
+      before any new pod rolls (ADR-0029). Two things to keep as they are: the
+      pod template carries **no** `dapr.io/*` annotations (a sidecar never
+      exits, so the Job would never complete), and its `env` mirrors the
+      Deployment's — the host is fully built before the migration branch runs,
+      so anything the Deployment needs at construction, the Job needs too.
 - [ ] Add `<name>` to `deploy/base/kustomization.yaml`'s `resources` list.
 - [ ] Add a `<name>-placeholder` entry to `deploy/overlays/dev/kustomization.yaml`'s
       `images` list (`newName: REPLACE_ME.azurecr.io/<name>`,
