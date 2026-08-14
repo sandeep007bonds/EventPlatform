@@ -72,6 +72,24 @@ change. To apply without a full `dev-up`:
 
 Both need the EF tool once: `dotnet tool install --global dotnet-ef`.
 
+> **Running `dotnet ef` by hand?** Point `--startup-project` at the
+> **Infrastructure** project, not the Api:
+>
+> ```bash
+> dotnet ef migrations add AddThing \
+>   --project services/catalog/Catalog.Infrastructure \
+>   --startup-project services/catalog/Catalog.Infrastructure
+> ```
+>
+> Aiming it at the Api gives *"Your startup project 'Catalog.Api' doesn't
+> reference Microsoft.EntityFrameworkCore.Design"* — and the fix is not to add
+> that package to the Api projects. Each Infrastructure project has an
+> `IDesignTimeDbContextFactory` that builds its context standalone, reading
+> `<SERVICE>_DB` (e.g. `CATALOG_DB`) or falling back to the local dev connection
+> string. That is exactly why those factories exist: the tools never start the
+> host, so no Dapr sidecar or outbox relay spins up just to diff a model. The
+> scripts above already do this.
+
 > **Services never migrate themselves.** Applying the schema is an explicit
 > step — the same image run with `--migrate` applies migrations and exits, which
 > is exactly what a deployed environment runs as an Argo CD PreSync job. One

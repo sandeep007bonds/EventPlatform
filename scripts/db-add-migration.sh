@@ -56,10 +56,18 @@ for svc in "${services[@]}"; do
   fi
 
   echo "==> $svc: adding migration '$name'"
-  # --project holds the DbContext and receives Migrations/; --startup-project supplies configuration.
+  # The Infrastructure project is BOTH --project and --startup-project.
+  #
+  # It holds the DbContext, the EF configurations and Microsoft.EntityFrameworkCore.Design, and its
+  # IDesignTimeDbContextFactory builds the context standalone — reading <SERVICE>_DB or falling back
+  # to the local dev connection string. So the tools never need the API host, which is the point of
+  # those factories: no Dapr sidecar, no outbox relay, no host startup just to diff a model.
+  #
+  # Pointing --startup-project at the Api instead would mean adding Design to all eight Api projects,
+  # which the root CLAUDE.md warns against — its MSBuild/Roslyn tree drags in vulnerable transitives.
   dotnet ef migrations add "$name" \
     --project "services/$svc/$ns.Infrastructure" \
-    --startup-project "services/$svc/$ns.Api" \
+    --startup-project "services/$svc/$ns.Infrastructure" \
     --output-dir Migrations
 done
 
