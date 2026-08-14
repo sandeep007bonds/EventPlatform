@@ -18,6 +18,7 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     private readonly AzuriteContainer azurite = new AzuriteBuilder()
         .WithCommand("--skipApiVersionCheck")
         .Build();
+
     private WebApplicationFactory<Program> factory = default!;
 
     /// <inheritdoc />
