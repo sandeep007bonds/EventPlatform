@@ -1,0 +1,9 @@
+global using Dapr.Workflow;
+global using NetArchTest.Rules;
+global using NSubstitute;
+global using Ordering.Application.Abstractions;
+global using Ordering.Application.Checkout;
+global using Ordering.Domain;
+global using Ordering.Workflow;
+global using Shouldly;
+global using Xunit;

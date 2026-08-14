@@ -30,6 +30,7 @@
     <Project Path="services/ordering/Ordering.Infrastructure/Ordering.Infrastructure.csproj" />
     <Project Path="services/ordering/Ordering.Workflow/Ordering.Workflow.csproj" />
     <Project Path="services/ordering/Ordering.Api/Ordering.Api.csproj" />
+    <Project Path="services/ordering/tests/Ordering.Tests/Ordering.Tests.csproj" />
   </Folder>
   <Folder Name="/services/payments/">
     <Project Path="services/payments/Payments.Domain/Payments.Domain.csproj" />
