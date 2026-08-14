@@ -2,6 +2,7 @@ global using System.Security.Claims;
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using QRCoder;
 global using Ticketing.Api.Endpoints;

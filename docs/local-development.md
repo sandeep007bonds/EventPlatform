@@ -45,33 +45,44 @@ Optional: Visual Studio 2022 (17.14+ for `.slnx`), Rider, or VS Code + C# Dev Ki
 
 Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 
-## Database schema — automatic in Development
+## Database schema — EF Core migrations
 
-Nothing to run. Each service has its own Postgres **database** (`catalog`,
-`inventory`, `ordering`, `payments`, `ticketing`, `communication`, `identity`,
-`queue` — true database-per-service)
-and creates it from its current EF Core model the first time it starts in
-Development (`Database.EnsureCreatedAsync()` in `Program.cs`) — no `dotnet ef`
-command, no `Migrations/` folder to generate or commit. Each service must have
-its own database name for this to work: `EnsureCreatedAsync()` only creates
-tables when the target database doesn't exist yet, so two services sharing one
-database would silently end up with only the first one's tables.
+Each service has its own Postgres **database** (`catalog`, `inventory`,
+`ordering`, `payments`, `ticketing`, `communication`, `identity`, `queue` — true
+database-per-service) and its own migration history.
 
-If you change a domain model and the columns look stale, the fastest local fix
-is to drop and recreate the disposable Postgres volume:
+`dev-up.sh` applies migrations for you before starting anything, so day to day
+there is nothing to run. When you change a model, generate a migration:
 
 ```bash
-./scripts/dev-down.sh -v && ./scripts/dev-up.sh
+# one service (usual case — only the service you changed)
+./scripts/db-add-migration.sh AddSeatGateColumn catalog
+
+# or all eight
+./scripts/db-add-migration.sh InitialCreate
 ```
 
-> **Why not EF Core migrations here?** `EnsureCreated` can't evolve an existing
-> schema without data loss, so it's the wrong tool once we need staging/production
-> deployments that preserve data. That's real EF Core migrations
-> (`dotnet ef migrations add`, `Database.Migrate()`), tracked separately as
-> cloud-deployment work (see `docs/progress-tracker.md`) — each service already
-> has a design-time factory (e.g. `CatalogDbContextDesignTimeFactory`) ready for
-> when that tooling is wired up. For local dev, `EnsureCreated` needs zero
-> commands from you.
+Review the generated `Migrations/` files, then commit them alongside the model
+change. To apply without a full `dev-up`:
+
+```bash
+./scripts/db-migrate.sh            # all eight
+./scripts/db-migrate.sh catalog    # just one
+```
+
+Both need the EF tool once: `dotnet tool install --global dotnet-ef`.
+
+> **Services never migrate themselves.** Applying the schema is an explicit
+> step — the same image run with `--migrate` applies migrations and exits, which
+> is exactly what a deployed environment runs as an Argo CD PreSync job. One
+> mechanism, exercised locally every day rather than only at deploy time
+> (ADR-0029). A service that migrated on startup would race itself across
+> replicas and take the app down on a bad migration.
+
+> **Coming from `EnsureCreated`?** Drop your local volumes once —
+> `./scripts/dev-down.sh -v && ./scripts/dev-up.sh`. A database created by
+> `EnsureCreated` has no migration history, so EF would try to create tables that
+> already exist.
 
 ## How the services run with Dapr
 

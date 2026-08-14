@@ -3,6 +3,7 @@ global using System.Security.Claims;
 global using Dapr.Workflow;
 global using EventPlatform.Contracts.Payments;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using Microsoft.AspNetCore.Mvc;
 global using Microsoft.EntityFrameworkCore;
 global using Ordering.Api.Endpoints;

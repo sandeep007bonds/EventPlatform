@@ -94,7 +94,7 @@ start_stripe_listener() {
 
 start_stripe_listener
 
-# Build once, up front. All seven services (and the gateway) reference the same
+# Build once, up front. All nine services (and the gateway) reference the same
 # building-blocks projects (EventPlatform.Contracts, .Hosting, .Messaging);
 # launching several concurrent `dotnet run`s without this can make two of them
 # try to compile and write the same shared DLL at once, failing with CS2012
@@ -103,6 +103,13 @@ start_stripe_listener
 # race the others.
 echo "==> Building the solution once (avoids a concurrent-build race on shared projects)..."
 dotnet build "$repo_root/EventPlatform.slnx"
+
+# Apply schema before anything starts serving. Services never migrate themselves (ADR-0029), so
+# this is the same `--migrate` entry point a deployed environment runs as an Argo CD PreSync job —
+# one schema mechanism, exercised locally every day rather than only at deploy time. A no-op once
+# the databases are current.
+echo "==> Applying database migrations..."
+"$repo_root/scripts/db-migrate.sh"
 
 echo "==> Starting the gateway, Media.Api, all eight services and their Dapr sidecars (Ctrl+C stops everything)..."
 echo "    Gateway       http://localhost:5090/scalar/v1"

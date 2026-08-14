@@ -11,6 +11,7 @@
     <ProjectReference Include="../Ticketing.Domain/Ticketing.Domain.csproj" />
     <ProjectReference Include="../Ticketing.Application/Ticketing.Application.csproj" />
     <ProjectReference Include="../../../building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

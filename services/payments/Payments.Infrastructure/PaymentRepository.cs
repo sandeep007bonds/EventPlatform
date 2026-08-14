@@ -62,7 +62,7 @@ internal sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRe
             await dbContext.SaveChangesAsync(cancellationToken);
             return true;
         }
-        catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
+        catch (DbUpdateException ex) when (ex.IsUniqueViolation())
         {
             // A concurrent charge for the same (order, idempotency key) won the race. Drop this
             // attempt's pending changes so the context is clean and let the caller re-fetch.

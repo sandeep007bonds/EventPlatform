@@ -21,5 +21,6 @@ global using Catalog.Application.Features.UpdateSeatMapSection;
 global using Catalog.Domain;
 global using Catalog.Infrastructure;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using MediatR;
 global using Microsoft.EntityFrameworkCore;

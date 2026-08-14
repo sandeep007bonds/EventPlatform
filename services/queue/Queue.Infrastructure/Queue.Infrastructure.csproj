@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="../Queue.Domain/Queue.Domain.csproj" />
     <ProjectReference Include="../Queue.Application/Queue.Application.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

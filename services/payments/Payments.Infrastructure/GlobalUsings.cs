@@ -1,5 +1,6 @@
 global using System.Net.Http;
 global using EventPlatform.Messaging;
+global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;
 global using Microsoft.EntityFrameworkCore.Metadata.Builders;

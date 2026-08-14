@@ -1,5 +1,6 @@
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using Queue.Api.Endpoints;
 global using Queue.Application;

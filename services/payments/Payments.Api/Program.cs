@@ -9,18 +9,16 @@ builder.Services.AddPaymentsInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
+// Schema is applied by an explicit, separate step, never as a side effect of starting up:
+// this same image applies migrations and exits when run with `--migrate`, and otherwise
+// serves traffic without ever touching the schema (ADR-0029).
+if (MigrationRunner.IsMigrationRun(args))
+{
+    await MigrationRunner.ApplyMigrationsAsync<PaymentDbContext>(app.Services);
+    return;
+}
+
 app.UseServiceDefaults();
 app.MapPaymentsEndpoints();
-
-// DEV ONLY: create the schema from the current model on startup, so the service runs against local
-// Postgres with zero setup — no `dotnet ef` command, no committed Migrations/ folder. This is
-// EnsureCreated, not Migrate: fine for local dev where the DB is disposable, but it cannot evolve an
-// existing schema. Shared/deployed environments apply real EF Core migrations via a separate step.
-if (app.Environment.IsDevelopment())
-{
-    using var scope = app.Services.CreateScope();
-    var dbContext = scope.ServiceProvider.GetRequiredService<PaymentDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
-}
 
 await app.RunAsync();

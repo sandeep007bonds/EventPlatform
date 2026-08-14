@@ -8,6 +8,7 @@
     <Project Path="building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
     <Project Path="building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
     <Project Path="building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
+    <Project Path="building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </Folder>
   <Folder Name="/gateways/">
     <Project Path="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj" />

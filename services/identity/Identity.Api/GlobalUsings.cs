@@ -1,5 +1,6 @@
 global using System.Text.Json.Serialization;
 global using EventPlatform.Hosting;
+global using EventPlatform.Persistence;
 global using Identity.Api.Endpoints;
 global using Identity.Application;
 global using Identity.Application.Abstractions;

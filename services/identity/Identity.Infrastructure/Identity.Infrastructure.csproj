@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="../Identity.Domain/Identity.Domain.csproj" />
     <ProjectReference Include="../Identity.Application/Identity.Application.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
   </ItemGroup>
 
   <ItemGroup>

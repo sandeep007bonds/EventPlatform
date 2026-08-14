@@ -3,6 +3,7 @@ global using System.Net.Http.Json;
 global using System.Text.Json;
 global using Dapr.Client;
 global using EventPlatform.Messaging;
+global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;
 global using Microsoft.EntityFrameworkCore.Metadata.Builders;
