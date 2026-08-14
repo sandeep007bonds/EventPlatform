@@ -59,6 +59,12 @@ Enforced by `.editorconfig` + `Directory.Build.props` (warnings are errors).
   every Infrastructure project (its MSBuild/Roslyn tree pulls vulnerable
   transitives).
 - **Forward `CancellationToken`** through async calls (CA2016).
+- **Generated code is exempt, and must stay that way.** `Migrations/` and
+  `Generated/` have all analyzer diagnostics silenced in `.editorconfig`. EF
+  rewrites those files on every `migrations add`, so hand-fixing a style
+  violation there is undone by the next model change — do not "tidy" a
+  migration, and do not add rule IDs back. Review a migration for what its DDL
+  does to real data, not for how it is formatted.
 - **Deliberately-disabled analyzer rules** (see `.editorconfig`): SA1101
   (`this.` prefix), SA1623 (`Gets/Sets` doc prefix), SA1642 (ctor boilerplate),
   CA1716 (keyword-like type names such as `Event`). Don't re-enable without
