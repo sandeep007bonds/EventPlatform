@@ -91,14 +91,14 @@ public sealed class OrchestratorPurityTests
         offences.ShouldBeEmpty(string.Join(Environment.NewLine, offences));
     }
 
-    /// <summary>Drops the trailing <c>//</c> comment so prose about a rule never trips the rule.</summary>
+    // Drops the trailing comment so prose about a rule never trips the rule.
     private static string StripComment(string line)
     {
         var index = line.IndexOf("//", StringComparison.Ordinal);
         return (index >= 0 ? line[..index] : line).Trim();
     }
 
-    private static IReadOnlyList<string> FindOrchestratorSourceFiles()
+    private static List<string> FindOrchestratorSourceFiles()
     {
         var repoRoot = FindRepoRoot();
         if (repoRoot is null)
