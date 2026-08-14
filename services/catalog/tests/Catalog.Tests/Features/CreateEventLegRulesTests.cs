@@ -153,8 +153,6 @@ public sealed class CreateEventLegRulesTests
 
     private EventGroup GivenTour(Guid? ownedBy = null) => GivenTour(ownedBy, TourStarts, TourEnds);
 
-    private EventGroup GivenUndatedTour() => GivenTour(ownedBy: null, startsAt: null, endsAt: null);
-
     // Two named helpers rather than one with nullable date parameters: an omitted DateTimeOffset?
     // argument and an explicit null are the same value, so a defaulted call would silently produce
     // a tour with no range — which is exactly the constraint the range tests exist to exercise.
@@ -174,6 +172,8 @@ public sealed class CreateEventLegRulesTests
         eventGroups.GetByIdAsync(group.Id, Arg.Any<CancellationToken>()).Returns(group);
         return group;
     }
+
+    private EventGroup GivenUndatedTour() => GivenTour(ownedBy: null, startsAt: null, endsAt: null);
 
     private void GivenExistingLegs(Guid groupId, params (DateTimeOffset StartsAt, DateTimeOffset EndsAt)[] legs) =>
         events.ListLegsForEventGroupAsync(groupId, Arg.Any<CancellationToken>())
