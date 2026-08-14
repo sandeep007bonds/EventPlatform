@@ -19,7 +19,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="ContactMobile">Contact mobile number for this leg, overriding the tour default.</param>
 /// <param name="ContactEmail">Contact email for this leg, overriding the tour default.</param>
 /// <param name="WebsiteUrl">Website URL for this leg, overriding the tour default.</param>
-/// <param name="SocialLinks">This leg's own social links; empty means "no override."</param>
+/// <param name="SocialLinks">This leg's own social links; empty means "no override".</param>
 public sealed record UpdateEventDetailsRequest(
     string? Description,
     string? Category,

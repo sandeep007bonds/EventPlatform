@@ -21,7 +21,6 @@ app.UseServiceDefaults();
 // No app.UseCloudEvents() / app.MapSubscribeHandler() — Identity has zero Dapr pub/sub
 // subscriptions this pass (it only makes one outbound Dapr service-invocation call, to
 // Communication, from Identity.Infrastructure's DaprOtpSender).
-
 app.MapOtpEndpoints();
 app.MapOrganizerEndpoints();
 app.MapDiscoveryEndpoints();
