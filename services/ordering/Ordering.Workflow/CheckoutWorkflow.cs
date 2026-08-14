@@ -74,9 +74,25 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         //    Payment Element (card 3-D Secure, UPI app-switch, etc.). Record the client secret on the
         //    order so the checkout endpoint's fast-return poll can hand it to the frontend, then
         //    extend the hold to cover however long authentication takes.
-        var intent = await context.CallActivityAsync<CreateIntentOutput>(
-            nameof(CreateIntentActivity),
-            new CreateIntentInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
+        //    A provider outage here would otherwise kill the workflow instance outright, skipping
+        //    compensation entirely: the order would sit AwaitingPayment and the seats would stay
+        //    held until the reaper collected them — minutes of locked inventory per failed attempt,
+        //    at exactly the moment a provider is least likely to be healthy. Catch it and unwind.
+        CreateIntentOutput intent;
+        try
+        {
+            intent = await context.CallActivityAsync<CreateIntentOutput>(
+                nameof(CreateIntentActivity),
+                new CreateIntentInput(hold.TenantId, order.OrderId, order.TotalMinor, order.Currency, input.IdempotencyKey));
+        }
+        catch (TaskFailedException)
+        {
+            await context.CallActivityAsync<bool>(
+                nameof(FailOrderActivity),
+                new FailInput(order.OrderId, "payment_intent_failed"));
+            await context.CallActivityAsync<bool>(nameof(ReleaseHoldActivity), input.HoldId);
+            return new CheckoutWorkflowResult(nameof(CheckoutOutcome.PaymentFailed), order.OrderId);
+        }
 
         await context.CallActivityAsync<bool>(
             nameof(RecordPaymentIntentActivity),

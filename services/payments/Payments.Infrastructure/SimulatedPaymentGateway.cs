@@ -33,6 +33,12 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
     public Task<GatewayPaymentStatus> GetStatusAsync(string providerReference, CancellationToken cancellationToken) =>
         Task.FromResult(GatewayPaymentStatus.Captured);
 
+    // Nothing is ever left in flight here (see above), so there is never anything to cancel.
+
+    /// <inheritdoc />
+    public Task<bool> TryCancelAsync(string providerReference, CancellationToken cancellationToken) =>
+        Task.FromResult(true);
+
     /// <inheritdoc />
     public Task RefundAsync(string providerReference, CancellationToken cancellationToken) => Task.CompletedTask;
 }

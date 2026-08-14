@@ -27,6 +27,18 @@ internal sealed class PaymentRepository(PaymentDbContext dbContext) : IPaymentRe
             .FirstOrDefaultAsync(cancellationToken);
 
     /// <inheritdoc />
+    public async Task<IReadOnlyList<Guid>> GetStaleInitiatedOrderIdsAsync(
+        DateTimeOffset createdBefore,
+        int batchSize,
+        CancellationToken cancellationToken) =>
+        await dbContext.Payments
+            .Where(p => p.Status == PaymentStatus.Initiated && p.CreatedAt < createdBefore)
+            .OrderBy(p => p.CreatedAt)
+            .Take(batchSize)
+            .Select(p => p.OrderId)
+            .ToListAsync(cancellationToken);
+
+    /// <inheritdoc />
     public Task<Payment?> GetByProviderReferenceAsync(string providerReference, CancellationToken cancellationToken) =>
         dbContext.Payments.FirstOrDefaultAsync(p => p.ProviderReference == providerReference, cancellationToken);
 

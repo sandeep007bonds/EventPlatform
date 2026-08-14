@@ -1,6 +1,8 @@
 global using Dapr.Workflow;
+global using Microsoft.DurableTask;
 global using NetArchTest.Rules;
 global using NSubstitute;
+global using NSubstitute.ExceptionExtensions;
 global using Ordering.Application.Abstractions;
 global using Ordering.Application.Checkout;
 global using Ordering.Domain;

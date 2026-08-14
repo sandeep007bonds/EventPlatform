@@ -84,4 +84,59 @@ public sealed class PaymentSyncService(
                 return PaymentSyncResult.Pending;
         }
     }
+
+    /// <summary>
+    /// Gives up on a payment the buyer never completed: cancels it at the provider so any
+    /// authorization on their card is released, then fails it locally and emits
+    /// <c>PaymentFailed</c> so the order and its seats stop being held hostage.
+    /// <para>
+    /// Only ever called once a payment is long past the window a real buyer could still be
+    /// authenticating in. If the provider refuses the cancellation the payment is re-read instead
+    /// of failed — a refusal almost always means it succeeded in the meantime, and failing a
+    /// payment that holds real money is far worse than leaving it for the next sweep.
+    /// </para>
+    /// </summary>
+    /// <param name="orderId">The order whose payment to abandon.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The payment's state after the attempt.</returns>
+    public async Task<PaymentSyncResult> AbandonAsync(Guid orderId, CancellationToken cancellationToken)
+    {
+        var payment = await payments.GetLatestByOrderAsync(orderId, cancellationToken);
+        if (payment is null)
+        {
+            return PaymentSyncResult.NotFound;
+        }
+
+        if (payment.Status == PaymentStatus.Captured)
+        {
+            return PaymentSyncResult.Captured;
+        }
+
+        if (payment.Status == PaymentStatus.Failed)
+        {
+            return PaymentSyncResult.Failed;
+        }
+
+        // A null reference means intent creation never got far enough to produce one, so there is
+        // nothing at the provider to cancel — but the payment is still dead and must be closed out.
+        if (payment.ProviderReference is not null
+            && !await gateway.TryCancelAsync(payment.ProviderReference, cancellationToken))
+        {
+            return await SyncAsync(orderId, cancellationToken);
+        }
+
+        if (payment.TryMarkFailed("payment_abandoned"))
+        {
+            events.Enqueue(new PaymentFailed(
+                Guid.CreateVersion7(),
+                DateTimeOffset.UtcNow,
+                payment.TenantId,
+                payment.Id,
+                payment.OrderId,
+                payment.FailureReason!));
+            await payments.SaveChangesAsync(cancellationToken);
+        }
+
+        return PaymentSyncResult.Failed;
+    }
 }

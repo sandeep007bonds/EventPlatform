@@ -58,6 +58,21 @@ servers; only PSP references are stored.
   dropped. Safe to run alongside the webhook: every transition is a
   `TryMark*`, so whichever observes the outcome second is a no-op and no
   event is emitted twice (ADR-0028).
+- **`StalePaymentReconciler` (the backstop that owns the orphan case):** every
+  other route to a payment's outcome needs *something* still watching — a live
+  browser, a reachable webhook endpoint, or a running saga. A buyer who
+  authenticates and then loses their tab, where no webhook can arrive, is
+  watched by nothing, and the payment would sit `Initiated` forever with the
+  money already moved. This `BackgroundService` (same `PeriodicTimer` +
+  `IServiceScopeFactory` shape as Inventory's `ExpiredHoldReaper`) sweeps
+  payments older than `PaymentReconcilerOptions.StaleAfter` — 20 minutes,
+  deliberately past the 15-minute hold extension so nobody mid-3DS is cut
+  short — re-reads each against the provider, and either captures it (emitting
+  the ordinary `PaymentCaptured`, which Ordering's existing subscriber already
+  refunds when the saga has finished) or cancels it provider-side and fails it
+  so the seats are freed. A refused cancellation is treated as "it probably
+  just succeeded" and re-read, never as abandonment — failing a payment that
+  holds real money is the worse error.
 - **Webhook inbox (async capture / 3-D Secure / refunds):** `IPaymentWebhookGateway`
   (Stripe impl) verifies the `Stripe-Signature` header against
   `Payments:Stripe:WebhookSecret`, then `PaymentWebhookService` reconciles the

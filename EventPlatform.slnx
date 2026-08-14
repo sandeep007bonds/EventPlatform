@@ -37,6 +37,7 @@
     <Project Path="services/payments/Payments.Application/Payments.Application.csproj" />
     <Project Path="services/payments/Payments.Infrastructure/Payments.Infrastructure.csproj" />
     <Project Path="services/payments/Payments.Api/Payments.Api.csproj" />
+    <Project Path="services/payments/tests/Payments.Tests/Payments.Tests.csproj" />
   </Folder>
   <Folder Name="/services/ticketing/">
     <Project Path="services/ticketing/Ticketing.Domain/Ticketing.Domain.csproj" />

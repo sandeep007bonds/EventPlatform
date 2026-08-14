@@ -81,6 +81,24 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     }
 
     /// <inheritdoc />
+    public async Task<bool> TryCancelAsync(string providerReference, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await paymentIntents.CancelAsync(providerReference, cancellationToken: cancellationToken);
+            return true;
+        }
+        catch (StripeException)
+        {
+            // Stripe refuses to cancel an intent that is no longer cancellable — overwhelmingly
+            // because it succeeded between our last read and this call. Swallowed deliberately:
+            // this is a best-effort tidy-up, and reporting failure lets the caller re-read rather
+            // than mark a payment failed that may be holding the buyer's money.
+            return false;
+        }
+    }
+
+    /// <inheritdoc />
     public async Task RefundAsync(string providerReference, CancellationToken cancellationToken)
     {
         var options = new RefundCreateOptions { PaymentIntent = providerReference };
