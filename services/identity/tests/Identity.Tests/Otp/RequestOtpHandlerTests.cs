@@ -59,6 +59,7 @@ public sealed class RequestOtpHandlerTests
         var result = await handler.HandleAsync(new RequestOtpCommand("+15550000000"), CancellationToken.None);
 
         result.Outcome.ShouldBe(RequestOtpOutcome.SendFailed);
+
         // The challenge (and thus the cooldown window) is committed BEFORE the send is attempted —
         // this assertion is the actual proof, not just that SaveChangesAsync was called once overall.
         repository.Received(1).AddPhoneVerification(Arg.Any<PhoneVerification>());

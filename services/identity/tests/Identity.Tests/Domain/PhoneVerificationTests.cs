@@ -38,7 +38,6 @@ public sealed class PhoneVerificationTests
     [Fact]
     public void HasExpired_IsTrueExactlyAtExpiresAt()
     {
-        var now = DateTimeOffset.UtcNow;
         var verification = PhoneVerification.Issue("+15550000000", "hash", "salt", TimeSpan.FromMinutes(5));
 
         verification.HasExpired(verification.ExpiresAt).ShouldBeTrue();
