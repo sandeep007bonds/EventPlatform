@@ -1,0 +1,10 @@
+global using EventPlatform.Contracts;
+global using EventPlatform.Contracts.Ordering;
+global using EventPlatform.Contracts.Ticketing;
+global using NetArchTest.Rules;
+global using NSubstitute;
+global using Shouldly;
+global using Ticketing.Application.Abstractions;
+global using Ticketing.Application.Issuing;
+global using Ticketing.Domain;
+global using Xunit;
