@@ -9,8 +9,10 @@ namespace Catalog.Tests.Features;
 public sealed class CreateEventLegRulesTests
 {
     private static readonly Guid Organizer = Guid.CreateVersion7();
-    private static readonly DateTimeOffset TourStarts = new(2027, 3, 1, 0, 0, 0, TimeSpan.Zero);
-    private static readonly DateTimeOffset TourEnds = new(2027, 3, 31, 0, 0, 0, TimeSpan.Zero);
+    // Relative to now, not a fixed year: CreateEventValidator requires StartsAt to be in the
+    // future, so pinned calendar dates would turn these green tests red the year they arrive.
+    private static readonly DateTimeOffset TourStarts = DateTimeOffset.UtcNow.AddMonths(6);
+    private static readonly DateTimeOffset TourEnds = TourStarts.AddDays(30);
 
     private readonly IEventRepository events = Substitute.For<IEventRepository>();
     private readonly IEventGroupRepository eventGroups = Substitute.For<IEventGroupRepository>();
@@ -64,7 +66,7 @@ public sealed class CreateEventLegRulesTests
     {
         var group = GivenTour(startsAt: null, endsAt: null);
 
-        var result = await CreateLegAsync(group.Id, TourStarts.AddYears(-5), TourStarts.AddYears(-5).AddHours(4));
+        var result = await CreateLegAsync(group.Id, TourStarts.AddYears(5), TourStarts.AddYears(5).AddHours(4));
 
         result.Outcome.ShouldBe(CreateEventOutcome.Created);
     }

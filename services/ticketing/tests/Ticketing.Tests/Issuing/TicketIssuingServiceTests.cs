@@ -17,7 +17,8 @@ public sealed class TicketIssuingServiceTests
 
         result.Issued.ShouldBeTrue();
         result.TicketCount.ShouldBe(3);
-        CapturedTickets().Select(ticket => ticket.SeatId).ShouldBe(seats, ignoreOrder: true);
+        CapturedTickets().Select(ticket => ticket.SeatId)
+            .ShouldBe(seats.Select(seat => (Guid?)seat), ignoreOrder: true);
     }
 
     // One general-admission line stands for N admissions, so the quantity has to expand into N
@@ -115,7 +116,7 @@ public sealed class TicketIssuingServiceTests
         await tickets.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
-    private IReadOnlyList<Ticket> CapturedTickets() =>
+    private List<Ticket> CapturedTickets() =>
         tickets.ReceivedCalls()
             .Where(call => call.GetMethodInfo().Name == nameof(ITicketRepository.AddRange))
             .SelectMany(call => (IEnumerable<Ticket>)call.GetArguments()[0]!)
