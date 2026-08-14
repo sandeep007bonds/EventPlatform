@@ -10,7 +10,14 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     private const string Issuer = "eventplatform-dev";
     private const string Audience = "eventplatform";
 
-    private readonly AzuriteContainer azurite = new AzuriteBuilder().Build();
+    // --skipApiVersionCheck for the same reason docker-compose.yml passes it: the pinned
+    // Azure.Storage.Blobs SDK negotiates a newer x-ms-version than the Azurite image recognizes
+    // ("API version ... is not supported by Azurite"), because Azurite trails the newest Azure REST
+    // API releases. Without it every test here fails at container-create before touching the
+    // endpoint under test. Emulator-only — real Azure Blob Storage has no such check.
+    private readonly AzuriteContainer azurite = new AzuriteBuilder()
+        .WithCommand("--skipApiVersionCheck")
+        .Build();
     private WebApplicationFactory<Program> factory = default!;
 
     /// <inheritdoc />
