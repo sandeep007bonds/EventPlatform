@@ -65,7 +65,7 @@ public sealed class CreateEventLegRulesTests
     [Fact]
     public async Task ATourWithNoDatesYet_ConstrainsNothing()
     {
-        var group = GivenTour(startsAt: null, endsAt: null);
+        var group = GivenUndatedTour();
 
         var result = await CreateLegAsync(group.Id, TourStarts.AddYears(5), TourStarts.AddYears(5).AddHours(4));
 
@@ -151,16 +151,20 @@ public sealed class CreateEventLegRulesTests
             null,
             eventGroupId);
 
-    private EventGroup GivenTour(
-        Guid? ownedBy = null,
-        DateTimeOffset? startsAt = default,
-        DateTimeOffset? endsAt = default)
+    private EventGroup GivenTour(Guid? ownedBy = null) => GivenTour(ownedBy, TourStarts, TourEnds);
+
+    private EventGroup GivenUndatedTour() => GivenTour(ownedBy: null, startsAt: null, endsAt: null);
+
+    // Two named helpers rather than one with nullable date parameters: an omitted DateTimeOffset?
+    // argument and an explicit null are the same value, so a defaulted call would silently produce
+    // a tour with no range — which is exactly the constraint the range tests exist to exercise.
+    private EventGroup GivenTour(Guid? ownedBy, DateTimeOffset? startsAt, DateTimeOffset? endsAt)
     {
         var group = EventGroup.Create(ownedBy ?? Organizer, "ColdPlay India Tour");
         group.Update(
             group.Title,
-            startsAt is null && endsAt is null ? null : startsAt ?? TourStarts,
-            startsAt is null && endsAt is null ? null : endsAt ?? TourEnds,
+            startsAt,
+            endsAt,
             contactPhone: null,
             contactMobile: null,
             contactEmail: null,
