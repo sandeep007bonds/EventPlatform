@@ -21,7 +21,7 @@ instead; see ADR-0023.
 
 `docs/design/hld.md`'s pre-implementation sketch calls this component
 "Notification." **Communication** is the as-built name — see
-`docs/data-flow-and-service-boundaries.md` for that reconciliation; `hld.md`
+`docs/system-reference.md` for that reconciliation; `hld.md`
 itself is left untouched, consistent with how none of the other five
 services' entries there were retroactively renamed either.
 
@@ -167,7 +167,7 @@ issuer at that URL.
   delivering real notifications.
 - Switching or dual-running ACS/Twilio per channel is a configuration
   change, not a code change.
-- `docs/data-flow-and-service-boundaries.md`'s "not yet consumed" note for
+- `docs/system-reference.md`'s integration-event table for
   `OrderConfirmed`/`TicketIssued` is superseded for Communication
   specifically: they now have a subscriber, just not yet real delivery.
 - Communication is the first service in this repo to ship a `tests/`
