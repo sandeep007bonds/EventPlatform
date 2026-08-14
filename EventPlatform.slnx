@@ -18,6 +18,7 @@
     <Project Path="services/catalog/Catalog.Application/Catalog.Application.csproj" />
     <Project Path="services/catalog/Catalog.Infrastructure/Catalog.Infrastructure.csproj" />
     <Project Path="services/catalog/Catalog.Api/Catalog.Api.csproj" />
+    <Project Path="services/catalog/tests/Catalog.Tests/Catalog.Tests.csproj" />
   </Folder>
   <Folder Name="/services/inventory/">
     <Project Path="services/inventory/Inventory.Domain/Inventory.Domain.csproj" />
