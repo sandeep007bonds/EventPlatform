@@ -26,6 +26,25 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     {
         await azurite.StartAsync();
 
+        // These MUST be environment variables, not ConfigureAppConfiguration entries.
+        //
+        // Media.Api's Program.cs calls AddServiceDefaults() — which reads Jwt:DevSigningKey and
+        // wires up JwtBearer — *before* builder.Build(). WebApplicationFactory only applies its
+        // ConfigureAppConfiguration sources during Build(), so anything added there arrives too
+        // late to influence authentication. (The Azurite connection string below works precisely
+        // because it is read later, from inside a DI factory lambda, once the container is built.)
+        //
+        // WebApplication.CreateBuilder() adds AddEnvironmentVariables() at construction, so values
+        // set here are visible at that eager read. `__` maps to `:`, the same convention
+        // scripts/dev-up.sh uses for Payments__Stripe__WebhookSecret.
+        //
+        // Without this the service takes its production OIDC branch — appsettings.Development.json
+        // points Jwt:Authority at the Identity service and sets no DevSigningKey since ADR-0023 —
+        // attempts discovery against a service that is not running here, and 401s every request.
+        Environment.SetEnvironmentVariable("Jwt__DevSigningKey", DevSigningKey);
+        Environment.SetEnvironmentVariable("Jwt__Issuer", Issuer);
+        Environment.SetEnvironmentVariable("Jwt__Audience", Audience);
+
         factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Development");
@@ -34,17 +53,6 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
                 configuration.AddInMemoryCollection(new Dictionary<string, string?>
                 {
                     ["ConnectionStrings:media-storage"] = azurite.GetConnectionString(),
-
-                    // The test signs its own HS256 tokens, so it must also pin the validation side
-                    // rather than inherit whatever appsettings.Development.json happens to say.
-                    // Media.Api's dev config points Jwt:Authority at the Identity service (which is
-                    // not running here) and sets no DevSigningKey, so without these three keys
-                    // AuthenticationExtensions takes its production OIDC branch, fails discovery,
-                    // and rejects every token as 401. Issuer/Audience are set explicitly too, so
-                    // this stays green if the defaults in that helper ever change.
-                    ["Jwt:DevSigningKey"] = DevSigningKey,
-                    ["Jwt:Issuer"] = Issuer,
-                    ["Jwt:Audience"] = Audience,
                 });
             });
         });
@@ -55,6 +63,10 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     {
         await factory.DisposeAsync();
         await azurite.DisposeAsync();
+
+        Environment.SetEnvironmentVariable("Jwt__DevSigningKey", null);
+        Environment.SetEnvironmentVariable("Jwt__Issuer", null);
+        Environment.SetEnvironmentVariable("Jwt__Audience", null);
     }
 
     [Fact]
