@@ -40,6 +40,7 @@ Full steps are in each directory's own README:
 | ACR Basic | ~$5 |
 | AKS default Standard Load Balancer + egress IP (provisioned even with zero `LoadBalancer` Services) | ~$15-20 |
 | Key Vault + tfstate Storage Account | <$2 |
+| ingress-nginx + cert-manager | $0 — both run on nodes already paid for, and the controller's load balancer replaces the gateway's rather than adding one. Let's Encrypt certificates are free. |
 | Log Analytics (Container Insights) | $0 at the default 0.15 GB/day cap — that keeps a month inside Azure Monitor's 5 GB free grant. Raise `log_analytics_daily_quota_gb` and you start paying ~$2.30/GB. |
 | **Total (1 node, default)** | **~$55-65/mo + node pool (verify)** |
 
@@ -77,3 +78,32 @@ The daily cap is a hard stop, not a warning: past it, ingestion stops for the
 rest of the UTC day and that data is gone. On a personal subscription that is
 the right trade — a chatty log loop should cost you a few hours of visibility
 rather than a bill you did not expect.
+
+## How you reach the cluster
+
+`infra/environments/dev/ingress.tf` installs an NGINX ingress controller and
+cert-manager, and the gateway is served over HTTPS on a hostname Azure gives
+you for free: `<label>.<region>.cloudapp.azure.com`, from a DNS label on the
+controller's public IP. `cloudapp.azure.com` is on the Public Suffix List, so
+Let's Encrypt issues a normal browser-trusted certificate for it — no domain
+purchase, no DNS provider, nothing to renew by hand.
+
+`terraform output gateway_hostname` is the URL; `scripts/finish-dev-bootstrap.sh`
+writes it into `deploy/overlays/dev/ingress.yaml` for you.
+
+Set `custom_domain` if you own one. Terraform cannot create the DNS record —
+point a CNAME at `terraform output azure_ingress_fqdn` **before** Argo CD
+syncs, or cert-manager's HTTP-01 challenge fails until it resolves.
+
+On the first sync the certificate takes a minute or two to issue, and until it
+does the host serves the controller's self-signed default and the browser
+warns. That is issuance in progress, not a misconfiguration:
+
+```bash
+kubectl describe certificate -n eventplatform-dev gateway-tls
+```
+
+Note what this does **not** include: the SPA is not deployed to the cluster
+(`deploy/base/kustomization.yaml` has no frontend entry). The HTTPS endpoint
+serves the API. The dev overlay allows `http://localhost:5173` as a browser
+origin so a local `npm run dev` can call it.

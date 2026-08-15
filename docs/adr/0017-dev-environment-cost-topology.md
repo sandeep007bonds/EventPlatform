@@ -60,8 +60,12 @@ recorded in ADR-0002 or ADR-0005.
   federation (`github-oidc.tf`), and Log Analytics + Container Insights
   (`modules/log-analytics`, the `oms_agent` block in `modules/aks`), the last
   with a hard daily ingestion cap so observability cannot produce a surprise
-  bill on a personal subscription. Front Door/WAF, private networking,
-  Defender and Service Bus remain unbuilt and remain deliberate.
+  bill on a personal subscription. Also an NGINX ingress controller and
+  cert-manager (`ingress.tf`), giving the cluster HTTPS on a free Azure
+  hostname — see ADR-0030, which does **not** supersede this one's Front
+  Door/WAF decision: Front Door remains the production edge, and dev simply
+  stopped having no entry point at all. Private networking, Defender and
+  Service Bus remain unbuilt and remain deliberate.
 
 This ADR does **not** supersede ADR-0002 (node-pool isolation remains the
 production target) or ADR-0005 (Service Bus remains the production target

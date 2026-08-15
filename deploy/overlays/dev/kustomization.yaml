@@ -4,9 +4,15 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - keyvault-secretproviderclass.yaml
+  - ingress.yaml
   - ../../base
 
 namespace: eventplatform-dev
+
+# Merges into the gateway Deployment from base rather than editing it there: the allowed browser
+# origin is environment-specific, the way the Ingress host is.
+patches:
+  - path: gateway-cors-patch.yaml
 
 commonLabels:
   app.kubernetes.io/environment: dev

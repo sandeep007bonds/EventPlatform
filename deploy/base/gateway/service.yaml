@@ -6,7 +6,11 @@ metadata:
     app.kubernetes.io/name: gateway
     app.kubernetes.io/part-of: eventplatform
 spec:
-  type: LoadBalancer
+  # ClusterIP, not LoadBalancer: the ingress controller (installed by infra/environments/dev/
+  # ingress.tf) is the cluster's public entry point now, and it reaches this Service from inside.
+  # Leaving this a LoadBalancer would provision a second public IP that bypasses the ingress
+  # entirely — plain HTTP, no certificate, and billed for the privilege.
+  type: ClusterIP
   selector:
     app.kubernetes.io/name: gateway
   ports:

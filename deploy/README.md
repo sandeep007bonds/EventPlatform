@@ -44,6 +44,35 @@ Inventory and Queue use `redis-connection-string` for their own direct
 StackExchange.Redis connections. One credential, two representations, because
 two different clients read it.
 
+## Ingress and TLS
+
+`overlays/dev/ingress.yaml` is the cluster's single HTTPS entry point. It
+routes `/` to the gateway and deliberately knows nothing about individual
+services — a per-service path here would let a request reach a backend
+without passing the gateway's own route allowlist, which is what keeps
+saga-internal routes (Inventory's hold convert/release, every Payments
+endpoint) off the public internet.
+
+The controller and cert-manager are installed by Terraform
+(`infra/environments/dev/ingress.tf`), not Argo CD — same reasoning as Dapr
+below. `REPLACE_ME_GATEWAY_HOST` is filled from `terraform output
+gateway_hostname` by `scripts/finish-dev-bootstrap.sh`, the same way this
+overlay's Key Vault values are; the hostname belongs to an environment, not
+to the gateway, which is why the Ingress lives here rather than in
+`base/gateway/`.
+
+`base/gateway/service.yaml` is `ClusterIP` on purpose. Turning it back into a
+`LoadBalancer` gives you a second public IP serving plain HTTP with no
+certificate, bypassing everything above (ADR-0030).
+
+`gateway-cors-patch.yaml` allows a browser origin. The deployed gateway runs
+as `Staging`, which skips the only appsettings file that populates
+`Cors:AllowedOrigins` — without the patch, every browser request fails
+preflight and the endpoint is curl-only. The origin is `localhost:5173`
+because **the SPA is not deployed to this cluster** (there is no `frontend`
+entry in `base/kustomization.yaml`); the realistic caller is a local
+`npm run dev`. Change it when that stops being true.
+
 ## Schema migrations
 
 Services never migrate themselves. Each database-owning service ships a

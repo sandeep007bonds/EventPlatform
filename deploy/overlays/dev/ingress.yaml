@@ -1,0 +1,47 @@
+# The cluster's single HTTPS entry point, in front of the gateway.
+#
+# This lives in the overlay rather than base/gateway/ because the hostname is a property of one
+# environment, not of the gateway itself — the same reason keyvault-secretproviderclass.yaml is
+# here. REPLACE_ME_GATEWAY_HOST is filled from `terraform output gateway_hostname` by
+# scripts/finish-dev-bootstrap.sh; don't paste it by hand.
+#
+# cert-manager watches this annotation, sees a host with no valid certificate in the named Secret,
+# and runs an ACME HTTP-01 challenge through this same ingress to get one. That takes up to a
+# minute or two on first sync, during which the host serves the controller's self-signed default
+# certificate and browsers will warn. That is the certificate being issued, not a failure —
+# `kubectl describe certificate -n eventplatform-dev gateway-tls` shows the real progress.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gateway
+  labels:
+    app.kubernetes.io/name: gateway
+    app.kubernetes.io/part-of: eventplatform
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt
+    # Media uploads stream through the gateway to the Media service, which accepts up to ~8MB.
+    # ingress-nginx defaults to a 1MB body limit and would reject those with a 413 before they
+    # ever reached the app — a limit set here has to leave room for the one the app enforces.
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - REPLACE_ME_GATEWAY_HOST
+      secretName: gateway-tls
+  rules:
+    - host: REPLACE_ME_GATEWAY_HOST
+      http:
+        paths:
+          # Everything goes to the gateway, which owns the route allowlist. The ingress
+          # deliberately does not know about individual services: adding a per-service path here
+          # would let a request reach a backend without passing the gateway's own allowlist, which
+          # is the thing keeping saga-internal routes (Inventory's hold convert/release, every
+          # Payments endpoint) off the public internet.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gateway
+                port:
+                  number: 80

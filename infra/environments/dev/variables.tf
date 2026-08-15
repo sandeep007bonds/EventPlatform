@@ -85,6 +85,50 @@ variable "log_analytics_daily_quota_gb" {
   default     = 0.15
 }
 
+variable "letsencrypt_email" {
+  description = <<-EOT
+    Contact address registered with Let's Encrypt. Used only for expiry and account notices — it is
+    not published anywhere and does not appear in the issued certificate. Deliberately has no
+    default: a wrong address here means you find out a renewal is failing when the site breaks.
+  EOT
+  type        = string
+}
+
+variable "letsencrypt_server" {
+  description = <<-EOT
+    ACME directory URL. The default is Let's Encrypt production, which issues browser-trusted
+    certificates and is what you actually want. Switch to the staging directory
+    (https://acme-staging-v02.api.letsencrypt.org/directory) while debugging the ingress or DNS
+    label: staging certificates are untrusted (the browser will warn) but its rate limits are far
+    looser, and production's limit of 5 identical certificates per week is easy to burn through
+    while iterating. Changing this issues a fresh certificate from the new authority.
+  EOT
+  type        = string
+  default     = "https://acme-v02.api.letsencrypt.org/directory"
+}
+
+variable "ingress_dns_label" {
+  description = <<-EOT
+    Azure DNS label for the ingress controller's public IP, giving the cluster a free hostname at
+    <label>.<aks_location>.cloudapp.azure.com. Must be globally unique within the region. Null
+    derives one from the environment's shared random suffix, which is already unique — set this
+    only if you want a hostname you can recognise.
+  EOT
+  type        = string
+  default     = null
+}
+
+variable "custom_domain" {
+  description = <<-EOT
+    Hostname to serve the gateway on instead of the free Azure FQDN. Terraform cannot create this
+    for you: you must own the domain and point a CNAME at the Azure FQDN (or an A record at the
+    ingress IP) yourself, before applying — cert-manager proves control of the name over HTTP, so
+    issuance fails until that record resolves. Null uses the Azure FQDN, which needs nothing.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags applied to every resource in this environment."
   type        = map(string)
