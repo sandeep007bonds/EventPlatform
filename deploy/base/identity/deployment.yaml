@@ -37,6 +37,11 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: identity-connection-string
+            # Stamped into every token's `iss` and published in the discovery document. It must
+            # match the Jwt__Authority the other services use verbatim — validation compares the
+            # two, and a mismatch rejects every token with an error naming neither URL.
+            - name: Identity__Jwt__Issuer
+              value: "http://identity"
           # No Jwt__DevSigningKey — Identity is a token ISSUER, not a validator, of inbound
           # buyer tokens; its own OTP/discovery/JWKS endpoints are all .AllowAnonymous().
           readinessProbe:

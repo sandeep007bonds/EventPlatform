@@ -97,6 +97,26 @@ because **the SPA is not deployed to this cluster** (there is no `frontend`
 entry in `base/kustomization.yaml`); the realistic caller is a local
 `npm run dev`. Change it when that stops being true.
 
+## Authentication
+
+`AddEventPlatformAuthentication` picks its branch on whether `Jwt:DevSigningKey`
+is set. Locally it is (in `appsettings.Development.json`) and everything
+validates HS256 against a shared secret. **In this cluster it deliberately is
+not**: the overlay's config map sets `Jwt__Authority=http://identity` and
+`Jwt__RequireHttpsMetadata=false`, so every service does OIDC discovery against
+Identity and validates real RS256 signatures (ADR-0032).
+
+`Identity__Jwt__Issuer` on the Identity Deployment must stay byte-identical to
+that Authority — validation compares the token's `iss` to the issuer in the
+discovery document, and a mismatch rejects every token with an error naming
+neither URL.
+
+Consequences worth knowing: **the gateway's dev-login endpoint is not mapped
+here** (it is gated on the dev key), so a script hitting a deployed environment
+needs a real Identity token. `jwt-dev-signing-key` is still in Key Vault and
+still synced, deliberately unused — it is the escape hatch, so re-enabling the
+dev path is adding an env var rather than a Terraform round trip.
+
 ## Schema migrations
 
 Services never migrate themselves. Each database-owning service ships a
@@ -120,8 +140,8 @@ Two things about these jobs that look like omissions but are not:
 
 ## Secrets
 
-Every service reads Postgres connection strings and the dev JWT signing key
-from a Kubernetes `Secret` named `eventplatform-secrets`, populated at
+Every service reads its Postgres connection string (and Redis, Stripe, and the
+rest) from a Kubernetes `Secret` named `eventplatform-secrets`, populated at
 runtime by the [Secrets Store CSI Driver's Azure Key Vault
 provider](https://learn.microsoft.com/azure/aks/csi-secrets-store-driver) —
 not committed anywhere, not templated by Kustomize. The actual secret

@@ -45,11 +45,6 @@ spec:
                   key: inventory-connection-string
             # The host reads Jwt config while building, before the migration branch is reached,
             # so the Job needs the same value the Deployment gets.
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
             # Mirrors the Deployment: the host wires these up while building, before the
             # migration branch is reached. Nothing connects to Redis on a migration run.
             - name: ConnectionStrings__redis

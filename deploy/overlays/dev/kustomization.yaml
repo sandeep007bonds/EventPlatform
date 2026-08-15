@@ -36,6 +36,14 @@ configMapGenerator:
       # which meant the services exported to nowhere in the cluster. gRPC (4317) is the .NET
       # exporter's default protocol; the collector also listens on 4318 for HTTP.
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # Real token validation (ADR-0032). With no Jwt:DevSigningKey set, AddEventPlatformAuthentication
+      # takes its Authority branch: ASP.NET Core fetches {Authority}/.well-known/openid-configuration,
+      # caches Identity's JWKS, and validates RS256 signatures against it. The issuer it expects comes
+      # from that same document, which is why Identity__Jwt__Issuer must be this exact URL.
+      - Jwt__Authority=http://identity
+      # In-cluster Service DNS is plain HTTP; the traffic never leaves the cluster. Leaving this true
+      # makes discovery fail with a metadata-address error that reads like a wrong URL.
+      - Jwt__RequireHttpsMetadata=false
 
 # CI overwrites every entry here on each push (`kustomize edit set image
 # <placeholder>=<acr-login-server>/<service>:<tag>`) — the values below are

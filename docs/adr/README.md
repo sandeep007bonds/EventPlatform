@@ -43,6 +43,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0029](0029-ef-core-migrations-and-the-database-provider-seam.md) | EF Core migrations, PostgreSQL-targeted, with the database-provider seam in one place | Accepted |
 | [0030](0030-cluster-ingress-and-tls.md) | Cluster ingress and TLS: ingress-nginx + cert-manager on a free Azure hostname | Accepted |
 | [0031](0031-otel-collector-and-trace-backend.md) | OpenTelemetry Collector, with Application Insights as the trace backend | Accepted |
+| [0032](0032-real-token-validation-per-environment.md) | Real token validation in deployed environments; the dev signing key stays local | Accepted |
 
 ## Format
 

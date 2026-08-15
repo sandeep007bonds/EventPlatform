@@ -39,11 +39,6 @@ spec:
             # above), so unlike every backend service it needs this set directly.
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: "http://otel-collector:4317"
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
           readinessProbe:
             httpGet:
               path: /health/ready

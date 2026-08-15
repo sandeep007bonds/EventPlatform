@@ -37,11 +37,6 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: payments-connection-string
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
             # Stripe credentials. Payments falls back to the simulator when these are
             # not real Stripe keys — see PaymentGatewayStartupLog, which logs at
             # Warning level when a deployed environment is not taking real payments.

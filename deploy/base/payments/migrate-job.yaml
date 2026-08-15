@@ -45,11 +45,6 @@ spec:
                   key: payments-connection-string
             # The host reads Jwt config while building, before the migration branch is reached,
             # so the Job needs the same value the Deployment gets.
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
             # Stripe credentials. Payments falls back to the simulator when these are
             # not real Stripe keys — see PaymentGatewayStartupLog, which logs at
             # Warning level when a deployed environment is not taking real payments.
