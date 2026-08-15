@@ -198,6 +198,26 @@ resource "azurerm_key_vault_secret" "service_connection_strings" {
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }
 
+# Dapr's Redis components need the host and password as separate values, not as the
+# StackExchange-style connection string redis-connection-string holds — Inventory and Queue talk to
+# Redis directly with that library, Dapr does not. Two representations of one credential, because
+# two different clients consume it.
+resource "azurerm_key_vault_secret" "redis_host" {
+  name         = "redis-host"
+  value        = "${module.redis.hostname}:${module.redis.ssl_port}"
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "redis_password" {
+  name         = "redis-password"
+  value        = module.redis.primary_access_key
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
 # Stripe credentials. Unlike every other secret here these cannot be generated —
 # they come from the Stripe dashboard — and they must not sit in Terraform state
 # or a tfvars file. So Terraform only creates the *objects*, with a placeholder

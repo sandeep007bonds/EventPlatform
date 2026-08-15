@@ -15,6 +15,35 @@ by hand (see the root [CLAUDE.md](../CLAUDE.md)'s GitOps rule).
   `.github/workflows/`), and wires Key Vault secrets in via
   `keyvault-secretproviderclass.yaml`.
 
+## Dapr components
+
+`base/dapr-components/` holds the `pubsub` and `statestore` components the
+services resolve by name. They carry the **same names** as the local-dev files
+in `platform/dapr/components/`, which is the point: service code never names a
+broker or a state store, so nothing in the application differs between a laptop
+and AKS — only the backing config does.
+
+Both are Redis-backed here, against the Azure Cache for Redis instance
+Terraform creates. Service Bus remains the production target for pub/sub; dev
+diverges deliberately and that divergence is recorded in ADR-0017.
+
+`statestore` sets `actorStateStore: "true"` because Dapr Workflow is built on
+actors and Ordering's checkout saga is a Dapr Workflow. Drop it and checkout
+breaks — not at deploy time, but at the first checkout.
+
+The **control plane that makes any of this work is installed by Terraform**
+(`infra/environments/dev/dapr.tf`), not by Argo CD. Without it nothing injects
+a sidecar, every `dapr.io/*` annotation is inert, and the services come up
+healthy while doing nothing. Terraform orders the Argo CD Application after the
+Dapr install so these Component manifests are never applied to a cluster whose
+API server does not yet know the kind.
+
+Credentials come from `eventplatform-secrets` via `secretKeyRef` — note that
+Dapr needs `redis-host` and `redis-password` as separate values, while
+Inventory and Queue use `redis-connection-string` for their own direct
+StackExchange.Redis connections. One credential, two representations, because
+two different clients read it.
+
 ## Schema migrations
 
 Services never migrate themselves. Each database-owning service ships a

@@ -68,3 +68,17 @@ the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
   Terraform-tracked IaC (reviewed in `terraform plan`, applied by
   `terraform apply`), not an ad-hoc command — and limited to installing
   Argo CD itself, never anything under `deploy/`.
+
+## Cluster bootstrap lives in Terraform, deliberately
+
+`argocd.tf` and `dapr.tf` install Argo CD and the Dapr control plane onto the
+cluster the same apply creates. Neither can be installed by Argo CD: one *is*
+Argo CD, and the other is the control plane whose sidecar injector has to be
+running before any annotated pod starts. Both are tracked IaC rather than
+ad-hoc commands, which is what the root CLAUDE.md's "no kubectl/helm by hand"
+rule is actually about.
+
+Dapr is the one whose absence is silent — the services start, report healthy,
+and simply never exchange an event. If pub/sub, service invocation or the
+checkout saga are dead in a deployed environment, check that `helm_release.dapr`
+actually applied before looking anywhere else.
