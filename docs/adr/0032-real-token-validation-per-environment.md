@@ -40,9 +40,15 @@ Two smaller findings in the same audit:
 existing two-branch design already expresses exactly the right thing; only the
 configuration was wrong.
 
-- Local development keeps `Jwt:DevSigningKey` in `appsettings.Development.json`
-  and is **untouched** — HS256, no identity provider needed, `dev-token.sh` and
-  the gateway's dev-login endpoint keep working.
+- Local development was **already** on the `Authority` branch — every service's
+  `appsettings.Development.json` points at `http://localhost:5087` with no dev
+  signing key. (An earlier claim in `services/identity/CLAUDE.md` that local
+  still used the dev key was stale; corrected.) So local and cluster now use
+  the same mechanism, differing only in the URL.
+- The dev key survives as an **opt-in escape hatch**: set `Jwt__DevSigningKey`
+  as an environment variable to run one service in isolation without Identity,
+  its database, or Communication. The gateway keeps it in its own Development
+  config, which is what maps `POST /api/auth/dev-login` locally.
 - The cluster sets `Jwt__Authority=http://identity` and
   `Jwt__RequireHttpsMetadata=false` in the shared config map, and sets no dev
   signing key anywhere. ASP.NET Core fetches
