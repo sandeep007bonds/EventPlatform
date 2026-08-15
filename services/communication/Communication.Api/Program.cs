@@ -7,6 +7,9 @@ builder.AddServiceDefaults(serviceName: "communication");
 builder.Services.AddCommunicationApplication();
 builder.Services.AddCommunicationInfrastructure(builder.Configuration);
 
+// Registered after the senders so it observes whatever the config gates above actually resolved.
+builder.Services.AddHostedService<NotificationSenderStartupLog>();
+
 var app = builder.Build();
 
 // Schema is applied by an explicit, separate step, never as a side effect of starting up:
