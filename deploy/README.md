@@ -9,6 +9,9 @@ by hand (see the root [CLAUDE.md](../CLAUDE.md)'s GitOps rule).
   (catalog, inventory, ordering, payments, ticketing, communication, media,
   identity, queue, gateway). Every service that owns a database also has a
   `migrate-job.yaml` (see below).
+- `base/dapr-components/` and `base/observability/` — platform-wide rather
+  than per-service: the Dapr components every sidecar resolves by name, and
+  the OpenTelemetry Collector everything exports telemetry to.
 - `overlays/dev/` — the only overlay today. Namespaces everything under
   `eventplatform-dev`, generates the shared non-secret config, sets
   per-service image placeholders (overwritten by CI on each push — see

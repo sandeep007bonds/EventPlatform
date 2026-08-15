@@ -14,8 +14,15 @@ namespace: eventplatform-dev
 patches:
   - path: gateway-cors-patch.yaml
 
-commonLabels:
-  app.kubernetes.io/environment: dev
+# `labels` replaces the deprecated `commonLabels`. `includeSelectors: true` is what makes this a
+# pure rename with no behaviour change — it is what commonLabels did, and it matters more than it
+# looks: a Deployment's selector is immutable once created, so flipping this to the `labels`
+# default of false against a cluster that already has these workloads would make every Deployment
+# fail to update rather than quietly drift.
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/environment: dev
 
 # Non-secret shared config, mounted via envFrom in every backend service's
 # Deployment (see deploy/base/*/deployment.yaml). The gateway sets its own
