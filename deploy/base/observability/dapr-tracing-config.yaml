@@ -1,0 +1,22 @@
+# Dapr's own tracing, pointed at the same collector. Without this the sidecars emit nothing, and a
+# trace stops at the edge of every pub/sub hop — precisely where the checkout saga's interesting
+# behaviour lives, since that is the part you cannot follow by reading a stack trace.
+#
+# The services' spans would still connect (Dapr propagates W3C traceparent either way), but the
+# delivery itself would be an unexplained gap in the timeline.
+#
+# Referenced by each service's dapr.io/config annotation. Local dev has the same config at
+# platform/dapr/config.yaml, pointed at Jaeger — keep the two in step.
+apiVersion: dapr.io/v1alpha1
+kind: Configuration
+metadata:
+  name: tracing
+spec:
+  tracing:
+    # Full fidelity, same reasoning as the collector's own lack of sampling: the traffic here is
+    # one person clicking through one checkout. Turn this down before any load test.
+    samplingRate: "1"
+    otel:
+      endpointAddress: otel-collector:4317
+      isSecure: false
+      protocol: grpc

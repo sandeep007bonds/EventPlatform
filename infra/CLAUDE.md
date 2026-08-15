@@ -23,7 +23,11 @@ the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
   would follow the full ADR-0002/0005 topology instead.
 - `modules/` — leaf modules (`resource-group`, `networking`,
   `container-registry`, `aks`, `postgres`, `redis`, `key-vault`,
-  `blob-storage`), reused across environments. Leaf modules never contain
+  `blob-storage`, `log-analytics`), reused across environments. The
+  `log-analytics` module owns both the workspace (Container Insights' log
+  destination) and the workspace-based Application Insights resource the
+  OpenTelemetry Collector exports traces to — one workspace, one retention
+  setting, one daily cap covering both (ADR-0031). Leaf modules never contain
   `provider`/`backend`/`required_version` blocks — those are root-module-only, set in each
   `environments/*` config.
 

@@ -35,6 +35,10 @@ spec:
             # to start with Jwt:DevSigningKey set — so dev-login keeps working.
             - name: ASPNETCORE_ENVIRONMENT
               value: "Staging"
+            # The gateway deliberately doesn't use envFrom (see the ASPNETCORE_ENVIRONMENT note
+            # above), so unlike every backend service it needs this set directly.
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector:4317"
             - name: Jwt__DevSigningKey
               valueFrom:
                 secretKeyRef:

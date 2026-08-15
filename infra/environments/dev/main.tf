@@ -188,6 +188,17 @@ resource "azurerm_key_vault_secret" "redis_connection_string" {
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }
 
+# Where the OpenTelemetry Collector (deploy/base/observability) sends the traces and metrics the
+# services export. Unlike the Stripe secrets below, this is a real value Terraform knows, so it is
+# written for real rather than placeheld.
+resource "azurerm_key_vault_secret" "appinsights_connection_string" {
+  name         = "appinsights-connection-string"
+  value        = module.log_analytics.application_insights_connection_string
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
 # Media service's blob storage connection string.
 resource "azurerm_key_vault_secret" "media_storage_connection_string" {
   name         = "media-storage-connection-string"

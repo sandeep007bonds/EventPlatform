@@ -19,6 +19,8 @@ spec:
         dapr.io/app-id: "catalog"
         dapr.io/app-port: "8080"
         dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
     spec:
       containers:
         - name: catalog

@@ -61,23 +61,31 @@ Terraform change.
 
 ## What observability you actually get
 
-Container Insights ships **container stdout/stderr logs and node/pod metrics**
-to Log Analytics, queryable with KQL in the portal. That is what makes a
-deployed problem diagnosable at all, instead of racing `kubectl logs` against a
-pod that may already have been replaced.
+Two things, landing in one Log Analytics workspace:
 
-It does **not** give you distributed traces. The services do emit OpenTelemetry
-traces, to whatever `OTEL_EXPORTER_OTLP_ENDPOINT` points at — and nothing in
-`deploy/` sets that variable, so in AKS the exporter has no destination and
-traces go nowhere. Locally they reach Jaeger; in the cluster they are simply
-lost. Closing that needs an OpenTelemetry Collector running in-cluster (or the
-Azure Monitor OTel distro wired into each service), which is real work and is
-not done. Worth knowing before assuming a trace will be waiting for you.
+- **Container Insights** — container stdout/stderr and node/pod metrics,
+  queryable with KQL. This is what makes a deployed problem diagnosable at all,
+  instead of racing `kubectl logs` against a pod that may already have been
+  replaced.
+- **Distributed traces and app metrics**, through an OpenTelemetry Collector
+  (`deploy/base/observability/`) into workspace-based Application Insights.
+  The services and their Dapr sidecars have always emitted OTLP; before
+  ADR-0031 nothing in the cluster listened, so it went nowhere. Traces now
+  follow a request across service and pub/sub boundaries — which is the only
+  practical way to see what the checkout saga did.
 
-The daily cap is a hard stop, not a warning: past it, ingestion stops for the
-rest of the UTC day and that data is gone. On a personal subscription that is
-the right trade — a chatty log loop should cost you a few hours of visibility
-rather than a bill you did not expect.
+Both share **one daily ingestion cap**, and that is a real trade rather than
+an oversight: a chatty trace load can starve container logging for the rest of
+the UTC day, and the reverse. Two caps would have doubled the ceiling on a
+surprise bill, which is the risk worth managing on a personal subscription.
+
+The cap is a hard stop, not a warning: past it, ingestion stops for the rest of
+the UTC day and that data is gone. Nothing here samples, because dev traffic is
+usually one person clicking through one checkout and a sampler would discard the
+trace you were trying to read. **Before any load test**, either raise
+`log_analytics_daily_quota_gb` or add a `probabilistic_sampler` to the
+collector's pipeline — a k6 run at full fidelity will spend a day's budget in
+minutes.
 
 ## How you reach the cluster
 

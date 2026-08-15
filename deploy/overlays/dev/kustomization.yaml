@@ -25,6 +25,10 @@ configMapGenerator:
   - name: eventplatform-config
     literals:
       - ASPNETCORE_ENVIRONMENT=Development
+      # Where AddDefaultObservability's OTLP exporter sends traces and metrics. Unset until now,
+      # which meant the services exported to nowhere in the cluster. gRPC (4317) is the .NET
+      # exporter's default protocol; the collector also listens on 4318 for HTTP.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 
 # CI overwrites every entry here on each push (`kustomize edit set image
 # <placeholder>=<acr-login-server>/<service>:<tag>`) — the values below are

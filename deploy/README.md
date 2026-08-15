@@ -44,6 +44,27 @@ Inventory and Queue use `redis-connection-string` for their own direct
 StackExchange.Redis connections. One credential, two representations, because
 two different clients read it.
 
+## Observability
+
+`base/observability/` runs an OpenTelemetry Collector. Every backend service
+reaches it through `OTEL_EXPORTER_OTLP_ENDPOINT` in the shared config map
+(the gateway sets the same value directly, since it deliberately doesn't use
+`envFrom`), and every Dapr sidecar through the `tracing` Dapr `Configuration`
+in the same directory, referenced by each pod's `dapr.io/config` annotation.
+
+The services have always exported OTLP; until ADR-0031 nothing in the cluster
+listened, so traces went nowhere. Dropping the sidecar half would still give
+you connected traces — Dapr propagates `traceparent` regardless — but every
+pub/sub delivery would be an unexplained gap in the timeline.
+
+The pipeline config is a `configMapGenerator`, not a hand-written ConfigMap, so
+editing it changes the generated name and actually rolls the collector. A plain
+ConfigMap would update in place and leave the old config running.
+
+`base/observability/` is listed before the services in
+`base/kustomization.yaml` for the same reason `dapr-components` is: things
+resolve it by name at startup.
+
 ## Ingress and TLS
 
 `overlays/dev/ingress.yaml` is the cluster's single HTTPS entry point. It
@@ -54,8 +75,8 @@ saga-internal routes (Inventory's hold convert/release, every Payments
 endpoint) off the public internet.
 
 The controller and cert-manager are installed by Terraform
-(`infra/environments/dev/ingress.tf`), not Argo CD — same reasoning as Dapr
-below. `REPLACE_ME_GATEWAY_HOST` is filled from `terraform output
+(`infra/environments/dev/ingress.tf`), not Argo CD — same reasoning as the Dapr
+control plane above. `REPLACE_ME_GATEWAY_HOST` is filled from `terraform output
 gateway_hostname` by `scripts/finish-dev-bootstrap.sh`, the same way this
 overlay's Key Vault values are; the hostname belongs to an environment, not
 to the gateway, which is why the Ingress lives here rather than in
@@ -129,5 +150,8 @@ itself is otherwise unused, but removing it stops the sync.
 
 - Do not `kubectl apply` these manifests by hand — change them here and let
   Argo CD reconcile (once it's bootstrapped — see `platform/argocd/`).
+- Do not add a logs pipeline to the collector — the services write logs to
+  stdout and Container Insights already ships them to the same workspace, so
+  a second path bills the same lines twice against one daily cap.
 - Do not commit real secret values — only Key Vault object *names* appear
   here, in `keyvault-secretproviderclass.yaml`.
