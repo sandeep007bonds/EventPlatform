@@ -64,7 +64,9 @@ the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
 - Never run `terraform destroy` against `bootstrap/` once any environment
   has state stored in its storage account.
 - Always review `terraform plan` output before `apply` — infrastructure
-  changes here are real, billable, and not always reversible.
+  changes here are real, billable, and not always reversible. CI runs
+  `fmt -check` and `validate` on both root modules, which proves the
+  configuration is well-formed and nothing about what applying it does.
 - Never `kubectl apply`/`helm install` **by hand** onto a cluster this
   creates — that's `deploy/` + Argo CD's job, per the root CLAUDE.md's
   GitOps rule. The `helm_release`/`kubectl_manifest` resources in

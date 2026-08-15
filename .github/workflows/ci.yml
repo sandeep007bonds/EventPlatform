@@ -46,6 +46,67 @@ jobs:
       - name: Check for model drift
         run: ./scripts/db-check-drift.sh
 
+  # Terraform and the Kubernetes manifests were, until this job existed, the only things in the
+  # repo nothing machine-checked: several passes of infra work were verified by reading them
+  # carefully and running `terraform fmt`, which catches whitespace and nothing else. `validate`
+  # resolves every resource's schema and every module's variables; `kustomize build` resolves the
+  # whole overlay, so a patch that targets nothing or a resource that isn't listed fails here
+  # rather than at Argo CD sync time.
+  #
+  # Neither step reaches Azure or a cluster — no credentials, no state, no plan. This says the
+  # configuration is well-formed, not that applying it does what you meant.
+  #
+  # Note the workflow-level `paths-ignore: deploy/**` above: a push touching ONLY deploy/ skips
+  # this job. That exclusion exists to break the CD tag-bump loop (ADR-0004) and is worth keeping,
+  # but it means a manifests-only push is checked at pull-request time rather than on push.
+  infrastructure:
+    name: infrastructure (terraform + manifests)
+    runs-on: ubuntu-latest
+    env:
+      KUSTOMIZE_VERSION: '5.5.0'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: '1.9.8'
+          # The wrapper rewrites stdout, which makes a failure here harder to read than it needs
+          # to be. These steps only need the binary.
+          terraform_wrapper: false
+
+      - name: Terraform format
+        run: terraform fmt -check -recursive infra/
+
+      # Only the two root modules are validated, which is sufficient: each pulls in every leaf
+      # module it uses via a `module` block, and validation follows them. `-backend=false` because
+      # neither backend is reachable from CI — dev's is an Azure storage account, and bootstrap's
+      # is the local state file that creates it.
+      - name: Validate infra/bootstrap
+        working-directory: infra/bootstrap
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Validate infra/environments/dev
+        working-directory: infra/environments/dev
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+      - name: Set up kustomize
+        run: |
+          curl -sSLo kustomize.tar.gz \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf kustomize.tar.gz
+          sudo mv kustomize /usr/local/bin/
+          kustomize version
+
+      # Building the overlay exercises the base too, plus every patch, generator and image
+      # placeholder. Output is discarded — a non-zero exit is the whole signal.
+      - name: Build dev overlay
+        run: kustomize build deploy/overlays/dev > /dev/null
+
   frontend:
     name: frontend
     runs-on: ubuntu-latest

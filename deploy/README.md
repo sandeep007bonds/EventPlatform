@@ -146,6 +146,18 @@ driver only materializes the synced `eventplatform-secrets` Kubernetes
 reads the resulting `Secret` the normal way, via `secretKeyRef` — the mount
 itself is otherwise unused, but removing it stops the sync.
 
+## What CI checks
+
+`kustomize build deploy/overlays/dev` runs in CI's `infrastructure` job, which
+exercises the base, every patch, and every generator — a patch that targets
+nothing, or a resource missing from a `kustomization.yaml`, fails there rather
+than at Argo CD sync time. It does not talk to a cluster, so it says the
+manifests are well-formed, not that they do what you meant.
+
+One gap worth knowing: the workflow excludes `deploy/**` from push triggers to
+break the CD tag-bump loop (ADR-0004), so a push touching only this directory
+is checked at pull-request time instead.
+
 ## Do not
 
 - Do not `kubectl apply` these manifests by hand — change them here and let
