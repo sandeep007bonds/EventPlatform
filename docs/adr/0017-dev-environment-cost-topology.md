@@ -54,6 +54,15 @@ recorded in ADR-0002 or ADR-0005.
   manifests/Helm/Argo CD, GitHub Actions OIDC federation for CI-driven
   applies. Listed here so each gap is a recorded decision, not an oversight.
 
+  **Since built, in later passes** (noted here because a stale gap list
+  misleads about what exists — the decision itself is unchanged): Argo CD and
+  the Dapr control plane (`argocd.tf`, `dapr.tf`), GitHub Actions OIDC
+  federation (`github-oidc.tf`), and Log Analytics + Container Insights
+  (`modules/log-analytics`, the `oms_agent` block in `modules/aks`), the last
+  with a hard daily ingestion cap so observability cannot produce a surprise
+  bill on a personal subscription. Front Door/WAF, private networking,
+  Defender and Service Bus remain unbuilt and remain deliberate.
+
 This ADR does **not** supersede ADR-0002 (node-pool isolation remains the
 production target) or ADR-0005 (Service Bus remains the production target
 for pub/sub) — scoped only to `dev`, the same pattern ADR-0011 uses for

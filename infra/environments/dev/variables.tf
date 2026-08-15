@@ -79,6 +79,12 @@ variable "github_oidc_branches" {
   default     = ["main", "claude/enterprise-ticket-platform-w3opb0"]
 }
 
+variable "log_analytics_daily_quota_gb" {
+  description = "Hard daily ingestion cap for Log Analytics, in GB. The default keeps a month inside Azure Monitor's 5 GB free grant; past the cap, data is dropped for the rest of the UTC day rather than billed."
+  type        = number
+  default     = 0.15
+}
+
 variable "tags" {
   description = "Tags applied to every resource in this environment."
   type        = map(string)

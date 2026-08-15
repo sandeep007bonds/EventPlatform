@@ -38,6 +38,21 @@ resource "azurerm_kubernetes_cluster" "this" {
     secret_rotation_interval = "2m"
   }
 
+  # Container Insights: ships container stdout/stderr and node/pod metrics to Log Analytics. This
+  # is what makes a deployed problem diagnosable at all — without it, the only window into a
+  # misbehaving service is `kubectl logs` against a pod that may already have been replaced.
+  #
+  # It collects logs and metrics, NOT distributed traces. The services export OTLP traces via
+  # OTEL_EXPORTER_OTLP_ENDPOINT, and nothing in the cluster listens on that yet — see the
+  # observability note in infra/README.md.
+  dynamic "oms_agent" {
+    for_each = var.log_analytics_workspace_id == null ? [] : [1]
+
+    content {
+      log_analytics_workspace_id = var.log_analytics_workspace_id
+    }
+  }
+
   # No network_policy: Azure Network Policy Manager isn't supported in CNI
   # Overlay mode (only Calico/Cilium are), and this dev topology has no
   # policy-enforcement requirement to justify adding one.

@@ -67,17 +67,28 @@ module "media_storage" {
   tags                = local.tags
 }
 
+module "log_analytics" {
+  source = "../../modules/log-analytics"
+
+  name                = "log-${local.name_prefix}"
+  resource_group_name = module.resource_group.name
+  location            = var.aks_location
+  daily_quota_gb      = var.log_analytics_daily_quota_gb
+  tags                = local.tags
+}
+
 module "aks" {
   source = "../../modules/aks"
 
-  name                = "aks-${local.name_prefix}"
-  resource_group_name = module.resource_group.name
-  location            = var.aks_location
-  dns_prefix          = local.name_prefix
-  subnet_id           = module.networking.aks_subnet_id
-  node_count          = var.node_count
-  node_vm_size        = var.node_vm_size
-  tags                = local.tags
+  name                       = "aks-${local.name_prefix}"
+  resource_group_name        = module.resource_group.name
+  location                   = var.aks_location
+  dns_prefix                 = local.name_prefix
+  subnet_id                  = module.networking.aks_subnet_id
+  node_count                 = var.node_count
+  node_vm_size               = var.node_vm_size
+  log_analytics_workspace_id = module.log_analytics.id
+  tags                       = local.tags
 }
 
 # --- Cross-module role assignments -----------------------------------------

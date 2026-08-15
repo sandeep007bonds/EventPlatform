@@ -44,6 +44,16 @@ variable "kubernetes_version" {
   default     = null
 }
 
+variable "log_analytics_workspace_id" {
+  description = <<-EOT
+    Log Analytics workspace for Container Insights. Null disables the add-on entirely, which is
+    what running with no observability looks like — the cluster still works, you just cannot see
+    inside it.
+  EOT
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags applied to the cluster."
   type        = map(string)
