@@ -78,13 +78,28 @@ dotnet_diagnostic.CA1001.severity = none
 #
 # ALL analyzer diagnostics are silenced, not a list of rule IDs. The first migrations tripped
 # IDE0161, SA1413 and CA1861; enumerating those would just move the whack-a-mole to whichever rule
-# the next generated file happens to violate. Safe to do broadly because nothing else in this file
-# sets those IDs explicitly, and a rule-ID entry would otherwise win over this. Compiler warnings
-# (CS####) are not analyzer diagnostics, so CS1591 still needs its own line.
+# the next generated file happens to violate. Compiler warnings (CS####) are not analyzer
+# diagnostics, so CS1591 still needs its own line.
+#
+# GLOB: `**.cs`, NOT `**/*.cs`. In `Migrations/**/*.cs` the `/**/` requires at least one
+# intermediate directory, so it matches `Migrations/Sub/File.cs` but NOT `Migrations/File.cs` —
+# which is exactly where EF puts them. That typo silently disabled this whole section, and the
+# first real `migrations add` failed the build with 58 style errors in generated code. `**` matches
+# any characters including none and including `/`, so this form covers both depths.
+#
+# The four style options are re-stated because bulk `dotnet_analyzer_diagnostic.severity` does not
+# override a rule that is configured specifically elsewhere, and `option = value:severity` in the
+# [*.{cs,csx}] section above is a specific configuration of the matching IDE rule. IDE0161
+# (file-scoped namespaces) is the one that actually fires on EF output; the other three are here so
+# the next generated file doesn't reopen this.
 #
 # This does NOT weaken review: a migration is DDL against real data and is reviewed for what it
 # does to the schema, not for how it is formatted.
-[**/{Migrations,Generated}/**/*.cs]
+[**/{Migrations,Generated}/**.cs]
 generated_code = true
 dotnet_analyzer_diagnostic.severity = none
 dotnet_diagnostic.CS1591.severity = none
+csharp_style_namespace_declarations = file_scoped:none
+csharp_using_directive_placement = outside_namespace:none
+csharp_prefer_braces = true:none
+dotnet_style_require_accessibility_modifiers = for_non_interface_members:none
