@@ -182,7 +182,7 @@ for var in $required_vars; do
       say "Generated a random ${var} into ${tfvars} (gitignored)."
       ;;
     letsencrypt_email)
-      say "${var} is required — Let'\''s Encrypt sends certificate expiry notices there."
+      say "${var} is required — certificate expiry notices are sent to this address."
       read -r -p "    Contact email: " value
       [ -n "$value" ] || die "${var} is required; certificate issuance fails without it."
       ;;
