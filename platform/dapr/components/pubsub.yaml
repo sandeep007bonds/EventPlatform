@@ -1,7 +1,8 @@
 # LOCAL DEV Dapr pub/sub component (Redis-backed).
 # Used via:  dapr run --resources-path platform/dapr ...
-# In Azure this is replaced by an Azure Service Bus component (same name "pubsub"),
-# so service code never changes — only this file does.
+# The Azure counterpart is deploy/base/dapr-components/pubsub.yaml — same component NAME, so
+# service code never changes, only the backing config does. It is Redis-backed rather than Service
+# Bus: Service Bus stays the production target, dev diverges deliberately (ADR-0017).
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:

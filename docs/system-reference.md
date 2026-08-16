@@ -353,7 +353,17 @@ the same transaction as the state change. `OutboxRelay` polls and publishes.
 Communication is the sole exception — it never publishes.
 
 **Observability.** OpenTelemetry across every service; traces span the whole
-checkout path. Jaeger locally at `:16686`.
+checkout path, including the Dapr sidecars, so a pub/sub hop is a span rather
+than a gap. Services export OTLP to whatever `OTEL_EXPORTER_OTLP_ENDPOINT`
+names and know nothing else about the backend: Jaeger locally at `:16686`, an
+OpenTelemetry Collector in AKS forwarding to Application Insights (ADR-0031).
+Container logs and node/pod metrics reach the same Log Analytics workspace via
+Container Insights, and both share one daily ingestion cap — see
+`infra/README.md` before load testing.
+
+(`docs/07-observability.md` is the pre-implementation design sketch and names
+tools — Kafka, Loki, Tempo — that the build never adopted. It is kept as
+written, like the rest of the `0x-` series; this file is the as-built record.)
 
 ---
 

@@ -41,6 +41,10 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0027](0027-manual-sales-pause-resume.md) | Manual sales pause/resume for a published event | Accepted |
 | [0028](0028-async-payment-authentication-and-hold-extension.md) | Async payment authentication (Stripe Payment Element) and hold extension | Accepted |
 | [0029](0029-ef-core-migrations-and-the-database-provider-seam.md) | EF Core migrations, PostgreSQL-targeted, with the database-provider seam in one place | Accepted |
+| [0030](0030-cluster-ingress-and-tls.md) | Cluster ingress and TLS: ingress-nginx + cert-manager on a free Azure hostname | Accepted |
+| [0031](0031-otel-collector-and-trace-backend.md) | OpenTelemetry Collector, with Application Insights as the trace backend | Accepted |
+| [0032](0032-real-token-validation-per-environment.md) | Real token validation in deployed environments; the dev signing key stays local | Accepted |
+| [0033](0033-spa-deployment.md) | Deploying the SPA: static nginx image, same-origin, one image per build | Accepted |
 
 ## Format
 

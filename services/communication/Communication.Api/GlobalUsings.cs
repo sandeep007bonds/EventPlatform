@@ -1,3 +1,4 @@
+global using Communication.Api;
 global using Communication.Api.Endpoints;
 global using Communication.Application;
 global using Communication.Application.Abstractions;

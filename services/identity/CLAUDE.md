@@ -137,13 +137,26 @@ it by app-id. With no SMS vendor configured on Communication, every OTP send
 uses its dev/logging sender — check the console output or the
 `communication.delivery_log` table to read the code during local testing.
 
-**Known local-dev limitation**: every one of the 5 existing services'
-`appsettings.Development.json` still sets `Jwt:DevSigningKey`, so they
-validate via the HS256 dev branch, not Identity's RS256/`Authority` branch,
-by default. Exercising a real Identity token against a real service locally
-needs a manual opt-in — temporarily unset that service's `Jwt:DevSigningKey`
-and point its `Jwt:Authority` at `http://localhost:5087` with
-`RequireHttpsMetadata:false`.
+**Deployed clusters really do validate against this issuer** (ADR-0032): the
+manifests set `Jwt__Authority=http://identity` and no dev signing key, so every
+service does OIDC discovery here and checks real RS256 signatures. Keep
+`Identity__Jwt__Issuer` byte-identical to that Authority — a mismatch rejects
+every token with an error naming neither URL.
+
+**Local development works the same way.** Every service's
+`appsettings.Development.json` sets `Jwt:Authority` to `http://localhost:5087`
+with `RequireHttpsMetadata:false` and no dev signing key, so a locally-run
+service validates real Identity tokens exactly as the cluster does. Identity
+has to be running (`scripts/dev-up.sh` starts it) before any authenticated
+request will validate.
+
+**The escape hatch**, for running one service in isolation without Identity,
+its database, or Communication: set `Jwt__DevSigningKey` as an environment
+variable and that service falls back to the HS256 shared-secret branch, where
+`scripts/dev-token.sh` can mint it any `sub`/`tenant_id` you like. The gateway
+keeps that key in its own Development config, which is what maps
+`POST /api/auth/dev-login` locally — tokens from it are only accepted by a
+service you have also opted in.
 
 ## Do not
 

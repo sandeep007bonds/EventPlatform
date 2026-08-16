@@ -18,6 +18,12 @@ terraform {
       source  = "hashicorp/helm"
       version = "~> 2.16"
     }
+    time = {
+      # Only for the cert-manager webhook settle in ingress.tf — see the comment there for why a
+      # helm_release's `wait` isn't sufficient on its own.
+      source  = "hashicorp/time"
+      version = "~> 0.12"
+    }
     kubectl = {
       # NOT hashicorp/kubernetes' kubernetes_manifest resource: that one
       # validates a manifest's CRD schema against the live cluster at plan

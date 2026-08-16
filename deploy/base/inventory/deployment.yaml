@@ -19,6 +19,8 @@ spec:
         dapr.io/app-id: "inventory"
         dapr.io/app-port: "8080"
         dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
     spec:
       containers:
         - name: inventory
@@ -35,11 +37,6 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: inventory-connection-string
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
             # Direct StackExchange.Redis connection for the hold hot path — this
             # bypasses Dapr entirely (RedisHoldStore's Lua atomic check-and-set),
             # separate from the Dapr statestore/pubsub components.

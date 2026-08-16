@@ -67,17 +67,28 @@ module "media_storage" {
   tags                = local.tags
 }
 
+module "log_analytics" {
+  source = "../../modules/log-analytics"
+
+  name                = "log-${local.name_prefix}"
+  resource_group_name = module.resource_group.name
+  location            = var.aks_location
+  daily_quota_gb      = var.log_analytics_daily_quota_gb
+  tags                = local.tags
+}
+
 module "aks" {
   source = "../../modules/aks"
 
-  name                = "aks-${local.name_prefix}"
-  resource_group_name = module.resource_group.name
-  location            = var.aks_location
-  dns_prefix          = local.name_prefix
-  subnet_id           = module.networking.aks_subnet_id
-  node_count          = var.node_count
-  node_vm_size        = var.node_vm_size
-  tags                = local.tags
+  name                       = "aks-${local.name_prefix}"
+  resource_group_name        = module.resource_group.name
+  location                   = var.aks_location
+  dns_prefix                 = local.name_prefix
+  subnet_id                  = module.networking.aks_subnet_id
+  node_count                 = var.node_count
+  node_vm_size               = var.node_vm_size
+  log_analytics_workspace_id = module.log_analytics.id
+  tags                       = local.tags
 }
 
 # --- Cross-module role assignments -----------------------------------------
@@ -177,6 +188,17 @@ resource "azurerm_key_vault_secret" "redis_connection_string" {
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }
 
+# Where the OpenTelemetry Collector (deploy/base/observability) sends the traces and metrics the
+# services export. Unlike the Stripe secrets below, this is a real value Terraform knows, so it is
+# written for real rather than placeheld.
+resource "azurerm_key_vault_secret" "appinsights_connection_string" {
+  name         = "appinsights-connection-string"
+  value        = module.log_analytics.application_insights_connection_string
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
 # Media service's blob storage connection string.
 resource "azurerm_key_vault_secret" "media_storage_connection_string" {
   name         = "media-storage-connection-string"
@@ -194,6 +216,64 @@ resource "azurerm_key_vault_secret" "service_connection_strings" {
   name         = "${each.value}-connection-string"
   value        = "Host=${module.postgres.fqdn};Port=5432;Database=${each.value};Username=${module.postgres.administrator_login};Password=${var.postgres_administrator_password};Ssl Mode=Require;Trust Server Certificate=true"
   key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+# Dapr's Redis components need the host and password as separate values, not as the
+# StackExchange-style connection string redis-connection-string holds — Inventory and Queue talk to
+# Redis directly with that library, Dapr does not. Two representations of one credential, because
+# two different clients consume it.
+resource "azurerm_key_vault_secret" "redis_host" {
+  name         = "redis-host"
+  value        = "${module.redis.hostname}:${module.redis.ssl_port}"
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "redis_password" {
+  name         = "redis-password"
+  value        = module.redis.primary_access_key
+  key_vault_id = module.key_vault.id
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+# Stripe credentials. Unlike every other secret here these cannot be generated —
+# they come from the Stripe dashboard — and they must not sit in Terraform state
+# or a tfvars file. So Terraform only creates the *objects*, with a placeholder
+# value, and `ignore_changes` keeps it from ever reverting the real one:
+#
+#   az keyvault secret set --vault-name <vault> --name stripe-secret-key    --value sk_live_...
+#   az keyvault secret set --vault-name <vault> --name stripe-webhook-secret --value whsec_...
+#
+# The objects have to exist unconditionally even when Stripe is unused, because
+# deploy/overlays/dev/keyvault-secretproviderclass.yaml lists them by name and a
+# missing object fails the CSI mount for every pod in the namespace, not just
+# Payments. Payments treats a value that is not a real Stripe key as "not
+# configured" and falls back to the simulator — see PaymentGatewayStartupLog for
+# how that choice is made visible rather than silent.
+resource "azurerm_key_vault_secret" "stripe_secret_key" {
+  name         = "stripe-secret-key"
+  value        = "placeholder-set-me-with-az-keyvault-secret-set"
+  key_vault_id = module.key_vault.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
+
+  depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
+}
+
+resource "azurerm_key_vault_secret" "stripe_webhook_secret" {
+  name         = "stripe-webhook-secret"
+  value        = "placeholder-set-me-with-az-keyvault-secret-set"
+  key_vault_id = module.key_vault.id
+
+  lifecycle {
+    ignore_changes = [value]
+  }
 
   depends_on = [azurerm_role_assignment.applier_key_vault_secrets_officer]
 }

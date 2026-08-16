@@ -1,0 +1,10 @@
+global using Catalog.Application;
+global using Catalog.Application.Abstractions;
+global using Catalog.Application.Features.CreateEvent;
+global using Catalog.Domain;
+global using MediatR;
+global using Microsoft.Extensions.DependencyInjection;
+global using NetArchTest.Rules;
+global using NSubstitute;
+global using Shouldly;
+global using Xunit;

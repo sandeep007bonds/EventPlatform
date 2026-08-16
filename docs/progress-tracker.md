@@ -168,7 +168,7 @@ Intentionally paused while we build locally. Revisit before first deploy.
 | O3 | Add `ADD_TO_PROJECT_PAT` secret | for project auto-add workflow |
 | O4 | Move auto-add workflow to `main` | issue-triggered workflows run from default branch |
 | O5 | Invite teammates to repo + project | |
-| O6 | Remove old `services/catalog/src/` (git rm) | leftover from the structure flatten |
+| O6 | ~~Remove old `services/catalog/src/`~~ — done | leftover from the structure flatten; it still carried an `EnsureCreated` that contradicted ADR-0029 |
 
 ---
 

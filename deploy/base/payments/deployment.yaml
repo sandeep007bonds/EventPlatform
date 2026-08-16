@@ -19,6 +19,8 @@ spec:
         dapr.io/app-id: "payments"
         dapr.io/app-port: "8080"
         dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
     spec:
       containers:
         - name: payments
@@ -35,11 +37,19 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: payments-connection-string
-            - name: Jwt__DevSigningKey
+            # Stripe credentials. Payments falls back to the simulator when these are
+            # not real Stripe keys — see PaymentGatewayStartupLog, which logs at
+            # Warning level when a deployed environment is not taking real payments.
+            - name: Payments__Stripe__SecretKey
               valueFrom:
                 secretKeyRef:
                   name: eventplatform-secrets
-                  key: jwt-dev-signing-key
+                  key: stripe-secret-key
+            - name: Payments__Stripe__WebhookSecret
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: stripe-webhook-secret
           readinessProbe:
             httpGet:
               path: /health/ready

@@ -33,12 +33,41 @@ public static class QueueEndpoints
         Guid eventId,
         JoinQueueRequest request,
         JoinQueueHandler handler,
+        IJoinRateLimiter rateLimiter,
+        HttpContext httpContext,
         CancellationToken cancellationToken)
     {
+        // Budget is charged per session *created*, not per request — see IJoinRateLimiter. So the
+        // check happens up front (cheap, read-only) and the charge only after the store confirms a
+        // new session was actually minted.
+        var clientKey = ClientKey(httpContext);
+        var decision = await rateLimiter.CheckAsync(eventId, clientKey, cancellationToken);
+        if (!decision.Allowed)
+        {
+            httpContext.Response.Headers.RetryAfter =
+                decision.RetryAfterSeconds?.ToString(CultureInfo.InvariantCulture);
+
+            return Results.Json(
+                new { error = "too_many_joins", retryAfterSeconds = decision.RetryAfterSeconds },
+                statusCode: StatusCodes.Status429TooManyRequests);
+        }
+
         var sessionId = request.SessionId ?? Guid.CreateVersion7();
         var result = await handler.HandleAsync(eventId, sessionId, cancellationToken);
+
+        if (result.CreatedNewSession)
+        {
+            await rateLimiter.RecordCreatedSessionAsync(eventId, clientKey, cancellationToken);
+        }
+
         return Results.Ok(new QueueSessionResponse(sessionId, result.Admitted, result.AdmissionToken, result.Position, result.EstimatedWaitSeconds));
     }
+
+    // The caller's address, once ForwardedHeaders has replaced the gateway's with the real client's
+    // (see Program.cs). "unknown" only when there is no remote address at all — every such caller
+    // then shares one bucket, which is the safe direction: it cannot be used to evade the limit.
+    private static string ClientKey(HttpContext httpContext) =>
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private static async Task<IResult> StatusAsync(
         Guid eventId,

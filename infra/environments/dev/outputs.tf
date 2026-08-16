@@ -57,3 +57,13 @@ output "github_actions_client_id" {
   description = "Client ID of the GitHub Actions OIDC application — set this as the AZURE_CLIENT_ID GitHub Actions secret (or repo variable) for the CD workflow's azure/login step."
   value       = azuread_application.github_actions.client_id
 }
+
+output "gateway_hostname" {
+  description = "Hostname the gateway is served on over HTTPS — the free Azure FQDN unless custom_domain overrides it. Fills the Ingress host in deploy/overlays/dev/ingress.yaml; run scripts/finish-dev-bootstrap.sh rather than copying it by hand."
+  value       = local.gateway_hostname
+}
+
+output "azure_ingress_fqdn" {
+  description = "The ingress controller's Azure-assigned FQDN, always present even when custom_domain is set — point your domain's CNAME at this value."
+  value       = local.azure_ingress_fqdn
+}

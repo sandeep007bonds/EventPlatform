@@ -112,7 +112,12 @@ context: **Catalog** (ADR-0008).
 Layers sit directly under this folder (no `src/`): `Catalog.Api` (host +
 endpoints, uses `EventPlatform.Hosting`), `Catalog.Application` (Features/ slices),
 `Catalog.Domain` (aggregate + invariants), `Catalog.Infrastructure` (EF Core +
-Postgres). `tests/` to follow.
+Postgres). `tests/Catalog.Tests` covers `Event`'s date and lifecycle guards
+(including `IsVisibleTo`, which is a security boundary rather than a display
+rule), `SeatMap`'s seat generation/capacity/name-uniqueness across Reserved and
+General-Admission sections, and the three cross-aggregate tour rules in
+`CreateEventHandler` — exercised through MediatR, since the handler is internal
+and the validation pipeline is part of what the endpoint actually invokes.
 
 ## Local run
 

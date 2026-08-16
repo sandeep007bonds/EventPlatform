@@ -1,0 +1,65 @@
+# Applies Catalog's EF Core migrations and exits. Argo CD runs this as a PreSync hook, so the
+# schema is in place before any new pod of the Deployment rolls — services never migrate
+# themselves (ADR-0029). Same image as the Deployment, told to migrate by an argument.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-migrate
+  labels:
+    app.kubernetes.io/name: catalog-migrate
+    app.kubernetes.io/part-of: eventplatform
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    # Delete the previous run only when creating the next one. A failed migration's Job and pod
+    # logs then survive the sync that failed, which is the whole point of migrating in a job
+    # rather than on startup.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Applying migrations is idempotent (EF skips what the history table already records), so a
+  # retry after a transient database error is safe. Two is enough to ride out a restart; a real
+  # bad migration should fail the sync, not be retried into the ground.
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: catalog-migrate
+      # Deliberately NO dapr.io/* annotations, unlike the Deployment. A Dapr sidecar never exits
+      # on its own, so the pod would stay Running forever and the Job would never complete.
+      # A migration needs nothing from Dapr anyway.
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: catalog-placeholder
+          # Picked up by MigrationRunner.IsMigrationRun — the process applies migrations, logs
+          # what it applied, and exits without serving traffic or binding a port.
+          args: ["--migrate"]
+          envFrom:
+            - configMapRef:
+                name: eventplatform-config
+          env:
+            - name: ConnectionStrings__catalog
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: catalog-connection-string
+            # The host reads Jwt config while building, before the migration branch is reached,
+            # so the Job needs the same value the Deployment gets.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eventplatform-keyvault

@@ -18,12 +18,14 @@
     <Project Path="services/catalog/Catalog.Application/Catalog.Application.csproj" />
     <Project Path="services/catalog/Catalog.Infrastructure/Catalog.Infrastructure.csproj" />
     <Project Path="services/catalog/Catalog.Api/Catalog.Api.csproj" />
+    <Project Path="services/catalog/tests/Catalog.Tests/Catalog.Tests.csproj" />
   </Folder>
   <Folder Name="/services/inventory/">
     <Project Path="services/inventory/Inventory.Domain/Inventory.Domain.csproj" />
     <Project Path="services/inventory/Inventory.Application/Inventory.Application.csproj" />
     <Project Path="services/inventory/Inventory.Infrastructure/Inventory.Infrastructure.csproj" />
     <Project Path="services/inventory/Inventory.Api/Inventory.Api.csproj" />
+    <Project Path="services/inventory/tests/Inventory.Tests/Inventory.Tests.csproj" />
   </Folder>
   <Folder Name="/services/ordering/">
     <Project Path="services/ordering/Ordering.Domain/Ordering.Domain.csproj" />
@@ -45,6 +47,7 @@
     <Project Path="services/ticketing/Ticketing.Application/Ticketing.Application.csproj" />
     <Project Path="services/ticketing/Ticketing.Infrastructure/Ticketing.Infrastructure.csproj" />
     <Project Path="services/ticketing/Ticketing.Api/Ticketing.Api.csproj" />
+    <Project Path="services/ticketing/tests/Ticketing.Tests/Ticketing.Tests.csproj" />
   </Folder>
   <Folder Name="/services/communication/">
     <Project Path="services/communication/Communication.Domain/Communication.Domain.csproj" />

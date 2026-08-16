@@ -1,0 +1,58 @@
+# OpenTelemetry Collector pipeline config, mounted into the collector Deployment.
+#
+# This exists so the services stay vendor-neutral. They already export OTLP to whatever
+# OTEL_EXPORTER_OTLP_ENDPOINT names — Jaeger locally, this collector in the cluster — so wiring up
+# a real trace backend needed no C# change at all. Swapping Azure Monitor for something else later
+# is a change to this one file, not to ten services.
+receivers:
+  otlp:
+    protocols:
+      # gRPC is what the .NET OTLP exporter and the Dapr sidecars both default to; the HTTP
+      # port is here so a curl-based smoke test doesn't need a gRPC client.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # First in every pipeline, deliberately. On a Free-tier single-node cluster the collector is
+  # the pod most likely to see a sudden burst, and an OOMKilled collector takes its buffered
+  # telemetry with it. Refusing data under pressure loses less than dying does.
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+
+  batch:
+    timeout: 10s
+    send_batch_size: 512
+
+exporters:
+  azuremonitor:
+    connection_string: ${env:APPLICATIONINSIGHTS_CONNECTION_STRING}
+
+service:
+  telemetry:
+    logs:
+      level: info
+
+  pipelines:
+    # No sampling. Dev traffic is usually one person clicking through one checkout, and a
+    # sampler that drops 90% of that leaves you debugging the trace it threw away. The daily
+    # ingestion cap on the Log Analytics workspace is the cost backstop instead. If you load
+    # test, add a probabilistic_sampler here first — a k6 run at full fidelity will spend the
+    # whole day's budget in minutes, and container logs share that same budget.
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [azuremonitor]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [azuremonitor]
+
+    # No logs pipeline, and none is needed: AddDefaultObservability configures the OpenTelemetry
+    # logging provider without an OTLP exporter, so the services never send logs this way. They
+    # write to stdout, which Container Insights already ships to the same workspace. Adding a
+    # logs pipeline here would bill the same lines twice against one cap.

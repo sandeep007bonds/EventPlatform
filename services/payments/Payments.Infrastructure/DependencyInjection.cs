@@ -22,26 +22,33 @@ public static class DependencyInjection
         services.AddDbContext<PaymentDbContext>(options => options.UseNpgsql(connectionString));
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
-        // Use the real Stripe gateway when a secret key is configured, otherwise the dev
+        // Use the real Stripe gateway when a real Stripe key is configured, otherwise the dev
         // simulator. The key comes from Key Vault or user-secrets and is never committed.
+        // The test is the key's shape, not merely that the setting is non-empty: in a deployed
+        // environment Key Vault always supplies *something* here (see StripeKeys for why), and
+        // handing a placeholder to Stripe would fail every checkout.
         var stripeSecretKey = configuration["Payments:Stripe:SecretKey"];
-        if (string.IsNullOrWhiteSpace(stripeSecretKey))
+        if (StripeKeys.IsSecretKey(stripeSecretKey))
         {
-            services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
+            services.AddSingleton<IPaymentGateway>(new StripePaymentGateway(stripeSecretKey!));
         }
         else
         {
-            services.AddSingleton<IPaymentGateway>(new StripePaymentGateway(stripeSecretKey));
+            services.AddSingleton<IPaymentGateway, SimulatedPaymentGateway>();
         }
 
         // Inbound Stripe webhooks (async capture / 3-D Secure / refunds) are only accepted when a
         // signing secret is configured; without it the endpoint has nothing to verify against and
         // returns 503. The secret is never committed (Key Vault / user-secrets / env).
         var stripeWebhookSecret = configuration["Payments:Stripe:WebhookSecret"];
-        if (!string.IsNullOrWhiteSpace(stripeWebhookSecret))
+        if (StripeKeys.IsWebhookSecret(stripeWebhookSecret))
         {
-            services.AddSingleton<IPaymentWebhookGateway>(new StripeWebhookGateway(stripeWebhookSecret));
+            services.AddSingleton<IPaymentWebhookGateway>(new StripeWebhookGateway(stripeWebhookSecret!));
         }
+
+        // Which of those two branches won is worth saying out loud — silently simulating payments
+        // outside development is the worst failure this service has.
+        services.AddHostedService<PaymentGatewayStartupLog>();
 
         services.AddOutbox<PaymentDbContext>();
 

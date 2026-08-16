@@ -65,6 +65,7 @@ jobs:
             [identity]="services/identity"
             [queue]="services/queue"
             [gateway]="gateways/EventPlatform.Gateway"
+            [frontend]="frontend"
           )
           declare -A project_path=(
             [catalog]="services/catalog/Catalog.Api/Catalog.Api.csproj"
@@ -77,6 +78,10 @@ jobs:
             [identity]="services/identity/Identity.Api/Identity.Api.csproj"
             [queue]="services/queue/Queue.Api/Queue.Api.csproj"
             [gateway]="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj"
+            # Empty on purpose: the frontend is not a .NET project. The build step treats an empty
+            # project_path as "this one has its own Dockerfile" rather than adding a parallel
+            # is-it-the-frontend flag to every array.
+            [frontend]=""
           )
           declare -A assembly_name=(
             [catalog]="Catalog.Api"
@@ -89,10 +94,11 @@ jobs:
             [identity]="Identity.Api"
             [queue]="Queue.Api"
             [gateway]="EventPlatform.Gateway"
+            [frontend]=""
           )
 
           entries="[]"
-          for svc in catalog inventory ordering payments ticketing communication media identity queue gateway; do
+          for svc in catalog inventory ordering payments ticketing communication media identity queue gateway frontend; do
             include=false
             if [ "${shared_changed}" = true ]; then
               include=true
@@ -141,16 +147,31 @@ jobs:
         run: |
           set -euo pipefail
           IMAGE="${ACR_LOGIN_SERVER}/${SERVICE}:${SHA}"
-          docker build -f Dockerfile \
-            --build-arg PROJECT_PATH="${PROJECT_PATH}" \
-            --build-arg ASSEMBLY_NAME="${ASSEMBLY_NAME}" \
-            -t "${IMAGE}" .
+
+          if [ -n "${PROJECT_PATH}" ]; then
+            # Every .NET service and the gateway share the repo-root Dockerfile, parameterised.
+            docker build -f Dockerfile \
+              --build-arg PROJECT_PATH="${PROJECT_PATH}" \
+              --build-arg ASSEMBLY_NAME="${ASSEMBLY_NAME}" \
+              -t "${IMAGE}" .
+          else
+            # The SPA has its own Dockerfile and its own build context; it shares nothing with the
+            # .NET one. VITE_GATEWAY_BASE_URL is deliberately NOT passed — unset makes the app call
+            # its own origin, so this image is identical for every environment. The Stripe
+            # publishable key is safe to bake in (it can only create tokens, never move money) and
+            # an unset one still builds, falling back to a canned test payment method.
+            docker build -f frontend/Dockerfile \
+              --build-arg VITE_STRIPE_PUBLISHABLE_KEY="${VITE_STRIPE_PUBLISHABLE_KEY}" \
+              -t "${IMAGE}" frontend
+          fi
+
           docker push "${IMAGE}"
         env:
           ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
           SERVICE: ${{ matrix.service }}
           PROJECT_PATH: ${{ matrix.project_path }}
           ASSEMBLY_NAME: ${{ matrix.assembly_name }}
+          VITE_STRIPE_PUBLISHABLE_KEY: ${{ vars.VITE_STRIPE_PUBLISHABLE_KEY }}
           SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
 
   update-manifests:

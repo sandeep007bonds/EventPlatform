@@ -19,6 +19,8 @@ spec:
         dapr.io/app-id: "identity"
         dapr.io/app-port: "8080"
         dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
     spec:
       containers:
         - name: identity
@@ -35,6 +37,11 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: identity-connection-string
+            # Stamped into every token's `iss` and published in the discovery document. It must
+            # match the Jwt__Authority the other services use verbatim — validation compares the
+            # two, and a mismatch rejects every token with an error naming neither URL.
+            - name: Identity__Jwt__Issuer
+              value: "http://identity"
           # No Jwt__DevSigningKey — Identity is a token ISSUER, not a validator, of inbound
           # buyer tokens; its own OTP/discovery/JWKS endpoints are all .AllowAnonymous().
           readinessProbe:

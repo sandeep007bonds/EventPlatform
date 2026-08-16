@@ -93,6 +93,16 @@ per channel by configuration.
   processed-event marker in **one** `SaveChangesAsync` instead. Falls back to
   a `Skipped` row if `BuyerEmail` is absent (shouldn't happen once checkout
   requires it) or the template is missing.
+- **The logging-sender fallback is loud outside Development.**
+  `NotificationSenderStartupLog` (a hosted service in `Communication.Api`)
+  reports which sender each channel resolved, and logs a **warning** naming
+  every channel still on `dev-log` when the environment isn't Development.
+  Without it the failure is silent in the worst way: buyers never get their
+  tickets, organizers never get an OTP, and every delivery-log row still says
+  `Sent`. Mirrors Payments' `PaymentGatewayStartupLog`. It lives in the API
+  host, not beside the senders, because the senders are `internal` while
+  `Provider` is on the public port — so no `InternalsVisibleTo` and no hosting
+  package reference are needed in Infrastructure.
 - **No transactional outbox.** See "Owns" above — this is the one
   intentional structural difference from every other service's scaffold.
 

@@ -1,0 +1,18 @@
+# node_modules is reinstalled from the lockfile inside the image; copying the host's costs a slow
+# build and risks platform-specific binaries that don't run on alpine.
+node_modules
+dist
+
+# Excluding these is load-bearing, not tidiness. Vite reads .env/.env.production/.env*.local at
+# build time and inlines every VITE_* it finds. A developer's own .env.development.local sitting in
+# their working tree would otherwise be copied into the build context and bake
+# VITE_GATEWAY_BASE_URL=http://localhost:5090 into a deployed image — an app that silently calls
+# the wrong host, from an image that looks identical to a correct one. Build args are the only
+# supported way in (see Dockerfile).
+.env
+.env.*
+!.env.example
+
+.git
+Dockerfile
+.dockerignore

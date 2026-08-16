@@ -216,6 +216,22 @@ npm run typecheck    # tsc -b
 npm run build        # production build
 ```
 
+## Deployment
+
+Built to static files and served by nginx (`frontend/Dockerfile`,
+`frontend/nginx.conf`), behind the same ingress as the gateway: `/api` goes to
+the gateway, everything else here. See ADR-0033.
+
+Two consequences for how you write code:
+
+- **`VITE_GATEWAY_BASE_URL` is unset in the deployed image**, so `httpClient`
+  issues same-origin relative requests. Every gateway path already starts
+  `/api`, so keep it that way — a call to a bare path would hit the SPA's own
+  nginx and get `index.html` back.
+- **Anything `VITE_*` is baked in at build time and shipped to the browser.**
+  Only the Stripe *publishable* key is passed at build (safe by design). Never
+  add a `VITE_` variable holding something that must stay private.
+
 ## Do not
 
 - Call a backend service directly — only the gateway.

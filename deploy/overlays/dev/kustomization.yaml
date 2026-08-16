@@ -4,12 +4,25 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - keyvault-secretproviderclass.yaml
+  - ingress.yaml
   - ../../base
 
 namespace: eventplatform-dev
 
-commonLabels:
-  app.kubernetes.io/environment: dev
+# Merges into the gateway Deployment from base rather than editing it there: the allowed browser
+# origin is environment-specific, the way the Ingress host is.
+patches:
+  - path: gateway-cors-patch.yaml
+
+# `labels` replaces the deprecated `commonLabels`. `includeSelectors: true` is what makes this a
+# pure rename with no behaviour change — it is what commonLabels did, and it matters more than it
+# looks: a Deployment's selector is immutable once created, so flipping this to the `labels`
+# default of false against a cluster that already has these workloads would make every Deployment
+# fail to update rather than quietly drift.
+labels:
+  - includeSelectors: true
+    pairs:
+      app.kubernetes.io/environment: dev
 
 # Non-secret shared config, mounted via envFrom in every backend service's
 # Deployment (see deploy/base/*/deployment.yaml). The gateway sets its own
@@ -19,6 +32,18 @@ configMapGenerator:
   - name: eventplatform-config
     literals:
       - ASPNETCORE_ENVIRONMENT=Development
+      # Where AddDefaultObservability's OTLP exporter sends traces and metrics. Unset until now,
+      # which meant the services exported to nowhere in the cluster. gRPC (4317) is the .NET
+      # exporter's default protocol; the collector also listens on 4318 for HTTP.
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      # Real token validation (ADR-0032). With no Jwt:DevSigningKey set, AddEventPlatformAuthentication
+      # takes its Authority branch: ASP.NET Core fetches {Authority}/.well-known/openid-configuration,
+      # caches Identity's JWKS, and validates RS256 signatures against it. The issuer it expects comes
+      # from that same document, which is why Identity__Jwt__Issuer must be this exact URL.
+      - Jwt__Authority=http://identity
+      # In-cluster Service DNS is plain HTTP; the traffic never leaves the cluster. Leaving this true
+      # makes discovery fail with a metadata-address error that reads like a wrong URL.
+      - Jwt__RequireHttpsMetadata=false
 
 # CI overwrites every entry here on each push (`kustomize edit set image
 # <placeholder>=<acr-login-server>/<service>:<tag>`) — the values below are
@@ -53,4 +78,7 @@ images:
     newTag: REPLACE_ME
   - name: gateway-placeholder
     newName: REPLACE_ME.azurecr.io/gateway
+    newTag: REPLACE_ME
+  - name: frontend-placeholder
+    newName: REPLACE_ME.azurecr.io/frontend
     newTag: REPLACE_ME

@@ -34,6 +34,8 @@ public static class DependencyInjection
         services.AddSingleton<IAdmissionTokenIssuer>(new HmacAdmissionTokenIssuer(Encoding.UTF8.GetBytes(hmacKey)));
 
         services.AddSingleton(new QueueAdmissionOptions());
+        services.AddSingleton(new QueueRateLimitOptions());
+        services.AddScoped<IJoinRateLimiter, RedisJoinRateLimiter>();
         services.AddHostedService<QueueAdmissionController>();
 
         return services;

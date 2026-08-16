@@ -41,3 +41,26 @@ postgres_administrator_password = "replace-with-a-strong-password"
 # Optional: your own IP so you can reach Postgres directly for debugging.
 # Bare IP, not CIDR (e.g. "1.2.3.4", not "1.2.3.4/32").
 # dev_ip_cidr = "1.2.3.4"
+
+# Hard daily ingestion cap for Log Analytics, in GB. The default (0.15) keeps a month's ingestion
+# inside Azure Monitor's 5 GB free grant. Past the cap Azure stops ingesting for the rest of the
+# UTC day and that data is lost — raise this only if you would rather pay than lose logs.
+# log_analytics_daily_quota_gb = 0.15
+
+# REQUIRED. Contact address registered with Let's Encrypt for the cluster's TLS certificate. Used
+# only for expiry/account notices - never published, never in the certificate itself.
+letsencrypt_email = "you@example.com"
+
+# Optional: switch to Let's Encrypt staging while debugging the ingress. Staging certificates are
+# untrusted (the browser warns) but its rate limits are far looser than production's 5 identical
+# certificates per week, which is easy to burn through while iterating.
+# letsencrypt_server = "https://acme-staging-v02.api.letsencrypt.org/directory"
+
+# Optional: a recognisable DNS label instead of one derived from this environment's random suffix.
+# Becomes <label>.<aks_location>.cloudapp.azure.com and must be globally unique within the region.
+# ingress_dns_label = "eventplatform-yourname"
+
+# Optional: serve the gateway on a domain you own instead of the free Azure FQDN. You must point
+# its CNAME at `terraform output azure_ingress_fqdn` BEFORE applying - cert-manager proves control
+# of the name over HTTP, so issuance fails until that record resolves.
+# custom_domain = "api.example.com"

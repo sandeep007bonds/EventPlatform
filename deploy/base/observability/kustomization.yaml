@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - collector-deployment.yaml
+  - collector-service.yaml
+  - dapr-tracing-config.yaml
+
+# Generated rather than a hand-written ConfigMap manifest: kustomize appends a content hash to the
+# name and rewrites the Deployment's reference, so editing the pipeline config actually rolls the
+# collector. A plain ConfigMap would update in place and leave the old config running until someone
+# noticed and restarted the pod by hand.
+configMapGenerator:
+  - name: otel-collector-config
+    files:
+      - collector.yaml

@@ -1,6 +1,7 @@
 # LOCAL DEV Dapr state store (Redis-backed). actorStateStore=true so Dapr
 # Workflow (used by the checkout saga) can persist its state locally.
-# In Azure this is replaced by an Azure Cache for Redis / Service Bus component.
+# The Azure counterpart is deploy/base/dapr-components/statestore.yaml — same component name,
+# also Redis-backed, with the same actorStateStore=true (ADR-0017).
 apiVersion: dapr.io/v1alpha1
 kind: Component
 metadata:

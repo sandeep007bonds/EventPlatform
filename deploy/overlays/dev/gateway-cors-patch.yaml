@@ -1,0 +1,23 @@
+# The deployed gateway runs as "Staging", which skips appsettings.Development.json — the only file
+# that sets Cors:AllowedOrigins. Base appsettings.json leaves it an empty array, so without this
+# patch every cross-origin browser request fails preflight.
+#
+# The deployed SPA does not need this: it is served from the same hostname as the gateway (one
+# ingress, /api to the gateway and everything else to the SPA), so its calls are same-origin and
+# CORS never applies. This exists for the other real caller — a local `npm run dev` pointed at the
+# cluster via VITE_GATEWAY_BASE_URL, which is genuinely cross-origin.
+#
+# Keeping it is a deliberate convenience, not a requirement. Removing this patch would lock the
+# deployed API to the deployed SPA alone, which is the stricter and eventually correct posture.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+spec:
+  template:
+    spec:
+      containers:
+        - name: gateway
+          env:
+            - name: Cors__AllowedOrigins__0
+              value: "http://localhost:5173"

@@ -13,6 +13,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tf_dir="$repo_root/infra/environments/dev"
 spc_file="$repo_root/deploy/overlays/dev/keyvault-secretproviderclass.yaml"
+ingress_file="$repo_root/deploy/overlays/dev/ingress.yaml"
 
 cd "$tf_dir"
 if [ -z "$(terraform state list 2>/dev/null)" ]; then
@@ -27,6 +28,8 @@ tenant_id="$(terraform output -raw aks_tenant_id)"
 github_client_id="$(terraform output -raw github_actions_client_id)"
 subscription_id="$(terraform output -raw subscription_id)"
 acr_login_server="$(terraform output -raw acr_login_server)"
+gateway_hostname="$(terraform output -raw gateway_hostname)"
+azure_ingress_fqdn="$(terraform output -raw azure_ingress_fqdn)"
 cd "$repo_root"
 
 echo "==> Filling in $spc_file"
@@ -37,14 +40,30 @@ sed -i.bak \
   "$spc_file"
 rm -f "$spc_file.bak"
 
-if git -C "$repo_root" diff --quiet -- "$spc_file"; then
-  echo "==> No changes to $spc_file (already filled in, or values match what's committed)."
+echo "==> Filling in $ingress_file"
+sed -i.bak \
+  -e "s/REPLACE_ME_GATEWAY_HOST/${gateway_hostname}/g" \
+  "$ingress_file"
+rm -f "$ingress_file.bak"
+
+if git -C "$repo_root" diff --quiet -- "$spc_file" "$ingress_file"; then
+  echo "==> No changes (already filled in, or values match what's committed)."
 else
-  echo "==> Committing $spc_file"
-  git -C "$repo_root" add "$spc_file"
-  git -C "$repo_root" commit -m "chore(deploy): fill Key Vault SecretProviderClass values for dev"
+  echo "==> Committing $spc_file and $ingress_file"
+  git -C "$repo_root" add "$spc_file" "$ingress_file"
+  git -C "$repo_root" commit -m "chore(deploy): fill Key Vault and ingress host values for dev"
   git -C "$repo_root" push
 fi
+
+echo
+echo "==> Gateway will be served at: https://${gateway_hostname}"
+if [ "$gateway_hostname" != "$azure_ingress_fqdn" ]; then
+  echo "    Custom domain in use - point its CNAME at ${azure_ingress_fqdn} BEFORE Argo CD syncs,"
+  echo "    or cert-manager's HTTP-01 challenge will fail until it resolves."
+fi
+echo "    The certificate is issued on first sync and takes a minute or two; until then the"
+echo "    browser sees the ingress controller's self-signed default and warns. Check progress with:"
+echo "      kubectl describe certificate -n eventplatform-dev gateway-tls"
 
 echo
 echo "==> GitHub Actions repository secrets needed by .github/workflows/cd.yml:"

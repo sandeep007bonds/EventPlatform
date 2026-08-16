@@ -1,0 +1,33 @@
+# The "statestore" component. Named to match platform/dapr/components/statestore.yaml exactly, for
+# the same reason as pubsub.
+#
+# actorStateStore MUST stay "true": Dapr Workflow is built on actors, and Ordering's checkout saga
+# is a Dapr Workflow. Without it the workflow engine has nowhere to persist an instance and
+# checkout stops working — with no error at the point the component is defined, only later, at the
+# first checkout.
+#
+# This is also why infra/modules/redis sets maxmemory_policy = "noeviction". Redis' default
+# (volatile-lru) would evict in-flight saga state under memory pressure, turning a full cache into
+# silently abandoned checkouts rather than a loud write failure (ADR-0017).
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-host
+    - name: redisPassword
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-password
+    - name: enableTLS
+      value: "true"
+    - name: actorStateStore
+      value: "true"
+auth:
+  secretStore: kubernetes

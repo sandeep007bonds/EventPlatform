@@ -48,5 +48,8 @@ resource "helm_release" "argocd" {
 resource "kubectl_manifest" "argocd_dev_application" {
   yaml_body = file("${path.module}/../../../platform/argocd/applications/dev.yaml")
 
-  depends_on = [helm_release.argocd]
+  # helm_release.dapr as well as argocd: this Application reconciles deploy/, which now contains
+  # Dapr Component manifests. Registering it before the Dapr CRDs exist would have Argo CD sync a
+  # resource kind the cluster does not yet recognise.
+  depends_on = [helm_release.argocd, helm_release.dapr]
 }

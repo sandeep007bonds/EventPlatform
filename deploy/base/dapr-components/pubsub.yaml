@@ -1,0 +1,31 @@
+# The "pubsub" component every service publishes to and subscribes from — the outbox relay writes
+# here, and Inventory/Ticketing/Communication/Queue read from it. Same component NAME as
+# platform/dapr/components/pubsub.yaml (local dev), which is the whole point: service code never
+# names a broker, only "pubsub", so nothing in the application changes between a laptop and AKS.
+#
+# Backed by Azure Cache for Redis rather than Service Bus — the deliberate dev-topology divergence
+# from ADR-0010's production target, recorded in ADR-0017. One Basic C0 instance serves pub/sub,
+# the Dapr state store, and Inventory's and Queue's own direct Redis use; they all compete for the
+# same 250MB, which is tolerable only at dev traffic.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.redis
+  version: v1
+  metadata:
+    - name: redisHost
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-host
+    - name: redisPassword
+      secretKeyRef:
+        name: eventplatform-secrets
+        key: redis-password
+    # Azure Cache for Redis only accepts TLS connections on its SSL port; the local dev component
+    # has no equivalent line because the Docker Redis speaks plaintext.
+    - name: enableTLS
+      value: "true"
+auth:
+  secretStore: kubernetes

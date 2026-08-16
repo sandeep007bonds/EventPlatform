@@ -19,6 +19,8 @@ spec:
         dapr.io/app-id: "communication"
         dapr.io/app-port: "8080"
         dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
     spec:
       containers:
         - name: communication
@@ -35,11 +37,6 @@ spec:
                 secretKeyRef:
                   name: eventplatform-secrets
                   key: communication-connection-string
-            - name: Jwt__DevSigningKey
-              valueFrom:
-                secretKeyRef:
-                  name: eventplatform-secrets
-                  key: jwt-dev-signing-key
           readinessProbe:
             httpGet:
               path: /health/ready

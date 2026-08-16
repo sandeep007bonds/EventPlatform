@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: otel-collector
+    app.kubernetes.io/part-of: eventplatform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+      # Deliberately no dapr.io/* annotations. The collector is where Dapr's own sidecar traces are
+      # sent; giving it a sidecar of its own would have it tracing the delivery of traces.
+    spec:
+      containers:
+        - name: otel-collector
+          # -contrib, not the core distribution: the azuremonitor exporter only ships in contrib.
+          # The core image starts and then fails to load this config with "unknown type:
+          # azuremonitor", which reads like a config typo rather than a wrong image.
+          #
+          # VERSION PIN unverified from the sandbox this was written in — check
+          # https://github.com/open-telemetry/opentelemetry-collector-releases/releases.
+          image: otel/opentelemetry-collector-contrib:0.115.1
+          args: ["--config=/conf/collector.yaml"]
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: health
+              containerPort: 13133
+          env:
+            - name: APPLICATIONINSIGHTS_CONNECTION_STRING
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: appinsights-connection-string
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 13133
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              # memory_limiter in the config reads a percentage of this, so the two move together —
+              # raising this limit without thinking raises the collector's internal soft limit too.
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+              readOnly: true
+            # Same reason every other pod here mounts this: the CSI driver only materializes the
+            # eventplatform-secrets Kubernetes Secret while some pod mounts the SecretProviderClass.
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector-config
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eventplatform-keyvault

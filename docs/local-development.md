@@ -70,7 +70,21 @@ change. To apply without a full `dev-up`:
 ./scripts/db-migrate.sh catalog    # just one
 ```
 
-Both need the EF tool once: `dotnet tool install --global dotnet-ef`.
+To check that no model has moved on without a migration to match:
+
+```bash
+./scripts/db-check-drift.sh          # all eight
+./scripts/db-check-drift.sh catalog  # just one
+```
+
+CI runs this on every push. It is the guard against the one thing the
+model-as-source-of-truth approach cannot catch on its own — a model change
+merged without its migration, which surfaces later as a deploy that fails, or
+succeeds against a schema that no longer matches the code. A service with no
+migrations committed yet is skipped rather than failed: "never migrated" and
+"migrated, then drifted" are different states, and only the second is a bug.
+
+All three need the EF tool once: `dotnet tool install --global dotnet-ef`.
 
 > **Running `dotnet ef` by hand?** Point `--startup-project` at the
 > **Infrastructure** project, not the Api:
