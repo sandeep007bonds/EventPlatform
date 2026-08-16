@@ -122,52 +122,70 @@ say "Remote state: ${state_sa}/${state_container} (rg ${state_rg})"
 # Gitignored (.gitignore excludes *.tfvars but keeps *.tfvars.example), which is why the password
 # and contact address can live here.
 tfvars="${env_dir}/terraform.tfvars"
-if [ -f "$tfvars" ]; then
-  say "Using existing ${tfvars} — edit it by hand to change anything."
+if [ ! -f "$tfvars" ]; then
+  say "Creating ${tfvars} from the example"
+  cp "${env_dir}/terraform.tfvars.example" "$tfvars"
+fi
 
-  # The subscription chosen above only sets the CLI's context; Terraform reads var.subscription_id.
-  # An existing tfvars written against a different subscription silently wins over the prompt, so
-  # the environment would land somewhere other than where this run said it would.
-  tfvars_sub="$(grep -E '^[[:space:]]*subscription_id[[:space:]]*=' "$tfvars" \
-    | tail -1 | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/')"
-  if [ -n "$tfvars_sub" ] && [ "$tfvars_sub" != "$subscription_id" ]; then
-    say "MISMATCH: ${tfvars} sets subscription_id = ${tfvars_sub}"
-    echo "    but this run selected              ${subscription_id}"
-    echo
-    echo "    Terraform uses the tfvars value, not the one selected above, so leaving this alone"
-    echo "    deploys into ${tfvars_sub}."
-    echo
-    if confirm "Rewrite ${tfvars} to use ${subscription_id}?"; then
+# Required variables are discovered from variables.tf (a `variable` block with no `default`)
+# rather than hardcoded here. A tfvars file written before a variable became required would
+# otherwise sail through this step and fail several minutes later at `plan` — which is exactly
+# what happened with letsencrypt_email.
+required_vars="$(awk '
+  /^variable "/ { name=$2; gsub(/"/,"",name); has_default=0 }
+  name != "" && /^[[:space:]]*default[[:space:]]*=/ { has_default=1 }
+  name != "" && /^}/ { if (!has_default) print name; name="" }
+' "${env_dir}/variables.tf")"
+
+for var in $required_vars; do
+  existing="$(grep -E "^[[:space:]]*${var}[[:space:]]*=" "$tfvars" | tail -1 \
+    | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/')"
+
+  if [ -n "$existing" ]; then
+    # subscription_id is the one whose staleness is silent and expensive: Terraform reads this
+    # value, not the subscription selected above, so a leftover from another run wins.
+    if [ "$var" = "subscription_id" ] && [ "$existing" != "$subscription_id" ]; then
+      say "MISMATCH: ${tfvars} sets subscription_id = ${existing}"
+      echo "    but this run selected              ${subscription_id}"
+      echo
+      echo "    Terraform uses the tfvars value, so leaving this alone deploys into ${existing}."
+      echo
+      confirm "Rewrite it to ${subscription_id}?" \
+        || die "Stopped. Fix ${tfvars} by hand, or re-run and select ${existing}."
       sed -i.bak "s|^[[:space:]]*subscription_id[[:space:]]*=.*|subscription_id                 = \"${subscription_id}\"|" "$tfvars"
       rm -f "${tfvars}.bak"
       say "Updated."
-    else
-      die "Stopped. Fix ${tfvars} by hand, or re-run and select ${tfvars_sub}."
     fi
+    continue
   fi
-else
-  say "Creating ${tfvars}"
-  cp "${env_dir}/terraform.tfvars.example" "$tfvars"
 
-  read -r -p "Let's Encrypt contact email (for TLS expiry notices): " letsencrypt_email
-  [ -n "$letsencrypt_email" ] || die "letsencrypt_email is required — certificate issuance needs it."
+  # Missing. Fill it rather than letting `plan` fail on it minutes from now.
+  case "$var" in
+    subscription_id)
+      value="$subscription_id"
+      say "Setting subscription_id = ${value}"
+      ;;
+    *password*)
+      # Generated, not prompted: Terraform stores it in Key Vault and you never type it again, so
+      # a memorable one buys nothing while a weak one is real exposure on a server with a public
+      # firewall rule.
+      value="$(LC_ALL=C tr -dc 'A-Za-z0-9!#%*+-=?' </dev/urandom | head -c 32)"
+      say "Generated a random ${var} into ${tfvars} (gitignored)."
+      ;;
+    letsencrypt_email)
+      say "${var} is required — Let'\''s Encrypt sends certificate expiry notices there."
+      read -r -p "    Contact email: " value
+      [ -n "$value" ] || die "${var} is required; certificate issuance fails without it."
+      ;;
+    *)
+      say "${var} is required by ${env_dir}/variables.tf but not set in ${tfvars}."
+      read -r -p "    Value for ${var}: " value
+      [ -n "$value" ] || die "${var} is required."
+      ;;
+  esac
 
-  # Generated rather than prompted: it is never typed again (Terraform writes it to Key Vault), so
-  # a memorable one buys nothing and a weak one is a real exposure on a server with a public
-  # firewall rule.
-  pg_password="$(LC_ALL=C tr -dc 'A-Za-z0-9!#%*+-=?' </dev/urandom | head -c 32)"
-
-  {
-    echo ""
-    echo "# --- written by scripts/provision-azure.sh ---"
-    echo "subscription_id                 = \"${subscription_id}\""
-    echo "letsencrypt_email               = \"${letsencrypt_email}\""
-    echo "postgres_administrator_password = \"${pg_password}\""
-  } >> "$tfvars"
-
-  say "Generated a random Postgres admin password into ${tfvars} (gitignored)."
-  echo "    Terraform also stores it in Key Vault, so you never need to read it from here."
-fi
+  printf '%s = "%s"\n' "$var" "$value" >> "$tfvars"
+done
 
 # --- 6. init + plan ---------------------------------------------------------
 say "terraform init (backend config from bootstrap outputs)"
