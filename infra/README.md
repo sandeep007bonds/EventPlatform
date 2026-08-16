@@ -87,6 +87,29 @@ trace you were trying to read. **Before any load test**, either raise
 collector's pipeline — a k6 run at full fidelity will spend a day's budget in
 minutes.
 
+## Provisioning
+
+```bash
+./scripts/provision-azure.sh          # or: ./scripts/provision-azure.sh dev
+```
+
+Logs you in, lists your subscriptions and makes you pick one, bootstraps the
+remote-state storage if it does not exist, writes a `terraform.tfvars` (asking
+for the Let's Encrypt address, generating the Postgres password), runs `plan`,
+and applies **only** after you read it and type `y`. Then it offers to run
+`finish-dev-bootstrap.sh` for the GitOps wiring.
+
+Re-runnable: existing state, tfvars and init are detected and reused.
+
+The subscription prompt is not a convenience. Terraform's provider will
+otherwise use whatever `az account show` returns, and on a machine signed into
+more than one tenant that silently creates the whole environment — and every
+environment's state — in the wrong subscription, with nothing in the output to
+say so.
+
+The step-by-step equivalent, if you would rather drive it yourself, is in
+[`environments/dev/README.md`](environments/dev/README.md).
+
 ## How you reach the cluster
 
 `infra/environments/dev/ingress.tf` installs an NGINX ingress controller and

@@ -15,7 +15,13 @@ the *application* onto the cluster — that's `deploy/` + Argo CD (GitOps).
 ## Owns
 
 - `bootstrap/` — one-time, local-state config creating the remote-state
-  storage account. Not an environment; apply once, never destroy.
+  storage account. Not an environment; apply once, never destroy. Takes a
+  **required** `subscription_id`: the provider would otherwise silently use
+  the CLI's current default, which on a multi-tenant machine puts every
+  environment's state in the wrong subscription.
+- `../scripts/provision-azure.sh` — the front door for all of this: login,
+  subscription choice, bootstrap-if-needed, tfvars, plan, and apply behind a
+  typed confirmation. It never applies unprompted, and it is re-runnable.
 - `environments/dev/` — the only environment that exists today. A
   minimal-cost topology that deliberately diverges from the production ADRs
   — see [ADR-0017](../docs/adr/0017-dev-environment-cost-topology.md) for
