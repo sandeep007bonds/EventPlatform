@@ -206,7 +206,7 @@ npm install
 npm run dev
 ```
 
-Needs the gateway (and ideally the 5 backend services) running — see
+Needs the gateway (and ideally all nine backend services) running — see
 `docs/local-e2e-walkthrough.md`.
 
 ```bash
@@ -229,7 +229,7 @@ Two consequences for how you write code:
   `/api`, so keep it that way — a call to a bare path would hit the SPA's own
   nginx and get `index.html` back.
 - **Anything `VITE_*` is baked in at build time and shipped to the browser.**
-  Only the Stripe *publishable* key is passed at build (safe by design). Never
+  Only the Stripe _publishable_ key is passed at build (safe by design). Never
   add a `VITE_` variable holding something that must stay private.
 
 ## Do not

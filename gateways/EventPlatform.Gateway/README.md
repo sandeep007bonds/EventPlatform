@@ -5,7 +5,7 @@ an explicit route allowlist, plus a Development-only login endpoint.
 
 ## Why
 
-The 5 backend services have no CORS policy and no gateway existed before
+The backend services have no CORS policy and no gateway existed before
 this, so a browser couldn't call them directly. Rather than adding CORS to
 all 5 (and growing that list with every future service), this gateway is the
 one place a browser ever talks to, and the one place CORS is configured.
@@ -43,4 +43,4 @@ and [ADR-0016](../../docs/adr/0016-buyer-identity-and-notifications.md).
 ## Run locally
 
 See [docs/local-e2e-walkthrough.md](../../docs/local-e2e-walkthrough.md).
-Needs the 5 backend services running to have anything to proxy to.
+Needs the services it proxies to running to have anything to reach.

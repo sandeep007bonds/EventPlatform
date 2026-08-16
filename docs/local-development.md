@@ -11,8 +11,9 @@ runs locally and in the cloud — only the Dapr component config differs.
 ./scripts/dev-up.sh
 ```
 
-Starts Postgres, Redis, Jaeger, and all six services (each with a Dapr
-sidecar). Ctrl+C stops everything. See
+Starts Postgres, Redis, Jaeger, and all nine services — eight with a Dapr
+sidecar, plus Media.Api and the gateway, which run without one. Ctrl+C stops
+everything. See
 **[local-e2e-walkthrough.md](local-e2e-walkthrough.md)** for the full runbook —
 prerequisites, minting a dev auth token, and a copy-paste script that drives a
 complete purchase (create event → seat map → publish → hold → checkout → order
@@ -120,8 +121,10 @@ All three need the EF tool once: `dotnet tool install --global dotnet-ef`.
 
 `scripts/dev-up.sh` runs `dapr run -f platform/dapr/dapr.yaml` — a
 [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
-template that starts all six services with their sidecars in one process
-tree. It's equivalent to running, for each service, its own:
+template that starts eight of the nine services with their sidecars in one
+process tree. Media.Api is deliberately not in it — it has no database and no
+pub/sub, so it never runs with a sidecar (see `services/media/CLAUDE.md`);
+`dev-up.sh` starts it, and the gateway, as plain processes alongside. It's equivalent to running, for each service, its own:
 
 ```bash
 dapr run --app-id catalog --app-port 5080 --app-protocol http \

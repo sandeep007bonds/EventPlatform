@@ -39,7 +39,7 @@ ADR-0015 and ADR-0016.
   Identity and Entra External ID exist, dev-login stops being the app's real
   login path — kept only for curl/script testing, like
   `scripts/dev-token.sh` already is.
-- **CORS lives here, nowhere else.** The 5 backend services have no CORS
+- **CORS lives here, nowhere else.** The backend services have no CORS
   policy and never will — only the gateway is ever called from a browser.
 
 ## Structure
@@ -58,7 +58,7 @@ dotnet run --project gateways/EventPlatform.Gateway
 # browse the API docs at /scalar/v1 (non-production)
 ```
 
-Run the 5 backend services too (see `docs/local-e2e-walkthrough.md`) — the
+Run the backend services too (see `docs/local-e2e-walkthrough.md`) — the
 gateway has nothing to proxy to on its own.
 
 ## Do not

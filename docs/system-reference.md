@@ -370,7 +370,9 @@ written, like the rest of the `0x-` series; this file is the as-built record.)
 ## 8. Where things run
 
 **Locally** — `scripts/dev-up.sh` brings up Postgres, Redis, Jaeger and Azurite
-in Docker, then all nine services plus the gateway under Dapr.
+in Docker, applies every schema (`scripts/db-migrate.sh`), then starts all nine
+services plus the gateway — eight under Dapr; Media and the gateway run without a
+sidecar, neither needing pub/sub or service invocation.
 
 | Port | Service | | Port | Service |
 |---|---|---|---|---|
@@ -398,8 +400,8 @@ Honest list; these are decisions or debts, not surprises.
 
 | Gap | Status |
 |---|---|
-| **Catalog, Inventory and Ticketing have no test projects** — Inventory is the notable one, since it owns the no-oversell guarantee | Communication, Identity, Media, Ordering, Payments and Queue have them |
-| No EF Core migrations — local dev uses `EnsureCreated`, so a schema change needs a DB rebuild | Deliberate for now; real migrations needed before shared environments |
+| Test **depth** is uneven across services | Closed as an existence gap — all nine services have `tests/`. Inventory's no-oversell path is now exercised against a real Redis (Testcontainers); Catalog and Ticketing are thinner. Still no end-to-end saga test against a real Dapr sidecar |
+| No end-to-end verification of the deployed topology | Terraform, manifests and the SPA image are validated only by `terraform validate` + `kustomize build` in CI, which prove they are well-formed, not that they work. First real proof is an `apply` and a CD run |
 | Ticket QR payload is the raw opaque token, not signed or expiring | Tracked; fine while tokens are 128-bit random and single-use |
 | Queue admission tokens are not one-time-use | Holds are independently capacity- and limit-checked, so the queue only paces access |
 | Bundle purchase across multiple tour legs | Deferred — needs multi-event orders with their own pricing |

@@ -2,7 +2,7 @@ namespace EventPlatform.Gateway.Cors;
 
 /// <summary>
 /// CORS policy for the frontend origin(s). The gateway is the only place in the platform that
-/// needs CORS — the 5 backend services are never called directly from a browser.
+/// needs CORS — the backend services are never called directly from a browser.
 /// </summary>
 public static class CorsExtensions
 {

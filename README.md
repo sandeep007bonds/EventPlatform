@@ -66,6 +66,9 @@ a robust anti-bot layer.
 - [Engineering Guidelines (golden rules)](docs/engineering-guidelines.md) · [root CLAUDE.md](CLAUDE.md)
 - [Local Development (Docker, no Azure needed)](docs/local-development.md)
 - [SOP — Onboarding a new service](docs/onboarding-new-service.md)
+- **Deploying to Azure:** [infra/](infra/README.md) — `./scripts/provision-azure.sh`
+  is the front door (login → subscription → remote state → plan → apply behind a
+  typed confirmation). It never applies unprompted and is safe to re-run.
 
 ## Guiding principles
 

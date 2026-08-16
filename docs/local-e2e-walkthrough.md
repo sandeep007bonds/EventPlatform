@@ -5,7 +5,7 @@ Run the **whole platform** on your machine and drive a full purchase:
 (pay) → order confirmed → ticket issued.**
 
 No Azure, no Kubernetes. One command starts everything: Docker (Postgres,
-Redis, Jaeger) plus all five services, each with a Dapr sidecar.
+Redis, Jaeger) plus all nine services and the gateway.
 
 **What "no oversell" means:** the platform's core promise is that the same seat
 is never sold to two people. In a flash sale, thousands of buyers can hit "buy"
@@ -47,21 +47,23 @@ This single command:
 1. Starts Postgres, Redis, and Jaeger (`docker compose up -d`) and waits for
    them to report healthy.
 2. Installs the local Dapr runtime the first time you run it (`dapr init`).
-3. Starts all five services — Catalog, Inventory, Ordering, Payments,
-   Ticketing — each with its own Dapr sidecar, via
+3. Applies every service's schema once, up front (`scripts/db-migrate.sh`).
+4. Starts eight services — Catalog, Inventory, Ordering, Payments, Ticketing,
+   Communication, Identity, Queue — each with its own Dapr sidecar, via
    [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
-   (`platform/dapr/dapr.yaml`).
+   (`platform/dapr/dapr.yaml`), plus Media.Api and the gateway as plain
+   processes (neither uses Dapr).
 
-Each service has its own Postgres **database** (`catalog`, `inventory`,
-`ordering`, `payments`, `ticketing` — true database-per-service, not just
-separate schemas in one shared database) and creates it from its current EF
-Core model the first time it starts (`Database.EnsureCreatedAsync()`,
-Development only) — there's no separate migration step and nothing else to
-run. This matters: `EnsureCreatedAsync()` only creates tables when the
-*database itself* doesn't exist yet, so each service needs its own database
-name for this to work automatically.
+Each database-owning service has its own Postgres **database** (`catalog`,
+`inventory`, `ordering`, `payments`, `ticketing`, `communication`, `identity`,
+`queue` — true database-per-service, not just separate schemas in one shared
+database; Media owns none). **Services never migrate themselves** (ADR-0029):
+`dev-up.sh` runs `scripts/db-migrate.sh` before anything starts serving, which
+is the same `--migrate` entry point a deployed environment runs as an Argo CD
+PreSync job. One mechanism, exercised locally every day rather than only at
+deploy time.
 
-**Ctrl+C stops everything** (all five services and their sidecars). Then, to
+**Ctrl+C stops everything** (every service, its sidecar, and the gateway). Then, to
 also stop the Docker containers:
 
 ```bash
@@ -256,7 +258,7 @@ dotnet user-secrets set "Payments:Stripe:WebhookSecret" "whsec_..." --project se
 | `inventory` stays `seatCount: 0` | Check the inventory sidecar's logs in the `dev-up.sh` output for a pub/sub delivery error |
 | Checkout hangs / 500 | Ordering needs the `statestore` component (Dapr Workflow) — it's in `platform/dapr/components`, already wired into `platform/dapr/dapr.yaml` |
 | Stripe shows the payment succeeded, but the order stays `AwaitingPayment` and the order page keeps polling | The saga polls Payments every ~3s and reconciles against Stripe directly, so this should clear on its own within seconds. If it doesn't, check Ordering's logs for `SyncPaymentStatusActivity` errors and confirm `Payments:Stripe:SecretKey` is set for **Payments** (the pull path needs it; the publishable key alone isn't enough) |
-| `relation "X.Y" does not exist` | That service's connection string in `appsettings.Development.json` must point at its **own** database (`catalog`/`inventory`/`ordering`/`payments`/`ticketing`), not a shared one — `EnsureCreatedAsync()` silently skips table creation if the database already exists, which it would if two services pointed at the same one |
-| Dapr can't reach a service | app-id mismatch — the ids must be exactly `catalog`/`inventory`/`ordering`/`payments`/`ticketing` (already set correctly in `platform/dapr/dapr.yaml`) |
+| `relation "X.Y" does not exist` | The schema wasn't applied — re-run `./scripts/db-migrate.sh`. If it persists, that service's connection string in `appsettings.Development.json` must point at its **own** database, not a shared one. Coming from an older `EnsureCreated` database? Drop the volume once: `./scripts/dev-down.sh -v && ./scripts/dev-up.sh` |
+| Dapr can't reach a service | app-id mismatch — the ids must exactly match those in `platform/dapr/dapr.yaml` (`catalog`/`inventory`/`ordering`/`payments`/`ticketing`/`communication`/`identity`/`queue`) |
 | `secretstore ... open platform/dapr/secrets.local.json: ... cannot find the file` | `dev-up.sh` now creates this automatically (local dummy values, git-ignored) — pull the latest script, or create it by hand per [local-development.md](local-development.md#secrets-local) |
 | `CSC : error CS2012: Cannot open '...EventPlatform.Contracts.dll' for writing` | Two services tried to compile the shared building-blocks projects at the same time. `dev-up.sh` now runs `dotnet build` once up front to prevent this — pull the latest script and re-run |
