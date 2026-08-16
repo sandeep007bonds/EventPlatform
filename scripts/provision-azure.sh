@@ -19,6 +19,12 @@
 # recreated.
 set -euo pipefail
 
+# -E so the trap is inherited by functions and subshells. Without a trap, any unguarded command
+# returning non-zero exits with no output whatsoever, which reads as "the script did nothing" —
+# see the `|| true` note in the tfvars loop for the case that actually caused it.
+set -E
+trap 'printf "\nERROR: failed at line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2' ERR
+
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
@@ -138,8 +144,11 @@ required_vars="$(awk '
 ' "${env_dir}/variables.tf")"
 
 for var in $required_vars; do
-  existing="$(grep -E "^[[:space:]]*${var}[[:space:]]*=" "$tfvars" | tail -1 \
-    | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/')"
+  # `|| true` is load-bearing: grep exits 1 when the variable is absent, pipefail propagates it,
+  # and `set -e` then kills the script mid-loop with no output at all. Absence is the normal case
+  # here — it is the whole reason this loop exists.
+  existing="$(grep -E "^[[:space:]]*${var}[[:space:]]*=" "$tfvars" 2>/dev/null | tail -1 \
+    | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/' || true)"
 
   if [ -n "$existing" ]; then
     # subscription_id is the one whose staleness is silent and expensive: Terraform reads this
