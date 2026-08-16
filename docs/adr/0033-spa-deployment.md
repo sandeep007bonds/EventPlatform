@@ -85,10 +85,14 @@ instead of a parallel set of arrays.
 - The frontend has no `secrets-store` CSI mount, unlike every other pod. It
   needs no secrets, and anything it could read would reach the browser anyway.
   The synced Secret is unaffected — ten other pods already mount the class.
-- **Not verified beyond parsing.** No Docker in the authoring sandbox, so the
-  image has never been built; CI type-checks and builds the SPA but does not
-  build this Dockerfile, and CD's image build only runs with Azure credentials.
-  First real proof is a CD run.
+- **Partly verified.** The build stage was run for real (Node 22): it produces
+  `dist/index.html` plus fingerprinted `dist/assets/index-<hash>.{js,css}`,
+  which is what the nginx cache rules assume, and the bundle contains
+  `baseURL: void 0` with no hostname anywhere — the same-origin claim is
+  observed, not assumed. The **image** has not been built: the authoring
+  sandbox has the Docker CLI but no daemon. So the nginx stage, the `COPY`
+  paths and the base image tags are still unproven; first real proof is a CD
+  run.
 
 ## Alternatives considered
 
