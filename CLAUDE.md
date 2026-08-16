@@ -60,7 +60,9 @@ Enforced by `.editorconfig` + `Directory.Build.props` (warnings are errors).
   transitives).
 - **Forward `CancellationToken`** through async calls (CA2016).
 - **Generated code is exempt, and must stay that way.** `Migrations/` and
-  `Generated/` have all analyzer diagnostics silenced in `.editorconfig`. EF
+  `Generated/` have all analyzer diagnostics silenced in `.editorconfig` — via
+  a `**.cs` glob, not `**/*.cs`, which would miss files sitting directly in
+  those folders (which is where EF puts them). EF
   rewrites those files on every `migrations add`, so hand-fixing a style
   violation there is undone by the next model change — do not "tidy" a
   migration, and do not add rule IDs back. Review a migration for what its DDL
