@@ -33,15 +33,32 @@ spec:
     - host: REPLACE_ME_GATEWAY_HOST
       http:
         paths:
-          # Everything goes to the gateway, which owns the route allowlist. The ingress
+          # Every API call goes to the gateway, which owns the route allowlist. The ingress
           # deliberately does not know about individual services: adding a per-service path here
           # would let a request reach a backend without passing the gateway's own allowlist, which
           # is the thing keeping saga-internal routes (Inventory's hold convert/release, every
           # Payments endpoint) off the public internet.
-          - path: /
+          #
+          # Longest matching prefix wins, so this beats the catch-all below. Every gateway route is
+          # already under /api (see the gateway's ReverseProxy config) — which is also what lets
+          # the SPA call it same-origin, with no CORS and no per-environment build.
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: gateway
+                port:
+                  number: 80
+          # Everything else is the SPA. Its nginx falls back to index.html, so a deep link like
+          # /events/<id>/seats reaches the client-side router instead of 404ing.
+          #
+          # Note this leaves the gateway's own /health and /scalar/v1 unreachable from outside —
+          # deliberate. Probes hit the pod directly, and API docs are not something to publish by
+          # accident.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
                 port:
                   number: 80

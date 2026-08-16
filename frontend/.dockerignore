@@ -1,0 +1,10 @@
+# node_modules is reinstalled from the lockfile inside the image; copying the host's costs a slow
+# build and risks platform-specific binaries that don't run on alpine.
+node_modules
+dist
+.env
+.env.*
+!.env.example
+.git
+Dockerfile
+.dockerignore

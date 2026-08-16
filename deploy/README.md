@@ -7,7 +7,7 @@ by hand (see the root [CLAUDE.md](../CLAUDE.md)'s GitOps rule).
 
 - `base/<service>/` — Deployment + Service + kustomization per service
   (catalog, inventory, ordering, payments, ticketing, communication, media,
-  identity, queue, gateway). Every service that owns a database also has a
+  identity, queue, gateway, frontend). Every service that owns a database also has a
   `migrate-job.yaml` (see below).
 - `base/dapr-components/` and `base/observability/` — platform-wide rather
   than per-service: the Dapr components every sidecar resolves by name, and
@@ -71,11 +71,10 @@ resolve it by name at startup.
 ## Ingress and TLS
 
 `overlays/dev/ingress.yaml` is the cluster's single HTTPS entry point. It
-routes `/` to the gateway and deliberately knows nothing about individual
-services — a per-service path here would let a request reach a backend
-without passing the gateway's own route allowlist, which is what keeps
-saga-internal routes (Inventory's hold convert/release, every Payments
-endpoint) off the public internet.
+deliberately knows nothing about individual backend services — a per-service
+path here would let a request reach a backend without passing the gateway's
+own route allowlist, which is what keeps saga-internal routes (Inventory's
+hold convert/release, every Payments endpoint) off the public internet.
 
 The controller and cert-manager are installed by Terraform
 (`infra/environments/dev/ingress.tf`), not Argo CD — same reasoning as the Dapr
@@ -89,13 +88,19 @@ to the gateway, which is why the Ingress lives here rather than in
 `LoadBalancer` gives you a second public IP serving plain HTTP with no
 certificate, bypassing everything above (ADR-0030).
 
+The ingress splits on path: `/api` to the gateway (longer prefix wins),
+everything else to the SPA, on one hostname. That is what makes the frontend's
+API calls same-origin — no CORS, and one frontend image for every environment
+rather than one per hostname (ADR-0033). Note the gateway's own `/health/*`
+and `/scalar/v1` are consequently not reachable from outside.
+
 `gateway-cors-patch.yaml` allows a browser origin. The deployed gateway runs
 as `Staging`, which skips the only appsettings file that populates
-`Cors:AllowedOrigins` — without the patch, every browser request fails
-preflight and the endpoint is curl-only. The origin is `localhost:5173`
-because **the SPA is not deployed to this cluster** (there is no `frontend`
-entry in `base/kustomization.yaml`); the realistic caller is a local
-`npm run dev`. Change it when that stops being true.
+`Cors:AllowedOrigins`, so without it every *cross-origin* browser request
+fails preflight. The deployed SPA does not need it (same origin); the real
+caller is a local `npm run dev` pointed at the cluster. Removing the patch
+would lock the deployed API to the deployed SPA — stricter, and probably where
+this ends up.
 
 ## Authentication
 
@@ -136,7 +141,7 @@ Two things about these jobs that look like omissions but are not:
   the schema is never applied by a different build than the one about to
   serve traffic.
 
-`media` and `gateway` have no job — neither owns a database.
+`media`, `gateway` and `frontend` have no job — none owns a database.
 
 ## Secrets
 

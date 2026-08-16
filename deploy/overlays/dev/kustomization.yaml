@@ -79,3 +79,6 @@ images:
   - name: gateway-placeholder
     newName: REPLACE_ME.azurecr.io/gateway
     newTag: REPLACE_ME
+  - name: frontend-placeholder
+    newName: REPLACE_ME.azurecr.io/frontend
+    newTag: REPLACE_ME
