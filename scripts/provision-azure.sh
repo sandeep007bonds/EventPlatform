@@ -70,12 +70,43 @@ say "Using: $(az account show --query name --output tsv) (${subscription_id})"
 
 # --- 4. bootstrap (remote state) --------------------------------------------
 # The one config that cannot use remote state, because it is what creates it.
+#
+# Local state is checked against the SELECTED subscription, not merely for existence. Bootstrap
+# applied before subscription_id was required could have landed in whatever the CLI defaulted to at
+# the time, and its state file would still name resources here that live in another tenant
+# entirely — or nowhere, if someone deleted them. Trusting the file alone turns that into a
+# confusing `terraform init` 404 several steps later.
+bootstrap_usable=false
 if [ -f infra/bootstrap/terraform.tfstate ] \
    && terraform -chdir=infra/bootstrap output -raw storage_account_name >/dev/null 2>&1; then
-  say "Bootstrap state already exists — reusing it."
-else
-  say "No bootstrap state found. This creates the storage account holding every environment's"
-  echo "    Terraform state. It is applied once and never destroyed."
+  stale_rg="$(terraform -chdir=infra/bootstrap output -raw resource_group_name)"
+  stale_sa="$(terraform -chdir=infra/bootstrap output -raw storage_account_name)"
+
+  if az storage account show --name "$stale_sa" --resource-group "$stale_rg" \
+       --subscription "$subscription_id" >/dev/null 2>&1; then
+    bootstrap_usable=true
+    say "Bootstrap state already exists and its resources are present — reusing."
+  else
+    say "Local bootstrap state names ${stale_sa} (rg ${stale_rg}), which does NOT exist in this"
+    echo "    subscription. Most likely it was applied against a different one before"
+    echo "    subscription_id became required, so the real resources live in another tenant."
+    echo
+    echo "    If any environment already has state in that account, DO NOT re-bootstrap here —"
+    echo "    log in to that subscription instead, or you will lose track of live resources."
+    echo "    If nothing has been applied yet, re-bootstrapping is safe and cheap."
+    echo
+    if confirm "Re-bootstrap into ${subscription_id}? (the old state file is kept, renamed)"; then
+      mv infra/bootstrap/terraform.tfstate \
+         "infra/bootstrap/terraform.tfstate.orphaned-$(date +%Y%m%d%H%M%S)"
+    else
+      die "Stopped. Select the subscription holding ${stale_sa}, or remove the stale state by hand."
+    fi
+  fi
+fi
+
+if [ "$bootstrap_usable" = false ]; then
+  say "Creating the storage account that holds every environment's Terraform state."
+  echo "    Applied once, never destroyed."
   confirm "Create bootstrap resources in ${subscription_id}?" || die "Stopped before bootstrap."
 
   terraform -chdir=infra/bootstrap init -input=false
@@ -93,6 +124,27 @@ say "Remote state: ${state_sa}/${state_container} (rg ${state_rg})"
 tfvars="${env_dir}/terraform.tfvars"
 if [ -f "$tfvars" ]; then
   say "Using existing ${tfvars} — edit it by hand to change anything."
+
+  # The subscription chosen above only sets the CLI's context; Terraform reads var.subscription_id.
+  # An existing tfvars written against a different subscription silently wins over the prompt, so
+  # the environment would land somewhere other than where this run said it would.
+  tfvars_sub="$(grep -E '^[[:space:]]*subscription_id[[:space:]]*=' "$tfvars" \
+    | tail -1 | sed 's/.*=[[:space:]]*"\(.*\)".*/\1/')"
+  if [ -n "$tfvars_sub" ] && [ "$tfvars_sub" != "$subscription_id" ]; then
+    say "MISMATCH: ${tfvars} sets subscription_id = ${tfvars_sub}"
+    echo "    but this run selected              ${subscription_id}"
+    echo
+    echo "    Terraform uses the tfvars value, not the one selected above, so leaving this alone"
+    echo "    deploys into ${tfvars_sub}."
+    echo
+    if confirm "Rewrite ${tfvars} to use ${subscription_id}?"; then
+      sed -i.bak "s|^[[:space:]]*subscription_id[[:space:]]*=.*|subscription_id                 = \"${subscription_id}\"|" "$tfvars"
+      rm -f "${tfvars}.bak"
+      say "Updated."
+    else
+      die "Stopped. Fix ${tfvars} by hand, or re-run and select ${tfvars_sub}."
+    fi
+  fi
 else
   say "Creating ${tfvars}"
   cp "${env_dir}/terraform.tfvars.example" "$tfvars"
