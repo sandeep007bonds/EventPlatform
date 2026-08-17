@@ -55,7 +55,30 @@ else
   echo "==> Committing $spc_file and $ingress_file"
   git -C "$repo_root" add "$spc_file" "$ingress_file"
   git -C "$repo_root" commit -m "chore(deploy): fill Key Vault and ingress host values for dev"
-  git -C "$repo_root" push
+
+  # A plain push fails whenever the branch moved on the remote since you last
+  # pulled, which is easy to hit here - provisioning takes long enough that a
+  # push from elsewhere lands in the meantime. Rebase and retry once rather
+  # than aborting the whole bootstrap over it. Rebase, not merge: this commit
+  # only touches two generated placeholder files, so there is nothing to
+  # conflict with and no merge commit worth creating.
+  branch="$(git -C "$repo_root" rev-parse --abbrev-ref HEAD)"
+  if ! git -C "$repo_root" push -u origin "$branch"; then
+    echo "==> Push rejected - the remote has commits this clone doesn't. Rebasing onto it."
+    if git -C "$repo_root" pull --rebase origin "$branch" \
+       && git -C "$repo_root" push -u origin "$branch"; then
+      echo "==> Pushed after rebase."
+    else
+      # Deliberately not fatal: the infrastructure is already up and this file
+      # is committed locally. Argo CD reconciles from the REMOTE, though, so
+      # nothing syncs until this lands - say so rather than exiting silently.
+      echo
+      echo "    WARNING: could not push. The commit exists locally but Argo CD reads the"
+      echo "    remote, so it will not sync until you resolve this and push:"
+      echo "      git -C \"$repo_root\" pull --rebase origin ${branch} && git -C \"$repo_root\" push"
+      echo
+    fi
+  fi
 fi
 
 echo
