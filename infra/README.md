@@ -175,6 +175,29 @@ Until one of those is in place, build and push images locally
 (`az acr login --name <acr> && docker push ...`) — Argo CD reconciles whatever
 tag `deploy/` points at regardless of who pushed it.
 
+### Turning it back on later — import, don't recreate
+
+If you get directory permissions afterwards and an app registration from a
+failed earlier apply is still sitting in the directory, **do not just flip
+`enable_github_oidc` back to true**. Entra ID does not enforce unique display
+names, so Terraform will happily create a *second*
+`github-actions-eventplatform-dev` and you will have two apps with the same
+name and no way to tell from the Portal which one CI actually uses. Adopt the
+existing one instead:
+
+```bash
+# Object ID (not client/app ID) — that is what the import address wants.
+az ad app list --display-name github-actions-eventplatform-dev \
+  --query '[].{objectId:id, clientId:appId}' -o table
+
+terraform import 'azuread_application.github_actions[0]' /applications/<objectId>
+terraform plan   # should show the service principal + federated credentials
+                 # to add, and NO new application to create
+```
+
+If the old app is genuinely gone (an admin deleted it, or you never got one),
+skip the import — flipping the flag is enough.
+
 ### If you already got a partial apply
 
 The application may exist while its service principal does not. Flipping
