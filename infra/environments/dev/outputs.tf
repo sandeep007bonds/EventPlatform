@@ -54,8 +54,8 @@ output "aks_tenant_id" {
 }
 
 output "github_actions_client_id" {
-  description = "Client ID of the GitHub Actions OIDC application — set this as the AZURE_CLIENT_ID GitHub Actions secret (or repo variable) for the CD workflow's azure/login step."
-  value       = azuread_application.github_actions.client_id
+  description = "Client ID of the GitHub Actions OIDC application — set this as the AZURE_CLIENT_ID GitHub Actions secret (or repo variable) for the CD workflow's azure/login step. Empty when enable_github_oidc is false, in which case CD needs one of the alternatives in the README."
+  value       = one(azuread_application.github_actions[*].client_id)
 }
 
 output "gateway_hostname" {

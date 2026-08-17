@@ -9,7 +9,17 @@ provider "azurerm" {
   }
 }
 
-provider "azuread" {}
+# tenant_id is set explicitly rather than inherited from the CLI. The azuread
+# provider otherwise targets whichever tenant the CLI treats as your *home*
+# tenant, which is not necessarily the tenant that owns var.subscription_id —
+# if you have guest access to a subscription in someone else's directory, the
+# two differ. The symptom is a confusing 403 on service-principal creation
+# ("the backing application of the service principal being created must
+# be in the local tenant") rather than an obvious wrong-tenant error.
+# Defaults to null, which restores the inherit-from-CLI behavior.
+provider "azuread" {
+  tenant_id = var.entra_tenant_id
+}
 
 # Configured against the AKS cluster this same apply creates (module.aks's
 # structured kube_config_* outputs, not a kubeconfig file on disk) — this is

@@ -32,6 +32,24 @@ node_vm_size = "Standard_D2s_v7"
 
 postgres_administrator_password = "replace-with-a-strong-password"
 
+# Set false if `apply` fails on the azuread_* resources with a 403
+# Authorization_RequestDenied / "Insufficient privileges to complete the
+# operation". Those create an app registration + service principal in
+# Microsoft Entra ID, which needs *directory* permissions — a completely
+# separate grant from your role on the subscription, so being subscription
+# Owner does not give you them. Nothing else in this environment is affected:
+# the cluster, databases, Key Vault and ACR all still apply. Only CI's
+# image-push identity is skipped; see infra/README.md for the two ways to
+# give CD a push identity without directory rights.
+# enable_github_oidc = false
+
+# Only needed when your sign-in home tenant differs from the tenant that owns
+# subscription_id — e.g. you have guest access to someone else's directory.
+# Leave unset and the azuread provider follows the CLI's home tenant, which
+# silently targets the wrong directory in that case. Get the right value with
+#   az account show --query tenantId -o tsv
+# entra_tenant_id = "00000000-0000-0000-0000-000000000000"
+
 # Only needed if you fork/rename the repo - github_repository must exactly
 # match the repo running .github/workflows/cd.yaml, or GitHub Actions' OIDC
 # login will fail with a federated-credential mismatch.

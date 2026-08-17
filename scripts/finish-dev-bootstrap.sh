@@ -25,7 +25,10 @@ echo "==> Reading terraform output..."
 client_id="$(terraform output -raw aks_key_vault_secrets_provider_client_id)"
 kv_name="$(terraform output -raw key_vault_name)"
 tenant_id="$(terraform output -raw aks_tenant_id)"
-github_client_id="$(terraform output -raw github_actions_client_id)"
+# Empty when enable_github_oidc = false (no directory permissions to create the
+# app registration). Not fatal: the cluster is fully provisioned either way, only
+# CD's push identity is missing. `|| true` because -raw on a null output errors.
+github_client_id="$(terraform output -raw github_actions_client_id 2>/dev/null || true)"
 subscription_id="$(terraform output -raw subscription_id)"
 acr_login_server="$(terraform output -raw acr_login_server)"
 gateway_hostname="$(terraform output -raw gateway_hostname)"
@@ -67,7 +70,16 @@ echo "      kubectl describe certificate -n eventplatform-dev gateway-tls"
 
 echo
 echo "==> GitHub Actions repository secrets needed by .github/workflows/cd.yml:"
-echo "    AZURE_CLIENT_ID       = ${github_client_id}"
+if [ -z "$github_client_id" ]; then
+  echo "    AZURE_CLIENT_ID       = (not created - enable_github_oidc is false)"
+  echo
+  echo "    The OIDC identity CD logs in with does not exist, so image pushes will fail"
+  echo "    until you give CD a push identity another way - see infra/README.md"
+  echo "    (\"GitHub OIDC needs directory permissions\"). Everything else below is"
+  echo "    still correct and still worth setting."
+else
+  echo "    AZURE_CLIENT_ID       = ${github_client_id}"
+fi
 echo "    AZURE_TENANT_ID       = ${tenant_id}"
 echo "    AZURE_SUBSCRIPTION_ID = ${subscription_id}"
 echo "    ACR_LOGIN_SERVER      = ${acr_login_server}"
@@ -75,7 +87,11 @@ echo "    ACR_LOGIN_SERVER      = ${acr_login_server}"
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
   read -r -p "==> gh CLI is authenticated - set these 4 secrets on this repo now? [y/N] " confirm
   if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
-    gh secret set AZURE_CLIENT_ID --body "$github_client_id"
+    if [ -n "$github_client_id" ]; then
+      gh secret set AZURE_CLIENT_ID --body "$github_client_id"
+    else
+      echo "    Skipping AZURE_CLIENT_ID - no OIDC identity was created."
+    fi
     gh secret set AZURE_TENANT_ID --body "$tenant_id"
     gh secret set AZURE_SUBSCRIPTION_ID --body "$subscription_id"
     gh secret set ACR_LOGIN_SERVER --body "$acr_login_server"

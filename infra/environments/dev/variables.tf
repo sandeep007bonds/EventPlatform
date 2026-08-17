@@ -65,6 +65,18 @@ variable "dev_ip_cidr" {
   default     = null
 }
 
+variable "enable_github_oidc" {
+  description = "Create the Entra ID app registration + service principal + federated credentials that let GitHub Actions push images to ACR. Requires Microsoft Entra ID *directory* permissions, which are separate from your Azure subscription role — subscription Owner is NOT sufficient. Set false if `terraform apply` 403s with Authorization_RequestDenied on the azuread_* resources; everything else in this environment applies fine without it, and infra/README.md documents how to give CD a push identity another way."
+  type        = bool
+  default     = true
+}
+
+variable "entra_tenant_id" {
+  description = "Microsoft Entra ID tenant the azuread provider targets. Leave null to inherit the Azure CLI's home tenant, which is correct when the subscription lives in your own directory. Set it explicitly (to `az account show --query tenantId -o tsv`) when the subscription belongs to a different tenant than your sign-in home tenant — otherwise app registrations land in one directory while their service principals are attempted in another."
+  type        = string
+  default     = null
+}
+
 variable "github_repository" {
   description = "GitHub \"owner/repo\" that the CD workflow's OIDC federated identity trusts. Must match the repo that runs .github/workflows/cd.yaml exactly, or the federated credential's subject claim won't match and Azure login in CI will fail."
   type        = string

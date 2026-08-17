@@ -110,6 +110,83 @@ say so.
 The step-by-step equivalent, if you would rather drive it yourself, is in
 [`environments/dev/README.md`](environments/dev/README.md).
 
+## GitHub OIDC needs directory permissions, and often you won't have them
+
+Everything in this environment is an **Azure Resource Manager** resource,
+authorized by your role on the subscription — except `github-oidc.tf`. That
+file creates an app registration, a service principal and federated credentials
+in **Microsoft Entra ID**. Those are *directory* objects, governed by an
+entirely separate permission system. **Subscription Owner grants you none of
+it.** You will hit this if the tenant has "Users can register applications" set
+to No, or if you are a guest in the directory rather than a member — both are
+normal for a subscription you were given rather than one you created.
+
+The failure looks like:
+
+```
+Error: Could not create service principal
+  unexpected status 403 ... Authorization_RequestDenied
+Error: Adding federated identity credential for Application
+  unexpected status 403 ... Insufficient privileges to complete the operation
+```
+
+Check which case you are in:
+
+```bash
+az account show --query '{signedIn:user.name, subTenant:tenantId, homeTenant:homeTenantId}'
+az rest --method GET --url 'https://graph.microsoft.com/v1.0/me' \
+  --query '{upn:userPrincipalName, type:userType}'
+az rest --method GET \
+  --url 'https://graph.microsoft.com/v1.0/policies/authorizationPolicy' \
+  --query 'defaultUserRolePermissions.allowedToCreateApps'
+```
+
+- `subTenant` ≠ `homeTenant` → set `entra_tenant_id = "<subTenant>"`. The
+  `azuread` provider follows your *home* tenant by default, so it was creating
+  the application in one directory and attempting its service principal in
+  another — which is what the confusingly-worded "the backing application ...
+  must be in the local tenant" error actually means.
+- `type: Guest`, or `allowedToCreateApps: false` → you genuinely lack the
+  permission. Either ask a Global Administrator / Application Administrator to
+  grant **Application Developer** on your account, or skip it (below).
+
+### Skipping it
+
+```hcl
+enable_github_oidc = false
+```
+
+The cluster, databases, Key Vault, ACR, ingress and Argo CD all apply exactly
+as before. The *only* thing you lose is the identity GitHub Actions logs in
+with to push images, so CD can't push until you replace it. Two ways:
+
+1. **Have an admin create the app registration once**, by hand or with their
+   own credentials, then add the federated credential for
+   `repo:<owner>/<repo>:ref:refs/heads/<branch>` and assign it `AcrPush` on the
+   ACR. Set `AZURE_CLIENT_ID` to it. This is the same end state as the
+   Terraform, just created by someone who has the rights.
+2. **Use ACR's admin credentials** — enable the admin user on the registry and
+   give CD `ACR_USERNAME`/`ACR_PASSWORD` instead of an OIDC login. This is a
+   long-lived shared password rather than a short-lived per-run token, and it
+   is a real downgrade in posture: prefer option 1, and treat this as the
+   "unblock me today" path, not the destination.
+
+Until one of those is in place, build and push images locally
+(`az acr login --name <acr> && docker push ...`) — Argo CD reconciles whatever
+tag `deploy/` points at regardless of who pushed it.
+
+### If you already got a partial apply
+
+The application may exist while its service principal does not. Flipping
+`enable_github_oidc` to false will plan to destroy it, which needs the same
+directory permission you just found you lack. If that destroy fails, drop it
+from state instead and delete it in the Portal later (or leave it — an app
+registration with no service principal is inert and free):
+
+```bash
+terraform state rm azuread_application.github_actions
+```
+
 ## How you reach the cluster
 
 `infra/environments/dev/ingress.tf` installs an NGINX ingress controller and
