@@ -171,9 +171,17 @@ with to push images, so CD can't push until you replace it. Two ways:
    is a real downgrade in posture: prefer option 1, and treat this as the
    "unblock me today" path, not the destination.
 
-Until one of those is in place, build and push images locally
-(`az acr login --name <acr> && docker push ...`) — Argo CD reconciles whatever
-tag `deploy/` points at regardless of who pushed it.
+Until one of those is in place, use **`./scripts/push-images.sh`** — the local
+equivalent of CD's build-and-push plus manifest bump. It reads the ACR name from
+`terraform output`, builds every image (or just the ones you name), pushes them
+tagged with your `HEAD`, rewrites `deploy/overlays/dev/kustomization.yaml` to
+point at them, and commits. Argo CD reconciles whatever tag `deploy/` points at,
+regardless of who pushed it.
+
+It is a bootstrap and debug path, not a replacement for CD: it tags with your
+*working tree's* HEAD, so an image can land in ACR that no commit on the remote
+ever produced. The script warns on a dirty tree and on unpushed commits for
+exactly that reason — Argo CD syncs the remote, never your working copy.
 
 ### Turning it back on later — import, don't recreate
 
