@@ -2,7 +2,7 @@
 #
 # This lives in the overlay rather than base/gateway/ because the hostname is a property of one
 # environment, not of the gateway itself — the same reason keyvault-secretproviderclass.yaml is
-# here. REPLACE_ME_GATEWAY_HOST is filled from `terraform output gateway_hostname` by
+# here. eventplatform-dev-3j13xu.centralus.cloudapp.azure.com is filled from `terraform output gateway_hostname` by
 # scripts/finish-dev-bootstrap.sh; don't paste it by hand.
 #
 # cert-manager watches this annotation, sees a host with no valid certificate in the named Secret,
@@ -27,10 +27,10 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - REPLACE_ME_GATEWAY_HOST
+        - eventplatform-dev-3j13xu.centralus.cloudapp.azure.com
       secretName: gateway-tls
   rules:
-    - host: REPLACE_ME_GATEWAY_HOST
+    - host: eventplatform-dev-3j13xu.centralus.cloudapp.azure.com
       http:
         paths:
           # Every API call goes to the gateway, which owns the route allowlist. The ingress
