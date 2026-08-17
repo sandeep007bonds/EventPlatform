@@ -401,7 +401,7 @@ Honest list; these are decisions or debts, not surprises.
 | Gap | Status |
 |---|---|
 | Test **depth** is uneven across services | Closed as an existence gap — all nine services have `tests/`. Inventory's no-oversell path is now exercised against a real Redis (Testcontainers); Catalog and Ticketing are thinner. Still no end-to-end saga test against a real Dapr sidecar |
-| No end-to-end verification of the deployed topology | Terraform, manifests and the SPA image are validated only by `terraform validate` + `kustomize build` in CI, which prove they are well-formed, not that they work. First real proof is an `apply` and a CD run |
+| No end-to-end verification of the deployed topology | Terraform, manifests and the SPA image are validated only by `terraform validate` + `kustomize build` in CI, which prove they are well-formed, not that they work. **Argo CD sync phase/wave ordering is invisible to both** — the first real deploy found the migrate Jobs deadlocked as `PreSync` hooks waiting on a SecretProviderClass the main sync had not created (ADR-0029, Consequences). Nothing short of a real sync against a real cluster catches that class of defect |
 | Ticket QR payload is the raw opaque token, not signed or expiring | Tracked; fine while tokens are 128-bit random and single-use |
 | Queue admission tokens are not one-time-use | Holds are independently capacity- and limit-checked, so the queue only paces access |
 | Bundle purchase across multiple tour legs | Deferred — needs multi-event orders with their own pricing |

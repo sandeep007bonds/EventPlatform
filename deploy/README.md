@@ -126,10 +126,22 @@ dev path is adding an env var rather than a Terraform round trip.
 
 Services never migrate themselves. Each database-owning service ships a
 `base/<service>/migrate-job.yaml` — the *same image* as its Deployment, run
-with `args: ["--migrate"]`, annotated `argocd.argoproj.io/hook: PreSync` so
-Argo CD applies the schema and waits for the job to succeed before rolling a
-single new pod. A failed migration fails the sync with inspectable logs
-instead of crash-looping a replica (ADR-0029).
+with `args: ["--migrate"]`, annotated `argocd.argoproj.io/hook: Sync` at
+`sync-wave: "-5"` so Argo CD applies the schema and waits for the job to
+succeed before rolling a single new pod. A failed migration fails the sync with
+inspectable logs instead of crash-looping a replica (ADR-0029).
+
+**Not `PreSync`, and this is load-bearing.** PreSync runs before *every* normal
+resource in the Application — including `overlays/dev/keyvault-secretproviderclass.yaml`,
+which these jobs mount to get their connection string. That deadlocks on a
+fresh namespace: the hook waits forever for a volume whose SecretProviderClass
+does not exist yet, and the main sync that would create it never starts because
+the hook never finishes. The symptom is every migrate pod sitting in
+`ContainerCreating` with `FailedMount ... SecretProviderClass "eventplatform-keyvault"
+not found`, and an Application stuck `OutOfSync`/`Missing`. Staying in the Sync
+phase and ordering with waves gives the same guarantee without the cycle:
+SecretProviderClass at `-10`, migrate jobs at `-5`, everything else at the
+default `0`.
 
 Two things about these jobs that look like omissions but are not:
 

@@ -94,8 +94,10 @@ services/<name>/<Name>.Api/<Name>.Api.csproj -> <Name>.Api
 - [ ] If `<name>` owns a database, add `migrate-job.yaml` too (copy
       `deploy/base/catalog/migrate-job.yaml`) and list it in that service's
       `kustomization.yaml` **before** `deployment.yaml`. It runs the same image
-      with `args: ["--migrate"]` as an Argo CD PreSync hook, so the schema lands
-      before any new pod rolls (ADR-0029). Two things to keep as they are: the
+      with `args: ["--migrate"]` as an Argo CD **Sync** hook at `sync-wave: "-5"`,
+      so the schema lands before any new pod rolls (ADR-0029). Do not "fix" this
+      to `PreSync` — that runs ahead of the SecretProviderClass the job mounts
+      and deadlocks the whole sync. Two more things to keep as they are: the
       pod template carries **no** `dapr.io/*` annotations (a sidecar never
       exits, so the Job would never complete), and its `env` mirrors the
       Deployment's — the host is fully built before the migration branch runs,

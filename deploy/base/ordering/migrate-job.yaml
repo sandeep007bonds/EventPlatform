@@ -9,7 +9,14 @@ metadata:
     app.kubernetes.io/name: ordering-migrate
     app.kubernetes.io/part-of: eventplatform
   annotations:
-    argocd.argoproj.io/hook: PreSync
+    # A Sync hook at a negative wave, NOT PreSync. PreSync runs before every normal resource in
+    # the Application, including the SecretProviderClass this Job mounts to get its connection
+    # string - which deadlocks: the hook waits for a volume whose SecretProviderClass the main
+    # sync has not created yet, and the main sync never starts because the hook never finishes.
+    # Staying in the Sync phase lets sync-waves order it after the class (wave -10) and still
+    # before every Deployment (wave 0), which is all "migrate before any new pod rolls" needs.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-5"
     # Delete the previous run only when creating the next one. A failed migration's Job and pod
     # logs then survive the sync that failed, which is the whole point of migrating in a job
     # rather than on startup.
