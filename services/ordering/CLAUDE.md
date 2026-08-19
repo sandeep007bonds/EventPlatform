@@ -27,7 +27,11 @@ is named `Ordering` so the type never clashes with its namespace.
   resolved, reconcile it now" — ownership-checked, carries no outcome of its
   own, only asks Payments to re-read the intent from Stripe, see ADR-0028),
   `POST /v1/orders/{id}/cancel`
-  (buyer-initiated cancellation + refund)
+  (buyer-initiated cancellation + refund),
+  `POST /v1/checkout/quote` (prices a hold, optionally with a promo code, and
+  creates nothing — what the buyer's "Apply" button calls. A rejected code
+  comes back as a 200 with a machine-readable `promoCodeRejection` alongside
+  the real undiscounted price, not as an error: the quote is still valid)
 - **Events published:** `OrderConfirmed` (via outbox)
 - **Events consumed:** `PaymentCaptured`, `PaymentFailed` (Payments, via
   webhook) — resume a checkout saga waiting on payment authentication
@@ -86,6 +90,22 @@ is named `Ordering` so the type never clashes with its namespace.
   Tenant is sourced from the fetched hold (`hold.TenantId`, step 1 of the
   saga), not from `CheckoutWorkflowInput` — that record has no `TenantId`
   field (ADR-0022).
+- **Ordering computes the money, and it is the only thing that does (ADR-0034).** One model,
+  in one pure static class (`Ordering.Domain/OrderPricingCalculator.cs`, no I/O):
+  `subtotal = Σ line.PriceMinor` → `discount` (clamped to the subtotal of the lines the code's
+  tiers actually cover) → `tax = round((subtotal − discount) × rate/100, AwayFromZero)` →
+  `total = subtotal − discount + tax`. `TotalMinor` keeps its meaning — the payable amount — so
+  `CreateIntentInput`/`ConfirmInput`/`OrderConfirmed` were untouched; `Order` stores
+  `SubtotalMinor`/`DiscountMinor`/`TaxMinor`/`TaxRatePercent`/`TaxLabel`/`PromoCodeId`/`PromoCodeText`
+  alongside it so a placed order can explain itself later. Catalog owns the *definition* of a promo
+  code, but **redemption counting lives here**, because Ordering owns the orders and reading
+  Catalog's database is forbidden. `PromoCodeEvaluator` (Application) is the single implementation
+  of "may this buyer use this code, and what is it worth here," shared by the advisory
+  `POST /v1/checkout/quote` preview and `CheckoutWorkflow`'s own re-check — so a quoted price and a
+  charged price can never come from two different code paths. The saga **re-evaluates from
+  scratch**; a code that lapsed in between fails the checkout with `CheckoutOutcome.PromoCodeInvalid`
+  (409) rather than quietly charging full price. `OrderLine.PriceTier` (carried from the hold
+  snapshot, which already had it) is what makes tier-scoped codes possible.
 - **Cross-service calls** go through ports: `IHoldClient` (Inventory),
   `IPaymentClient` (Payments), and `ITicketClient` (Ticketing), all via Dapr
   service invocation.

@@ -103,6 +103,20 @@ context: **Catalog** (ADR-0008).
   independent of the `OnSaleAt`/`BookingEndsAt` enforced time window, and without affecting
   already-placed holds/tickets. Publishes `EventSalesPaused`/`EventSalesResumed` for Inventory to
   reject/allow new holds accordingly (see ADR-0027).
+- **Promo codes and tax (ADR-0034).** `PromoCode` (with its child `PromoCodeTier`) is a Catalog
+  aggregate — a discount code is part of an event's commercial setup. Percentage or fixed amount,
+  optional validity window, optional tier scoping, optional caps on total and per-buyer
+  redemptions, public or private. Managed via `/v1/events/{eventId}/promo-codes`
+  (`POST` create, `GET` list — both tenant-owned) and `.../{id}/deactivate`; two anonymous reads
+  serve the buyer path: `.../promo-codes/public` (what a buyer may pick from — a deliberately
+  narrower response that never publishes redemption caps) and `.../promo-codes/by-code/{code}`
+  (server-to-server, for Ordering; unrouted at the gateway). **Catalog answers what the rules are;
+  it never decides whether a code may be used** — redemption counting needs the orders, which only
+  Ordering can read. **An empty tier list means every tier**, so an organizer discounting a whole
+  order never enumerates their tiers and a tier added later is covered rather than excluded.
+  There is no edit-after-create (`EntryGate`'s precedent): deactivate and make another.
+  `Event.TaxRatePercent`/`TaxLabel` are one rate per event, Draft-only editable like every other
+  detail field; Ordering charges it on the **post-discount** amount.
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
   `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
 - **Events consumed:** —

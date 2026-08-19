@@ -155,6 +155,18 @@ src/
   `EventGroupsPage`'s rows are clickable through to `TourDetailPage`. Both entry points funnel
   into the same `CreateEventPage`/`EventLegFields`/`EventGroupPicker` machinery and the same
   create-then-conditionally-`updateEventGroup` sequence server-side.
+- **Prices come from the server, always (ADR-0034).** `CheckoutPage` never adds
+  anything up itself: it calls `POST /v1/checkout/quote` on load and again on
+  every Apply/Remove, and renders whatever comes back. The code sent to
+  `checkout(...)` is `quote.promoCodeApplied` — what the _server_ accepted —
+  never the raw text in the input, so the total shown above the button is
+  always the total that gets charged. A rejected code is a successful call
+  with a reason attached, not an error; the buyer-facing prose for each reason
+  lives in `PROMO_REJECTION_MESSAGES` in `CheckoutPage.tsx` (the backend
+  returns `NotFound`/`Expired`/… precisely so the wording is translatable
+  here). `PriceRow` renders the Subtotal/Discount/Tax lines and is shared by
+  `CheckoutPage` and `OrderPage` so the pre- and post-purchase breakdowns
+  can't drift apart.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft

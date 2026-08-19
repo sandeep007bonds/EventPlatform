@@ -45,6 +45,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0031](0031-otel-collector-and-trace-backend.md) | OpenTelemetry Collector, with Application Insights as the trace backend | Accepted |
 | [0032](0032-real-token-validation-per-environment.md) | Real token validation in deployed environments; the dev signing key stays local | Accepted |
 | [0033](0033-spa-deployment.md) | Deploying the SPA: static nginx image, same-origin, one image per build | Accepted |
+| [0034](0034-discounts-and-tax.md) | Promo codes and per-event tax: one money model, computed in Ordering | Accepted |
 
 ## Format
 
