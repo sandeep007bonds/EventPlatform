@@ -17,6 +17,7 @@ public static class OrderingEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         app.MapPost("/v1/checkout", CheckoutAsync).WithName("Checkout").WithTags("Checkout");
+        app.MapPost("/v1/checkout/quote", QuoteCheckoutAsync).WithName("QuoteCheckout").WithTags("Checkout");
         app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders");
         app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
         app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders");
@@ -103,6 +104,90 @@ public static class OrderingEndpoints
 
         var state = await completionTask;
         return MapCheckoutOutcome(state.ReadOutputAs<CheckoutWorkflowResult>());
+    }
+
+    // Prices a hold without creating anything, so the buyer can see what a promo code is worth
+    // before committing. Deliberately returns 200 with a rejection reason rather than an error when
+    // a code doesn't apply: the quote itself is still valid (just undiscounted), and the buyer needs
+    // to see the real total next to the reason their code failed.
+    private static async Task<IResult> QuoteCheckoutAsync(
+        CheckoutQuoteRequest request,
+        ClaimsPrincipal principal,
+        IHoldClient holds,
+        ICatalogEventClient catalog,
+        PromoCodeEvaluator promoCodes,
+        CheckoutOptions options,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetUserId(principal);
+        if (userId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var hold = await holds.GetHoldAsync(request.HoldId, cancellationToken);
+        if (hold is null)
+        {
+            return Results.NotFound(new { message = "The hold does not exist." });
+        }
+
+        // Ownership, not just existence: quoting someone else's hold would leak what they are buying
+        // and for how much.
+        if (hold.UserId != userId.Value)
+        {
+            return Results.Forbid();
+        }
+
+        var lines = hold.Lines
+            .Select(line => new OrderLineSpec(
+                line.InventoryItemId,
+                line.SeatId,
+                line.GeneralAdmissionAllocationId,
+                line.Quantity,
+                line.PriceTier,
+                line.UnitPriceMinor,
+                line.PriceMinor))
+            .ToList();
+
+        var pricing = await catalog.GetEventPricingAsync(hold.CatalogEventId, cancellationToken)
+                      ?? new EventPricing(options.DefaultCurrency, null, null);
+
+        PromoCodeTerms? terms = null;
+        string? appliedCode = null;
+        string? rejection = null;
+
+        if (!string.IsNullOrWhiteSpace(request.PromoCode))
+        {
+            var evaluation = await promoCodes.EvaluateAsync(
+                hold.CatalogEventId,
+                request.PromoCode,
+                userId.Value,
+                lines,
+                DateTimeOffset.UtcNow,
+                cancellationToken);
+
+            if (evaluation.IsAccepted)
+            {
+                terms = evaluation.Terms;
+                appliedCode = evaluation.Code;
+            }
+            else
+            {
+                rejection = evaluation.Rejection?.ToString();
+            }
+        }
+
+        var quote = OrderPricingCalculator.Calculate(lines, terms, pricing.TaxRatePercent);
+
+        return Results.Ok(new CheckoutQuoteResponse(
+            quote.SubtotalMinor,
+            quote.DiscountMinor,
+            quote.TaxMinor,
+            quote.TotalMinor,
+            pricing.Currency,
+            pricing.TaxLabel,
+            appliedCode,
+            rejection));
     }
 
     // Polls the order row until it either has a payment client secret (payment pending — the
@@ -286,6 +371,11 @@ public static class OrderingEndpoints
             order.Id,
             order.Status.ToString(),
             order.TotalMinor,
+            order.SubtotalMinor,
+            order.DiscountMinor,
+            order.TaxMinor,
+            order.TaxLabel,
+            order.PromoCodeText,
             order.Currency,
             order.CatalogEventId,
             order.HoldId,
