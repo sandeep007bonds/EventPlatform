@@ -15,6 +15,14 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+# Each service keeps its local connection string in appsettings.Development.json, which only loads
+# when the environment is Development — and the `--no-launch-profile` below deliberately skips the
+# launch profile that would otherwise set it (a schema-only run must not bind ports or open a
+# browser). Without this the run lands in Production, finds no connection string at all, and dies
+# with "The ConnectionString property has not been initialized". Overridable for a non-local
+# database.
+export ASPNETCORE_ENVIRONMENT="${ASPNETCORE_ENVIRONMENT:-Development}"
+
 declare -A projects=(
   [catalog]="Catalog"
   [inventory]="Inventory"
