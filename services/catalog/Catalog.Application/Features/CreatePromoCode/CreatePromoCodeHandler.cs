@@ -19,8 +19,9 @@ internal sealed class CreatePromoCodeHandler(
             return new CreatePromoCodeResult(CreatePromoCodeOutcome.EventNotFound, null);
         }
 
-        // Pre-check for a friendly 409. The unique index on (EventId, Code) is the real guarantee;
-        // this only turns the common case into a clear message instead of a raw constraint violation.
+        // Pre-check for a friendly 409. The unique index over the event-and-code pair remains the
+        // real guarantee — this only turns the common case into a clear message rather than a raw
+        // constraint violation.
         var existing = await promoCodeRepository.GetByCodeAsync(request.EventId, request.Code, cancellationToken);
         if (existing is not null)
         {
