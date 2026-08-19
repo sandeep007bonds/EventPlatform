@@ -20,6 +20,11 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # One database per service (ADR-0008). Runs once, when the data directory is first
+      # initialised — so on a fresh volume and after `dev-down.sh -v`, which is exactly when these
+      # are missing. Without it the services connect to databases that don't exist and EF creates
+      # them as a side effect of migrating, logging a connection error per service on the way.
+      - ./docker/postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eventplatform"]
       interval: 10s
