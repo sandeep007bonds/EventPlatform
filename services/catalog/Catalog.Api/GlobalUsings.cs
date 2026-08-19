@@ -23,7 +23,6 @@ global using Catalog.Application.Features.ResumeSales;
 global using Catalog.Application.Features.UpdateEventDetails;
 global using Catalog.Application.Features.UpdateEventGroup;
 global using Catalog.Application.Features.UpdateSeatMapSection;
-global using Catalog.Application;
 global using Catalog.Domain;
 global using Catalog.Infrastructure;
 global using EventPlatform.Hosting;
