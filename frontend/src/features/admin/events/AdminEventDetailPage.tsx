@@ -53,6 +53,7 @@ import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 import { TourLegsList } from '../eventGroups/TourLegsList';
 import { EntryGatesPanel } from './EntryGatesPanel';
 import { QueueSettingsPanel } from './QueueSettingsPanel';
+import { PromoCodesPanel } from '../promoCodes/PromoCodesPanel';
 import { SeatMapSectionsFields } from './SeatMapSectionsFields';
 import { DEFAULT_SEAT_MAP_SECTION } from './seatMapSectionDefaults';
 
@@ -78,6 +79,8 @@ interface EventDetailsFormValues {
   bookingEndsAt?: Dayjs;
   maxTicketsPerBuyer?: number;
   requiresQueue?: boolean;
+  taxRatePercent?: number;
+  taxLabel?: string;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -164,6 +167,8 @@ export function AdminEventDetailPage() {
       bookingEndsAt: event.bookingEndsAt ? dayjs(event.bookingEndsAt) : undefined,
       maxTicketsPerBuyer: event.maxTicketsPerBuyer ?? undefined,
       requiresQueue: event.requiresQueue,
+      taxRatePercent: event.taxRatePercent ?? undefined,
+      taxLabel: event.taxLabel ?? undefined,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -268,6 +273,8 @@ export function AdminEventDetailPage() {
         bookingEndsAt: values.bookingEndsAt?.toISOString() ?? null,
         maxTicketsPerBuyer: values.maxTicketsPerBuyer ?? null,
         requiresQueue: values.requiresQueue ?? false,
+        taxRatePercent: values.taxRatePercent ?? null,
+        taxLabel: values.taxLabel?.trim() || null,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -378,6 +385,9 @@ export function AdminEventDetailPage() {
             {dayjs(event.endsAt).format('MMM D, YYYY · h:mm A')}
           </Descriptions.Item>
           <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
+          <Descriptions.Item label="Tax">
+            {event.taxRatePercent ? (event.taxLabel ?? `${event.taxRatePercent}%`) : 'None'}
+          </Descriptions.Item>
           <Descriptions.Item label="Capacity">
             {seatMap ? `${seatMap.capacity} total` : '—'}
           </Descriptions.Item>
@@ -507,6 +517,39 @@ export function AdminEventDetailPage() {
                   tooltip="Gates seat selection behind a virtual waiting room for high-demand on-sales."
                 >
                   <Checkbox>Requires queue (waiting room)</Checkbox>
+                </Form.Item>
+              </Col>
+            </Row>
+
+            <Divider />
+            <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
+              Tax
+            </Typography.Title>
+            <Row gutter={20}>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="taxRatePercent"
+                  label="Tax rate %"
+                  tooltip="Applied to the order total after any discount code. Leave empty for no tax."
+                  rules={[{ type: 'number', min: 0, max: 100 }]}
+                >
+                  <InputNumber
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    style={{ width: '100%' }}
+                    placeholder="No tax"
+                  />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="taxLabel"
+                  label="Tax label"
+                  tooltip="What buyers see next to the tax line, e.g. “GST 18%”."
+                  rules={[{ max: 50 }]}
+                >
+                  <Input placeholder="e.g. GST 18%" />
                 </Form.Item>
               </Col>
             </Row>
@@ -783,6 +826,19 @@ export function AdminEventDetailPage() {
             </Space>
           </Form>
         </Card>
+      )}
+
+      {id && (
+        <PromoCodesPanel
+          eventId={id}
+          currency={event.currency}
+          priceTiers={[
+            ...new Set([
+              ...(seatMap?.seats.map((seat) => seat.priceTier) ?? []),
+              ...(seatMap?.generalAdmissionSections.map((section) => section.priceTier) ?? []),
+            ]),
+          ]}
+        />
       )}
 
       {event.status !== 'Draft' && id && <SeatBlockPanel eventId={id} />}

@@ -28,6 +28,10 @@ export interface EventResponse {
   bookingEndsAt: string | null;
   maxTicketsPerBuyer: number | null;
   requiresQueue: boolean;
+  /** Sales-tax rate as a percentage (e.g. 18 for 18% GST); null when the event is untaxed. */
+  taxRatePercent: number | null;
+  /** Display name for the tax on a receipt (e.g. "GST 18%"). */
+  taxLabel: string | null;
   salesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
@@ -58,6 +62,8 @@ export interface UpdateEventDetailsRequest {
   bookingEndsAt?: string | null;
   maxTicketsPerBuyer?: number | null;
   requiresQueue?: boolean;
+  taxRatePercent?: number | null;
+  taxLabel?: string | null;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -192,6 +198,8 @@ export interface CreateEventRequest {
   eventGroupId?: string | null;
   maxTicketsPerBuyer?: number | null;
   requiresQueue?: boolean;
+  taxRatePercent?: number | null;
+  taxLabel?: string | null;
 }
 
 /** Creates a new draft event for the caller's tenant. */
@@ -337,4 +345,87 @@ export async function createEntryGate(eventId: string, name: string): Promise<{ 
     { name },
   );
   return response.data;
+}
+
+/** How a promo code's value is interpreted. */
+export type DiscountType = 'Percentage' | 'FixedAmount';
+
+/** A discount code, as the owning organizer sees it — including caps and inactive codes. */
+export interface PromoCodeResponse {
+  id: string;
+  eventId: string;
+  code: string;
+  description: string | null;
+  discountType: DiscountType;
+  /** A percentage in (0, 100] for Percentage, or a flat amount in major units for FixedAmount. */
+  discountValue: number;
+  validFrom: string | null;
+  validTo: string | null;
+  isPublic: boolean;
+  maxRedemptions: number | null;
+  maxRedemptionsPerBuyer: number | null;
+  isActive: boolean;
+  createdAt: string;
+  /** Tiers the code is restricted to. Empty means every tier. */
+  priceTiers: string[];
+}
+
+/**
+ * A promo code as a *buyer* sees it at checkout. Narrower than the organizer's view on purpose —
+ * redemption caps are not published.
+ */
+export interface PublicPromoCodeResponse {
+  code: string;
+  description: string | null;
+  discountType: DiscountType;
+  discountValue: number;
+  priceTiers: string[];
+}
+
+/** Body for creating a promo code. */
+export interface CreatePromoCodeRequest {
+  code: string;
+  description?: string | null;
+  discountType: DiscountType;
+  discountValue: number;
+  validFrom?: string | null;
+  validTo?: string | null;
+  isPublic?: boolean;
+  maxRedemptions?: number | null;
+  maxRedemptionsPerBuyer?: number | null;
+  /** Omit or send [] to apply the code to every tier. */
+  priceTiers?: string[];
+}
+
+/** Lists every promo code for an event, active or not. Organizer-only. */
+export async function listPromoCodes(eventId: string): Promise<PromoCodeResponse[]> {
+  const response = await httpClient.get<PromoCodeResponse[]>(
+    `/api/catalog/v1/events/${eventId}/promo-codes`,
+  );
+  return response.data;
+}
+
+/** Lists the event's advertised, currently-redeemable codes. Public — no login required. */
+export async function listPublicPromoCodes(eventId: string): Promise<PublicPromoCodeResponse[]> {
+  const response = await httpClient.get<PublicPromoCodeResponse[]>(
+    `/api/catalog/v1/events/${eventId}/promo-codes/public`,
+  );
+  return response.data;
+}
+
+/** Creates a promo code for an event. */
+export async function createPromoCode(
+  eventId: string,
+  request: CreatePromoCodeRequest,
+): Promise<{ id: string }> {
+  const response = await httpClient.post<{ id: string }>(
+    `/api/catalog/v1/events/${eventId}/promo-codes`,
+    request,
+  );
+  return response.data;
+}
+
+/** Retires a promo code. There is no edit — deactivate and create another instead. */
+export async function deactivatePromoCode(eventId: string, id: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/promo-codes/${id}/deactivate`);
 }
