@@ -81,6 +81,19 @@ namespace Ordering.Infrastructure.Migrations
                 schema: "ordering",
                 table: "orders",
                 column: "PromoCodeId");
+
+            // Hand-added backfill, not generated — keep it if this migration is ever regenerated.
+            // SubtotalMinor arrives defaulted to 0, which would make every order placed before this
+            // migration show "Subtotal 0.00" next to a real Total on the order page. For those rows
+            // the subtotal IS the total: there was no discount or tax mechanism in the platform
+            // before this change, so nothing could have separated the two. DiscountMinor and
+            // TaxMinor are correct at their 0 default for the same reason.
+            migrationBuilder.Sql(
+                """
+                UPDATE ordering.orders
+                SET "SubtotalMinor" = "TotalMinor"
+                WHERE "SubtotalMinor" = 0 AND "TotalMinor" <> 0;
+                """);
         }
 
         /// <inheritdoc />
