@@ -1,22 +1,45 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, Button, Card, Input, Progress, Result, Tag, Typography } from 'antd';
-import { ClockCircleOutlined, MailOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Input, Progress, Result, Select, Space, Tag, Typography } from 'antd';
+import { ClockCircleOutlined, MailOutlined, TagOutlined } from '@ant-design/icons';
 import { Elements } from '@stripe/react-stripe-js';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getEvent } from '../../../services/catalog/catalogApi';
+import {
+  getEvent,
+  listPublicPromoCodes,
+  type PublicPromoCodeResponse,
+} from '../../../services/catalog/catalogApi';
 import { getHold, type HoldView } from '../../../services/inventory/inventoryApi';
-import { checkout } from '../../../services/ordering/orderingApi';
+import {
+  checkout,
+  quoteCheckout,
+  type CheckoutQuoteResponse,
+} from '../../../services/ordering/orderingApi';
 import { isStripeConfigured, stripePromise } from '../../../services/payments/stripeClient';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { useAuth } from '../../../contexts/useAuth';
 import { CheckoutPaymentForm } from './CheckoutPaymentForm';
+import { PriceRow } from './PriceRow';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const HOLD_TTL_SECONDS_ESTIMATE = 120;
+
+/**
+ * Why a code wasn't accepted, in the buyer's language. The backend returns a machine-readable
+ * reason rather than prose precisely so this text lives here and can be translated.
+ */
+const PROMO_REJECTION_MESSAGES: Record<string, string> = {
+  NotFound: "We don't recognise that code for this event.",
+  Inactive: 'That code is no longer active.',
+  NotYetValid: "That code isn't valid yet.",
+  Expired: 'That code has expired.',
+  RedemptionLimitReached: 'That code has been fully claimed.',
+  BuyerLimitReached: "You've already used that code as many times as it allows.",
+  NotApplicableToSelection: "That code doesn't apply to the tickets you've picked.",
+};
 
 interface CheckoutErrorBody {
   message?: string;
@@ -56,6 +79,12 @@ export function CheckoutPage() {
   // nothing submitted yet, or the payment already resolved synchronously (dev fallback) and we
   // navigated away.
   const [intent, setIntent] = useState<{ orderId: string; clientSecret: string } | null>(null);
+  // The server's price breakdown. Null only if the quote call itself failed, in which case the
+  // summary falls back to the hold's own (undiscounted, untaxed) total.
+  const [quote, setQuote] = useState<CheckoutQuoteResponse | null>(null);
+  const [publicCodes, setPublicCodes] = useState<PublicPromoCodeResponse[]>([]);
+  const [promoInput, setPromoInput] = useState('');
+  const [applyingPromo, setApplyingPromo] = useState(false);
   // Generated once per mount and reused across retries of this same attempt — never regenerated
   // on retry, so the backend's idempotency check actually dedupes.
   const idempotencyKey = useRef(crypto.randomUUID());
@@ -72,10 +101,22 @@ export function CheckoutPage() {
           return;
         }
         setHold(result);
-        const event = await getEvent(result.catalogEventId).catch(() => null);
-        if (!cancelled && event) {
+        // All three are independent and none is fatal on its own: without the event we keep the
+        // default currency, without a quote we fall back to the hold's total, without public codes
+        // the buyer can still type one in.
+        const [event, initialQuote, codes] = await Promise.all([
+          getEvent(result.catalogEventId).catch(() => null),
+          quoteCheckout(holdId).catch(() => null),
+          listPublicPromoCodes(result.catalogEventId).catch(() => []),
+        ]);
+        if (cancelled) {
+          return;
+        }
+        if (event) {
           setCurrency(event.currency);
         }
+        setQuote(initialQuote);
+        setPublicCodes(codes);
       })
       .catch(() => {
         // hold stays null — the render below already shows a proper "no longer available" Result.
@@ -92,6 +133,41 @@ export function CheckoutPage() {
   }, [holdId]);
 
   const secondsLeft = useCountdown(hold?.expiresAt ?? null);
+
+  // Only ever what the *server* accepted, never what the buyer typed — so the code sent to
+  // checkout is the same one that produced the total shown above the button.
+  const appliedCode = quote?.promoCodeApplied ?? null;
+
+  // Re-prices the hold with (or, for an empty code, without) a discount code. A rejected code is a
+  // successful call with a reason attached, not an error: the quote is still the real price.
+  const handleApplyPromo = async (code: string) => {
+    if (!holdId) {
+      return;
+    }
+
+    const trimmed = code.trim();
+    setApplyingPromo(true);
+    try {
+      const result = await quoteCheckout(holdId, trimmed || null);
+      setQuote(result);
+      if (result.promoCodeApplied) {
+        toast.success(`Code ${result.promoCodeApplied} applied.`);
+      } else if (trimmed && result.promoCodeRejection) {
+        toast.error(
+          PROMO_REJECTION_MESSAGES[result.promoCodeRejection] ?? "That code couldn't be applied.",
+        );
+      }
+    } catch {
+      toast.error("Couldn't check that code. Please try again.");
+    } finally {
+      setApplyingPromo(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setPromoInput('');
+    void handleApplyPromo('');
+  };
 
   // Starts checkout: the backend creates (but does not confirm) a payment intent before the buyer
   // ever sees a payment form — a deliberate flow inversion from the old card-only design, where
@@ -114,7 +190,7 @@ export function CheckoutPage() {
 
     setSubmitting(true);
     try {
-      const result = await checkout(holdId, idempotencyKey.current, buyerEmail);
+      const result = await checkout(holdId, idempotencyKey.current, buyerEmail, appliedCode);
       if (result.clientSecret === null) {
         void navigate(`/orders/${result.orderId}`);
         return;
@@ -130,6 +206,12 @@ export function CheckoutPage() {
         toast.error('This hold no longer exists.');
       } else if (status === 409 || status === 422) {
         toast.error(message ?? 'This purchase could not be completed.');
+        // A code can lapse or run out between the quote and the charge — the saga re-checks and
+        // refuses rather than quietly charging full price, so re-price to show what changed.
+        if (appliedCode) {
+          const refreshed = await quoteCheckout(holdId, appliedCode).catch(() => null);
+          setQuote(refreshed ?? quote);
+        }
       } else if (status === 403) {
         toast.error('This hold does not belong to you.');
       } else {
@@ -208,21 +290,101 @@ export function CheckoutPage() {
           ))}
         </div>
 
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginTop: 16,
-            marginBottom: 20,
-          }}
-        >
-          <Typography.Text strong style={{ fontSize: 16 }}>
-            Total
+        <div style={{ marginTop: 16, marginBottom: 20 }}>
+          <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>
+            Discount code
           </Typography.Text>
-          <Typography.Title level={3} style={{ margin: 0 }}>
-            {formatMoney(hold.totalMinor, currency)}
-          </Typography.Title>
+          {appliedCode ? (
+            <Space style={{ marginBottom: 12 }}>
+              <Tag icon={<TagOutlined />} color="success">
+                {appliedCode}
+              </Tag>
+              <Button
+                size="small"
+                type="link"
+                disabled={intent !== null || applyingPromo}
+                onClick={handleRemovePromo}
+              >
+                Remove
+              </Button>
+            </Space>
+          ) : (
+            <Space.Compact style={{ width: '100%', marginBottom: 12 }}>
+              <Input
+                placeholder="Have a code?"
+                value={promoInput}
+                maxLength={50}
+                disabled={intent !== null}
+                onChange={(event) => setPromoInput(event.target.value)}
+                onPressEnter={() => void handleApplyPromo(promoInput)}
+              />
+              <Button
+                loading={applyingPromo}
+                disabled={intent !== null || promoInput.trim().length === 0}
+                onClick={() => void handleApplyPromo(promoInput)}
+              >
+                Apply
+              </Button>
+            </Space.Compact>
+          )}
+
+          {publicCodes.length > 0 && !appliedCode && (
+            <Select
+              placeholder="…or pick an available offer"
+              style={{ width: '100%', marginBottom: 12 }}
+              disabled={intent !== null || applyingPromo}
+              value={null}
+              onChange={(code: string) => {
+                setPromoInput(code);
+                void handleApplyPromo(code);
+              }}
+              options={publicCodes.map((offer) => ({
+                value: offer.code,
+                label: `${offer.code} — ${
+                  offer.discountType === 'Percentage'
+                    ? `${offer.discountValue}% off`
+                    : `${formatMoney(Math.round(offer.discountValue * 100), currency)} off`
+                }${offer.description ? ` (${offer.description})` : ''}`,
+              }))}
+            />
+          )}
+
+          {quote ? (
+            <>
+              <PriceRow label="Subtotal" amountMinor={quote.subtotalMinor} currency={currency} />
+              {quote.discountMinor > 0 && (
+                <PriceRow
+                  label={`Discount${appliedCode ? ` (${appliedCode})` : ''}`}
+                  amountMinor={-quote.discountMinor}
+                  currency={currency}
+                  emphasis="success"
+                />
+              )}
+              {quote.taxMinor > 0 && (
+                <PriceRow
+                  label={quote.taxLabel ?? 'Tax'}
+                  amountMinor={quote.taxMinor}
+                  currency={currency}
+                />
+              )}
+            </>
+          ) : null}
+
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'baseline',
+              marginTop: 12,
+            }}
+          >
+            <Typography.Text strong style={{ fontSize: 16 }}>
+              Total
+            </Typography.Text>
+            <Typography.Title level={3} style={{ margin: 0 }}>
+              {formatMoney(quote?.totalMinor ?? hold.totalMinor, currency)}
+            </Typography.Title>
+          </div>
         </div>
 
         <Typography.Text strong style={{ display: 'block', marginBottom: 6 }}>

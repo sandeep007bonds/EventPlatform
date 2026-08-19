@@ -26,6 +26,7 @@ import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
+import { PriceRow } from '../checkout/PriceRow';
 
 interface ConflictBody {
   message?: string;
@@ -295,12 +296,30 @@ export function OrderPage() {
             </div>
           ))}
         </div>
+        <div style={{ marginTop: 16 }}>
+          <PriceRow label="Subtotal" amountMinor={order.subtotalMinor} currency={order.currency} />
+          {order.discountMinor > 0 && (
+            <PriceRow
+              label={`Discount${order.promoCode ? ` (${order.promoCode})` : ''}`}
+              amountMinor={-order.discountMinor}
+              currency={order.currency}
+              emphasis="success"
+            />
+          )}
+          {order.taxMinor > 0 && (
+            <PriceRow
+              label={order.taxLabel ?? 'Tax'}
+              amountMinor={order.taxMinor}
+              currency={order.currency}
+            />
+          )}
+        </div>
         <div
           style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'baseline',
-            marginTop: 16,
+            marginTop: 12,
           }}
         >
           <Typography.Text strong style={{ fontSize: 16 }}>

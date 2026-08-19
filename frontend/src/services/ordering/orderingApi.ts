@@ -20,6 +20,16 @@ export interface OrderResponse {
   id: string;
   status: OrderStatus;
   totalMinor: number;
+  /** Sum of the lines' prices, before discount or tax. */
+  subtotalMinor: number;
+  /** What the promo code took off. Zero when none was applied. */
+  discountMinor: number;
+  /** Tax charged on the post-discount subtotal. Zero for an untaxed event. */
+  taxMinor: number;
+  /** Display name for the tax (e.g. `"GST 18%"`), or `null` when untaxed. */
+  taxLabel: string | null;
+  /** The promo code that was actually applied, or `null`. */
+  promoCode: string | null;
   currency: string;
   catalogEventId: string;
   holdId: string;
@@ -62,12 +72,46 @@ export async function checkout(
   holdId: string,
   idempotencyKey: string,
   buyerEmail: string,
+  promoCode?: string | null,
 ): Promise<{ orderId: string; clientSecret: string | null }> {
   const response = await httpClient.post<{ orderId: string; clientSecret: string | null }>(
     '/api/ordering/v1/checkout',
-    { holdId, buyerEmail },
+    { holdId, buyerEmail, promoCode: promoCode ?? null },
     { headers: { 'Idempotency-Key': idempotencyKey } },
   );
+  return response.data;
+}
+
+/** What a checkout would cost right now — see {@link quoteCheckout}. */
+export interface CheckoutQuoteResponse {
+  subtotalMinor: number;
+  discountMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+  currency: string;
+  taxLabel: string | null;
+  /** The code that was accepted, or `null`. */
+  promoCodeApplied: string | null;
+  /**
+   * Why a supplied code was not accepted (`NotFound`, `Expired`, `RedemptionLimitReached`, …), or
+   * `null`. A rejected code is not an error — the quote is still valid, just undiscounted.
+   */
+  promoCodeRejection: string | null;
+}
+
+/**
+ * Prices a hold without creating anything — what the buyer's "Apply" button calls. The real charge
+ * re-prices server-side at confirm time, so this is advisory: a code that expires in between is
+ * caught there, not silently honoured.
+ */
+export async function quoteCheckout(
+  holdId: string,
+  promoCode?: string | null,
+): Promise<CheckoutQuoteResponse> {
+  const response = await httpClient.post<CheckoutQuoteResponse>('/api/ordering/v1/checkout/quote', {
+    holdId,
+    promoCode: promoCode ?? null,
+  });
   return response.data;
 }
 
