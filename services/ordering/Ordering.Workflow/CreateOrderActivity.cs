@@ -29,9 +29,15 @@ public sealed class CreateOrderActivity(IOrderRepository orders)
                 line.SeatId,
                 line.GeneralAdmissionAllocationId,
                 line.Quantity,
+                line.PriceTier,
                 line.UnitPriceMinor,
                 line.PriceMinor)),
-            input.BuyerEmail);
+            input.BuyerEmail,
+            input.PromoTerms,
+            input.PromoCodeId,
+            input.PromoCodeText,
+            input.TaxRatePercent,
+            input.TaxLabel);
         order.MarkAwaitingPayment();
 
         // Race window: two attempts both passed the check above. The unique index on

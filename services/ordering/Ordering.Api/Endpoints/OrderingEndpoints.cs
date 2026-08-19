@@ -81,7 +81,7 @@ public static class OrderingEndpoints
         await workflowClient.ScheduleNewWorkflowAsync(
             nameof(CheckoutWorkflow),
             instanceId,
-            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail, orderId));
+            new CheckoutWorkflowInput(userId.Value, request.HoldId, idempotencyKey, request.BuyerEmail, orderId, request.PromoCode));
 
         var completionTask = workflowClient.WaitForWorkflowCompletionAsync(instanceId, getInputsAndOutputs: true, cancellationToken);
         var pollTask = PollForClientSecretAsync(orderId, orders, cancellationToken);
@@ -207,6 +207,8 @@ public static class OrderingEndpoints
                 Results.UnprocessableEntity(new { message = "Payment failed.", orderId = result.OrderId }),
             CheckoutOutcome.PaymentTimedOut =>
                 Results.UnprocessableEntity(new { message = "Payment was not completed in time.", orderId = result.OrderId }),
+            CheckoutOutcome.PromoCodeInvalid =>
+                Results.Conflict(new { message = "That promo code is no longer valid for this purchase. Remove it and try again." }),
             CheckoutOutcome.ConvertFailed =>
                 Results.Conflict(new { message = "The seats could not be sold.", orderId = result.OrderId }),
             CheckoutOutcome.Failed =>

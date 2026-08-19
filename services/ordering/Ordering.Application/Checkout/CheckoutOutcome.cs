@@ -29,6 +29,14 @@ public enum CheckoutOutcome
     /// </summary>
     PaymentTimedOut,
 
+    /// <summary>
+    /// The promo code the buyer applied is no longer usable — expired, retired, out of redemptions,
+    /// or not applicable to the seats held. Deliberately fails the checkout rather than silently
+    /// charging full price: the buyer agreed to a discounted total, so quietly taking more would be
+    /// mis-selling. Nothing was charged and the hold is untouched, so they can retry without it.
+    /// </summary>
+    PromoCodeInvalid,
+
     /// <summary>The seats could not be sold; payment was refunded and the hold released.</summary>
     ConvertFailed,
 

@@ -11,8 +11,13 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(services);
 
         // CheckoutOptions supplies the fallback currency for the checkout workflow's
-        // fetch-event-currency activity.
+        // fetch-event-pricing activity.
         services.AddSingleton(new CheckoutOptions());
+
+        // Scoped, not singleton: it depends on IOrderRepository, which is scoped. Shared by the
+        // /v1/checkout/quote endpoint and the saga's own re-check, so the preview and the charge
+        // can never disagree about whether a code applies.
+        services.AddScoped<PromoCodeEvaluator>();
 
         return services;
     }

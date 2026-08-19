@@ -47,6 +47,18 @@ internal sealed class OrderRepository(OrderingDbContext dbContext) : IOrderRepos
                 cancellationToken);
 
     /// <inheritdoc />
+    public Task<int> CountPromoRedemptionsAsync(
+        Guid promoCodeId,
+        Guid? userId,
+        CancellationToken cancellationToken) =>
+        dbContext.Orders
+            .Where(o => o.PromoCodeId == promoCodeId
+                        && o.Status != OrderStatus.Failed
+                        && o.Status != OrderStatus.Refunded
+                        && (userId == null || o.UserId == userId))
+            .CountAsync(cancellationToken);
+
+    /// <inheritdoc />
     public async Task<(IReadOnlyList<Order> Items, int TotalCount)> ListAsync(
         Guid? tenantId,
         Guid? userId,

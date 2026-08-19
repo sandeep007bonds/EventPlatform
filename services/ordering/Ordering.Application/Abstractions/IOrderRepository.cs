@@ -44,6 +44,29 @@ public interface IOrderRepository
     Task<Order?> GetByIdempotencyKeyAsync(Guid userId, string idempotencyKey, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Counts how many orders have redeemed a promo code, optionally narrowed to one buyer —
+    /// the two numbers a code's <c>MaxRedemptions</c> and <c>MaxRedemptionsPerBuyer</c> caps are
+    /// checked against.
+    /// </summary>
+    /// <remarks>
+    /// <c>Failed</c> and <c>Refunded</c> orders are excluded. A checkout that never completed did
+    /// not consume a redemption, and counting it would permanently burn allowance every time a
+    /// buyer abandoned a payment; a refunded order was unwound entirely — its seats went back to
+    /// the pool, so its discount slot should too, or a "first 100 orders" promotion would quietly
+    /// serve fewer than 100 people.
+    /// <para>
+    /// Orders still <c>Pending</c>/<c>AwaitingPayment</c> DO count — otherwise two buyers racing
+    /// the last redemption would both pass the check, which is the exact thing the cap exists to
+    /// prevent.
+    /// </para>
+    /// </remarks>
+    /// <param name="promoCodeId">The Catalog promo-code id.</param>
+    /// <param name="userId">Narrow to this buyer, or <see langword="null"/> to count every buyer.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The number of non-failed orders carrying that code.</returns>
+    Task<int> CountPromoRedemptionsAsync(Guid promoCodeId, Guid? userId, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists orders, filtered by tenant and/or buyer. At least one filter is expected to be
     /// non-null — the caller (endpoint layer) enforces that a caller cannot list every order
     /// platform-wide.

@@ -53,8 +53,41 @@ public sealed class Order
     /// <summary>Current order status.</summary>
     public OrderStatus Status { get; private set; }
 
-    /// <summary>Order total in minor currency units.</summary>
+    /// <summary>
+    /// What the buyer pays, in minor currency units: <see cref="SubtotalMinor"/> −
+    /// <see cref="DiscountMinor"/> + <see cref="TaxMinor"/>. This is the amount charged.
+    /// </summary>
     public long TotalMinor { get; private set; }
+
+    /// <summary>Sum of the line prices before any discount or tax, in minor currency units.</summary>
+    public long SubtotalMinor { get; private set; }
+
+    /// <summary>Amount taken off by a promo code, in minor units. Zero when no code was applied.</summary>
+    public long DiscountMinor { get; private set; }
+
+    /// <summary>
+    /// Tax charged on the post-discount subtotal, in minor units. Zero for an untaxed event.
+    /// </summary>
+    public long TaxMinor { get; private set; }
+
+    /// <summary>
+    /// The tax rate applied, as a percentage, captured from the Catalog event at checkout time.
+    /// Stored on the order rather than re-read later so a receipt always reproduces the arithmetic
+    /// that was actually charged, even if the organizer changes the rate afterwards.
+    /// </summary>
+    public decimal? TaxRatePercent { get; private set; }
+
+    /// <summary>The tax's display name at the time of purchase (e.g. <c>"GST 18%"</c>).</summary>
+    public string? TaxLabel { get; private set; }
+
+    /// <summary>
+    /// The Catalog promo code redeemed, if any. Ordering counts redemptions by this id to enforce
+    /// the code's caps — Catalog defines the caps but cannot see orders.
+    /// </summary>
+    public Guid? PromoCodeId { get; private set; }
+
+    /// <summary>The code as redeemed, kept for display on the order and receipt.</summary>
+    public string? PromoCodeText { get; private set; }
 
     /// <summary>Pricing currency (ISO 4217).</summary>
     public string Currency { get; private set; } = default!;
@@ -98,6 +131,14 @@ public sealed class Order
     /// <param name="idempotencyKey">Idempotency key (unique per tenant).</param>
     /// <param name="lines">The order lines.</param>
     /// <param name="buyerEmail">The buyer's email, for ticket delivery.</param>
+    /// <param name="promoTerms">
+    /// The redeemed promo code's terms, or <see langword="null"/> for no discount. Validity and
+    /// redemption caps are checked by the caller — reaching here means the code is usable.
+    /// </param>
+    /// <param name="promoCodeId">The redeemed code's Catalog id, for counting redemptions.</param>
+    /// <param name="promoCodeText">The code as redeemed, for display.</param>
+    /// <param name="taxRatePercent">The event's tax rate as a percentage, or <see langword="null"/> when untaxed.</param>
+    /// <param name="taxLabel">The tax's display name (e.g. <c>"GST 18%"</c>).</param>
     /// <returns>A new pending <see cref="Order"/>.</returns>
     public static Order Create(
         Guid id,
@@ -108,14 +149,23 @@ public sealed class Order
         string currency,
         string idempotencyKey,
         IEnumerable<OrderLineSpec> lines,
-        string? buyerEmail = null)
+        string? buyerEmail = null,
+        PromoCodeTerms? promoTerms = null,
+        Guid? promoCodeId = null,
+        string? promoCodeText = null,
+        decimal? taxRatePercent = null,
+        string? taxLabel = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentNullException.ThrowIfNull(lines);
 
         var order = new Order(id, tenantId, userId, catalogEventId, holdId, currency, idempotencyKey, buyerEmail);
-        foreach (var line in lines)
+
+        // Materialised once: the specs are needed both to build the lines and to price them, and
+        // the caller may hand us a lazily-evaluated sequence.
+        var lineSpecs = lines.ToList();
+        foreach (var line in lineSpecs)
         {
             order._lines.Add(new OrderLine(order.Id, line));
         }
@@ -125,7 +175,26 @@ public sealed class Order
             throw new InvalidOperationException("An order must have at least one line.");
         }
 
-        order.TotalMinor = order._lines.Sum(line => line.PriceMinor);
+        // The same calculator the /v1/checkout/quote preview uses, so the buyer is never quoted one
+        // total and charged another.
+        var pricing = OrderPricingCalculator.Calculate(lineSpecs, promoTerms, taxRatePercent);
+
+        order.SubtotalMinor = pricing.SubtotalMinor;
+        order.DiscountMinor = pricing.DiscountMinor;
+        order.TaxMinor = pricing.TaxMinor;
+        order.TotalMinor = pricing.TotalMinor;
+        order.TaxRatePercent = taxRatePercent;
+        order.TaxLabel = taxLabel;
+
+        // Only recorded when the code actually took something off — a code that matched no line's
+        // tier is worth nothing, and stamping it on the order would overstate what was redeemed
+        // (and burn one of its capped redemptions for no benefit to the buyer).
+        if (promoTerms is not null && pricing.DiscountMinor > 0)
+        {
+            order.PromoCodeId = promoCodeId;
+            order.PromoCodeText = promoCodeText;
+        }
+
         return order;
     }
 

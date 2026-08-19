@@ -17,6 +17,11 @@ namespace Ordering.Workflow;
 /// ISO 4217 currency the order is priced in, read from the Catalog event (falling back to
 /// <c>CheckoutOptions.DefaultCurrency</c> when Catalog can't be reached).
 /// </param>
+/// <param name="PromoTerms">The accepted promo code's arithmetic terms, or <see langword="null"/> for none.</param>
+/// <param name="PromoCodeId">The accepted code's Catalog id, for counting redemptions.</param>
+/// <param name="PromoCodeText">The accepted code as redeemed, for display on the order.</param>
+/// <param name="TaxRatePercent">The event's tax rate as a percentage, or <see langword="null"/> when untaxed.</param>
+/// <param name="TaxLabel">The tax's display name (e.g. <c>"GST 18%"</c>).</param>
 public sealed record CreateOrderInput(
     Guid TenantId,
     Guid UserId,
@@ -26,4 +31,9 @@ public sealed record CreateOrderInput(
     IReadOnlyList<HoldLineSnapshot> Lines,
     string BuyerEmail,
     Guid OrderId,
-    string Currency);
+    string Currency,
+    PromoCodeTerms? PromoTerms = null,
+    Guid? PromoCodeId = null,
+    string? PromoCodeText = null,
+    decimal? TaxRatePercent = null,
+    string? TaxLabel = null);

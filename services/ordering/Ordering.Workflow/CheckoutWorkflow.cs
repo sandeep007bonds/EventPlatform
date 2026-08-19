@@ -47,20 +47,70 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
 
         // 2. Price the order in the event's own currency, not a platform-wide default — the
         //    available payment methods depend on it (Stripe only offers UPI on INR, for instance).
-        //    Falls back to the configured default if Catalog can't be read, so an unreachable
-        //    Catalog degrades to today's behavior rather than failing the checkout outright.
-        var currency = await context.CallActivityAsync<string>(
-            nameof(FetchEventCurrencyActivity),
+        //    The same call carries the event's tax rate. Falls back to the configured default
+        //    currency and no tax if Catalog can't be read, so an unreachable Catalog degrades
+        //    rather than failing the checkout outright.
+        var pricing = await context.CallActivityAsync<EventPricing>(
+            nameof(FetchEventPricingActivity),
             hold.CatalogEventId);
 
-        // 3. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
+        // 3. Re-check the promo code, if the buyer applied one. The quote they saw was advisory —
+        //    a code can expire, be retired, or hit its cap between preview and confirm — so the
+        //    charged total is only trustworthy if it is priced from a fresh evaluation.
+        //    A rejection fails the checkout rather than silently charging full price: the buyer
+        //    agreed to a discounted total, and quietly taking more would be mis-selling.
+        var lineSpecs = hold.Lines
+            .Select(line => new OrderLineSpec(
+                line.InventoryItemId,
+                line.SeatId,
+                line.GeneralAdmissionAllocationId,
+                line.Quantity,
+                line.PriceTier,
+                line.UnitPriceMinor,
+                line.PriceMinor))
+            .ToList();
+
+        PromoCodeTerms? promoTerms = null;
+        Guid? promoCodeId = null;
+        string? promoCodeText = null;
+
+        if (!string.IsNullOrWhiteSpace(input.PromoCode))
+        {
+            var evaluation = await context.CallActivityAsync<PromoCodeEvaluation>(
+                nameof(EvaluatePromoCodeActivity),
+                new EvaluatePromoCodeInput(hold.CatalogEventId, input.PromoCode, input.UserId, lineSpecs));
+
+            if (!evaluation.IsAccepted)
+            {
+                return new CheckoutWorkflowResult(nameof(CheckoutOutcome.PromoCodeInvalid), null);
+            }
+
+            promoTerms = evaluation.Terms;
+            promoCodeId = evaluation.PromoCodeId;
+            promoCodeText = evaluation.Code;
+        }
+
+        // 4. Create the order (awaiting payment). Tenant comes from the hold (ADR-0022) — it's the
         //    organizer who owns the event/inventory, not necessarily present on the buyer's own token.
         //    OrderId is pre-minted by the checkout endpoint (it's also this workflow's own instance
         //    id), so a webhook-driven subscriber can raise an event straight back with no lookup.
         var order = await context.CallActivityAsync<CreateOrderOutput>(
             nameof(CreateOrderActivity),
             new CreateOrderInput(
-                hold.TenantId, input.UserId, input.HoldId, input.IdempotencyKey, hold.CatalogEventId, hold.Lines, input.BuyerEmail, input.OrderId, currency));
+                hold.TenantId,
+                input.UserId,
+                input.HoldId,
+                input.IdempotencyKey,
+                hold.CatalogEventId,
+                hold.Lines,
+                input.BuyerEmail,
+                input.OrderId,
+                pricing.Currency,
+                promoTerms,
+                promoCodeId,
+                promoCodeText,
+                pricing.TaxRatePercent,
+                pricing.TaxLabel));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
@@ -70,7 +120,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Duplicate), order.OrderId);
         }
 
-        // 4. Create (not confirm) a payment intent — the buyer authenticates client-side via Stripe's
+        // 5. Create (not confirm) a payment intent — the buyer authenticates client-side via Stripe's
         //    Payment Element (card 3-D Secure, UPI app-switch, etc.). Record the client secret on the
         //    order so the checkout endpoint's fast-return poll can hand it to the frontend, then
         //    extend the hold to cover however long authentication takes.
@@ -180,7 +230,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(outcomeOnFailure, order.OrderId);
         }
 
-        // 5. Convert the hold to a sale. On failure: fail the order, refund, release the hold.
+        // 6. Convert the hold to a sale. On failure: fail the order, refund, release the hold.
         var converted = await context.CallActivityAsync<bool>(
             nameof(ConvertActivity),
             new ConvertInput(input.HoldId, order.OrderId));
@@ -192,7 +242,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.ConvertFailed), order.OrderId);
         }
 
-        // 6. Confirm.
+        // 7. Confirm.
         var lines = hold.Lines
             .Select(line => new OrderLineSummary(line.SeatId, line.GeneralAdmissionAllocationId, line.Quantity))
             .ToList();

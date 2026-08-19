@@ -15,6 +15,7 @@ public sealed class OrderLine
         SeatId = spec.SeatId;
         GeneralAdmissionAllocationId = spec.GeneralAdmissionAllocationId;
         Quantity = spec.Quantity;
+        PriceTier = spec.PriceTier;
         UnitPriceMinor = spec.UnitPriceMinor;
         PriceMinor = spec.PriceMinor;
     }
@@ -41,6 +42,12 @@ public sealed class OrderLine
 
     /// <summary>Number of admissions this line represents (1 for a reserved seat).</summary>
     public int Quantity { get; private set; }
+
+    /// <summary>
+    /// The price tier this line was sold at (e.g. <c>"VIP"</c>), carried through from the hold.
+    /// Decides whether a tier-restricted promo code discounts this line.
+    /// </summary>
+    public string PriceTier { get; private set; } = default!;
 
     /// <summary>Price per unit in minor currency units.</summary>
     public long UnitPriceMinor { get; private set; }
