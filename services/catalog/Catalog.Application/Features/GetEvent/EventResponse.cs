@@ -18,6 +18,8 @@ namespace Catalog.Application.Features.GetEvent;
 /// <param name="BookingEndsAt">Enforced booking cutoff (UTC), if set — Inventory rejects new holds after this time.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event, if set.</param>
 /// <param name="RequiresQueue">Whether a buyer must pass through the Queue service's waiting room before holding a seat.</param>
+/// <param name="TaxRatePercent">Sales-tax rate applied to orders for this event, as a percentage; <see langword="null"/> means untaxed.</param>
+/// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 /// <param name="SalesPaused">Whether an organizer has manually paused sales for this published event.</param>
 /// <param name="AgeRestriction">Free-text age restriction, if set.</param>
 /// <param name="BannerImageUrl">Banner image URL, if set.</param>
@@ -53,6 +55,8 @@ public sealed record EventResponse(
     DateTimeOffset? BookingEndsAt,
     int? MaxTicketsPerBuyer,
     bool RequiresQueue,
+    decimal? TaxRatePercent,
+    string? TaxLabel,
     bool SalesPaused,
     string? AgeRestriction,
     string? BannerImageUrl,

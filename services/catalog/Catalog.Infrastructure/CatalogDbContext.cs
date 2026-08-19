@@ -17,6 +17,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>The entry gates table.</summary>
     public DbSet<EntryGate> EntryGates => Set<EntryGate>();
 
+    /// <summary>Organizer-created discount codes.</summary>
+    public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

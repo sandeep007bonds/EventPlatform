@@ -31,7 +31,9 @@ public sealed class Event
         double? longitude,
         Guid? eventGroupId,
         int? maxTicketsPerBuyer,
-        bool requiresQueue)
+        bool requiresQueue,
+        decimal? taxRatePercent,
+        string? taxLabel)
     {
         Id = id;
         TenantId = tenantId;
@@ -51,6 +53,8 @@ public sealed class Event
         EventGroupId = eventGroupId;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         RequiresQueue = requiresQueue;
+        TaxRatePercent = taxRatePercent;
+        TaxLabel = taxLabel;
         Status = EventStatus.Draft;
     }
 
@@ -126,6 +130,19 @@ public sealed class Event
     /// cannot change after publish in this pass, same lifecycle as <see cref="BookingEndsAt"/>.
     /// </summary>
     public bool RequiresQueue { get; private set; }
+
+    /// <summary>
+    /// Sales-tax rate applied to this event's orders, as a percentage (e.g. <c>18</c> for 18% GST).
+    /// <see langword="null"/> or zero means no tax. Ordering reads it at checkout and applies it to
+    /// the **post-discount** subtotal — Catalog stores the rate and computes nothing.
+    /// </summary>
+    public decimal? TaxRatePercent { get; private set; }
+
+    /// <summary>
+    /// What to call the tax on a receipt (e.g. <c>"GST 18%"</c>, <c>"VAT"</c>). Display only —
+    /// the arithmetic uses <see cref="TaxRatePercent"/> alone.
+    /// </summary>
+    public string? TaxLabel { get; private set; }
 
     /// <summary>Free-text age restriction (e.g. "18+", "All ages"), if any.</summary>
     public string? AgeRestriction { get; private set; }
@@ -207,8 +224,13 @@ public sealed class Event
     /// See <see cref="MaxTicketsPerBuyer"/>.
     /// </param>
     /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
+    /// <param name="taxRatePercent">Sales-tax rate as a percentage, if this event is taxed. See <see cref="TaxRatePercent"/>.</param>
+    /// <param name="taxLabel">Display name for the tax on a receipt. See <see cref="TaxLabel"/>.</param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="endsAt"/> is not after <paramref name="startsAt"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">
+    /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>, or
+    /// <paramref name="taxRatePercent"/> is outside [0, 100].
+    /// </exception>
     public static Event Create(
         Guid tenantId,
         string title,
@@ -226,7 +248,9 @@ public sealed class Event
         double? longitude,
         Guid? eventGroupId,
         int? maxTicketsPerBuyer = null,
-        bool requiresQueue = false)
+        bool requiresQueue = false,
+        decimal? taxRatePercent = null,
+        string? taxLabel = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -238,6 +262,14 @@ public sealed class Event
         if (endsAt <= startsAt)
         {
             throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
+        }
+
+        if (taxRatePercent is < 0m or > 100m)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(taxRatePercent),
+                taxRatePercent,
+                "The tax rate must be between 0 and 100 percent.");
         }
 
         return new Event(
@@ -258,7 +290,9 @@ public sealed class Event
             longitude,
             eventGroupId,
             maxTicketsPerBuyer,
-            requiresQueue);
+            requiresQueue,
+            taxRatePercent,
+            taxLabel);
     }
 
     /// <summary>
@@ -329,6 +363,8 @@ public sealed class Event
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
     /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
+    /// <param name="taxRatePercent">Sales-tax rate as a percentage — see <see cref="TaxRatePercent"/>.</param>
+    /// <param name="taxLabel">Display name for the tax on a receipt — see <see cref="TaxLabel"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
@@ -350,6 +386,8 @@ public sealed class Event
         DateTimeOffset? bookingEndsAt,
         int? maxTicketsPerBuyer,
         bool requiresQueue,
+        decimal? taxRatePercent,
+        string? taxLabel,
         string? ageRestriction,
         string? bannerImageUrl,
         string? videoUrl,
@@ -379,6 +417,14 @@ public sealed class Event
             throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must not be later than the event's start time.");
         }
 
+        if (taxRatePercent is < 0m or > 100m)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(taxRatePercent),
+                taxRatePercent,
+                "The tax rate must be between 0 and 100 percent.");
+        }
+
         Description = description;
         Category = category;
         EndsAt = endsAt;
@@ -387,6 +433,8 @@ public sealed class Event
         BookingEndsAt = bookingEndsAt;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         RequiresQueue = requiresQueue;
+        TaxRatePercent = taxRatePercent;
+        TaxLabel = taxLabel;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;

@@ -20,6 +20,8 @@ namespace Catalog.Api.Endpoints;
 /// <param name="EventGroupId">The tour/series this event is one leg of, if any.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
 /// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
+/// <param name="TaxRatePercent">Sales-tax rate as a percentage (e.g. 18 for 18% GST); <see langword="null"/> means untaxed.</param>
+/// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 public sealed record CreateEventRequest(
     string Title,
     DateTimeOffset StartsAt,
@@ -36,4 +38,6 @@ public sealed record CreateEventRequest(
     double? Longitude,
     Guid? EventGroupId,
     int? MaxTicketsPerBuyer = null,
-    bool RequiresQueue = false);
+    bool RequiresQueue = false,
+    decimal? TaxRatePercent = null,
+    string? TaxLabel = null);

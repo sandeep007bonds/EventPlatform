@@ -21,6 +21,8 @@ namespace Catalog.Application.Features.CreateEvent;
 /// <param name="EventGroupId">The tour/series this event is one leg of, if any.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
 /// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
+/// <param name="TaxRatePercent">Sales-tax rate as a percentage (e.g. 18 for 18% GST); <see langword="null"/> means untaxed.</param>
+/// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 public sealed record CreateEventCommand(
     Guid TenantId,
     string Title,
@@ -38,4 +40,6 @@ public sealed record CreateEventCommand(
     double? Longitude,
     Guid? EventGroupId,
     int? MaxTicketsPerBuyer = null,
-    bool RequiresQueue = false) : IRequest<CreateEventResult>;
+    bool RequiresQueue = false,
+    decimal? TaxRatePercent = null,
+    string? TaxLabel = null) : IRequest<CreateEventResult>;

@@ -21,6 +21,11 @@ public sealed class UpdateEventDetailsValidator : AbstractValidator<UpdateEventD
             .GreaterThan(0)
             .When(command => command.MaxTicketsPerBuyer is not null);
 
+        RuleFor(command => command.TaxRatePercent)
+            .InclusiveBetween(0, 100)
+            .When(command => command.TaxRatePercent is not null);
+        RuleFor(command => command.TaxLabel).MaximumLength(50);
+
         RuleFor(command => command.ContactPhone).MaximumLength(30);
         RuleFor(command => command.ContactMobile).MaximumLength(30);
         RuleFor(command => command.ContactEmail).MaximumLength(200).EmailAddress()

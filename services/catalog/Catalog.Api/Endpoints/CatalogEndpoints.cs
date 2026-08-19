@@ -56,7 +56,9 @@ public static class CatalogEndpoints
             request.Longitude,
             request.EventGroupId,
             request.MaxTicketsPerBuyer,
-            request.RequiresQueue);
+            request.RequiresQueue,
+            request.TaxRatePercent,
+            request.TaxLabel);
 
         var result = await sender.Send(command, cancellationToken);
         return result.Outcome switch
@@ -343,6 +345,8 @@ public static class CatalogEndpoints
             request.BookingEndsAt,
             request.MaxTicketsPerBuyer,
             request.RequiresQueue,
+            request.TaxRatePercent,
+            request.TaxLabel,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

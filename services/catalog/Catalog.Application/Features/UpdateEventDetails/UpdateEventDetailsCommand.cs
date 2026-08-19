@@ -14,6 +14,8 @@ namespace Catalog.Application.Features.UpdateEventDetails;
 /// <param name="BookingEndsAt">Enforced booking cutoff (UTC) — Inventory rejects new holds after this time.</param>
 /// <param name="MaxTicketsPerBuyer">Per-buyer ticket limit for this event; <see langword="null"/> means no limit.</param>
 /// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
+/// <param name="TaxRatePercent">Sales-tax rate as a percentage (e.g. 18 for 18% GST); <see langword="null"/> means untaxed.</param>
+/// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 /// <param name="AgeRestriction">Free-text age restriction.</param>
 /// <param name="BannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
 /// <param name="VideoUrl">Video embed URL.</param>
@@ -33,6 +35,8 @@ public sealed record UpdateEventDetailsCommand(
     DateTimeOffset? BookingEndsAt,
     int? MaxTicketsPerBuyer,
     bool RequiresQueue,
+    decimal? TaxRatePercent,
+    string? TaxLabel,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,

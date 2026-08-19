@@ -22,5 +22,6 @@ app.UseServiceDefaults();
 app.MapCatalogEndpoints();
 app.MapEventGroupEndpoints();
 app.MapEntryGateEndpoints();
+app.MapPromoCodeEndpoints();
 
 await app.RunAsync();

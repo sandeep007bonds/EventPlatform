@@ -163,6 +163,8 @@ public sealed class EventTests
             bookingEndsAt: bookingEndsAt,
             maxTicketsPerBuyer: null,
             requiresQueue: false,
+            taxRatePercent: null,
+            taxLabel: null,
             ageRestriction: null,
             bannerImageUrl: null,
             videoUrl: null,
