@@ -39,6 +39,21 @@ wait_for() {
 wait_for postgres "docker compose exec -T postgres pg_isready -U eventplatform"
 wait_for redis "docker compose exec -T redis redis-cli ping | grep -q PONG"
 
+# One database per service (ADR-0008). docker/postgres-init seeds these on a fresh volume, but
+# Postgres runs initdb only once — a volume created before that script existed can never catch up.
+# Doing it here too is idempotent and makes the result independent of the volume's age. Without
+# them the services connect to databases that do not exist, EF logs a connection error apiece and
+# then creates each database itself as a side effect of migrating — provisioning a database is the
+# environment's job, not the application's.
+echo "==> Ensuring per-service databases exist..."
+for db in catalog communication identity inventory ordering payments queue ticketing; do
+  if ! docker compose exec -T postgres psql -U eventplatform -d postgres -tAc \
+       "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
+    echo "    creating $db"
+    docker compose exec -T postgres createdb -U eventplatform "$db"
+  fi
+done
+
 if ! command -v dapr >/dev/null 2>&1; then
   echo "==> Dapr CLI not found. Install it: https://docs.dapr.io/getting-started/install-dapr-cli/"
   exit 1
