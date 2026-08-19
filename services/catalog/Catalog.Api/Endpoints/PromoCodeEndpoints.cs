@@ -100,7 +100,9 @@ public static class PromoCodeEndpoints
             return Results.Unauthorized();
         }
 
-        var outcome = await sender.Send(new DeactivatePromoCodeCommand(id, tenant.TenantId.Value), cancellationToken);
+        var outcome = await sender.Send(
+            new DeactivatePromoCodeCommand(eventId, id, tenant.TenantId.Value),
+            cancellationToken);
 
         return outcome switch
         {

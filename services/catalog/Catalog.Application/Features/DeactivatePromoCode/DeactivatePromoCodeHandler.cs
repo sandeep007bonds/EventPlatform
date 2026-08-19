@@ -11,8 +11,12 @@ internal sealed class DeactivatePromoCodeHandler(IPromoCodeRepository repository
         CancellationToken cancellationToken)
     {
         var promoCode = await repository.GetByIdAsync(request.PromoCodeId, cancellationToken);
-        if (promoCode is null || promoCode.TenantId != request.TenantId)
+        if (promoCode is null
+            || promoCode.TenantId != request.TenantId
+            || promoCode.EventId != request.EventId)
         {
+            // One opaque not-found for all three misses — a wrong tenant, a wrong event and a
+            // genuinely absent code must be indistinguishable from outside.
             return DeactivatePromoCodeOutcome.NotFound;
         }
 

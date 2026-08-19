@@ -1,4 +1,5 @@
 global using Catalog.Api.Endpoints;
+global using Catalog.Application;
 global using Catalog.Application.Features.AddSeatMapSections;
 global using Catalog.Application.Features.CreateEntryGate;
 global using Catalog.Application.Features.CreateEvent;

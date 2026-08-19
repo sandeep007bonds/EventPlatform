@@ -107,6 +107,7 @@ public sealed class OrderPricingCalculatorTests
 
         pricing.SubtotalMinor.ShouldBe(10000);
         pricing.DiscountMinor.ShouldBe(5000);
+
         // 18% of 5000, not of 10000 — the order of operations is the whole point.
         pricing.TaxMinor.ShouldBe(900);
         pricing.TotalMinor.ShouldBe(5900);
