@@ -46,6 +46,8 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0032](0032-real-token-validation-per-environment.md) | Real token validation in deployed environments; the dev signing key stays local | Accepted |
 | [0033](0033-spa-deployment.md) | Deploying the SPA: static nginx image, same-origin, one image per build | Accepted |
 | [0034](0034-discounts-and-tax.md) | Promo codes and per-event tax: one money model, computed in Ordering | Accepted |
+| [0035](0035-authorization-deny-by-default.md) | Authorization: role policies at the route, deny-by-default last | Accepted |
+| [0036](0036-audit-trail.md) | Audit trail: append-only, written in the same transaction, shipped to one store | Proposed |
 
 ## Format
 
