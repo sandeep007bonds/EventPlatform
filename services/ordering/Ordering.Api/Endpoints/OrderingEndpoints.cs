@@ -349,11 +349,30 @@ public static class OrderingEndpoints
 
     private static async Task<IResult> GetOrderAsync(
         Guid id,
+        ClaimsPrincipal principal,
+        ITenantContext tenant,
         IOrderRepository orders,
         CancellationToken cancellationToken)
     {
+        var userId = GetUserId(principal);
+        if (userId is null && tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
         var order = await orders.GetByIdAsync(id, cancellationToken);
         if (order is null)
+        {
+            return Results.NotFound();
+        }
+
+        // Either the buyer who placed it, or an organizer whose tenant sold it. Anything else is
+        // reported as not-found rather than forbidden, so this never confirms that someone else's
+        // order exists — an order id is a bare GUID in a public URL, and "403 vs 404" would turn it
+        // into an oracle.
+        var isBuyer = userId is not null && order.UserId == userId.Value;
+        var isSellingTenant = tenant.TenantId is not null && order.TenantId == tenant.TenantId.Value;
+        if (!isBuyer && !isSellingTenant)
         {
             return Results.NotFound();
         }
@@ -380,7 +399,10 @@ public static class OrderingEndpoints
             order.CatalogEventId,
             order.HoldId,
             lines,
-            order.PaymentClientSecret);
+            // Only ever to the buyer. It exists so *they* can resume Payment Element after a reload
+            // or a redirect back from 3-D Secure; an organizer reading their tenant's order has no
+            // use for it and should not hold a credential that can act on someone's payment.
+            isBuyer ? order.PaymentClientSecret : null);
 
         return Results.Ok(response);
     }

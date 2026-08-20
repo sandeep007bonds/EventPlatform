@@ -112,21 +112,57 @@ public static class TicketingEndpoints
 
     private static async Task<IResult> GetOrderTicketsAsync(
         Guid orderId,
+        ClaimsPrincipal principal,
+        ITenantContext tenant,
         ITicketRepository repository,
         CancellationToken cancellationToken)
     {
         var tickets = await repository.GetByOrderAsync(orderId, cancellationToken);
-        var response = tickets.Select(Map).ToList();
-        return Results.Ok(response);
+        if (tickets.Count == 0)
+        {
+            // An order with no tickets and an order that isn't yours look the same from here, which
+            // is the intent — neither confirms anything about an order id the caller guessed.
+            return Results.Ok(Array.Empty<TicketResponse>());
+        }
+
+        // Every ticket in an order shares its buyer and its selling tenant, so one check covers the
+        // whole set. Same opaque not-found as GetTicketQrCode on a mismatch.
+        var userId = GetUserId(principal);
+        var isOwner = userId is not null && tickets[0].UserId == userId;
+        var isOwningTenant = tenant.TenantId is not null && tickets[0].TenantId == tenant.TenantId;
+        if (!isOwner && !isOwningTenant)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(tickets.Select(Map).ToList());
     }
 
     private static async Task<IResult> GetTicketAsync(
         Guid id,
+        ClaimsPrincipal principal,
+        ITenantContext tenant,
         ITicketRepository repository,
         CancellationToken cancellationToken)
     {
         var ticket = await repository.GetByIdAsync(id, cancellationToken);
-        return ticket is null ? Results.NotFound() : Results.Ok(Map(ticket));
+        if (ticket is null)
+        {
+            return Results.NotFound();
+        }
+
+        // TicketResponse carries the scan Token — the thing that admits someone at the gate — so
+        // this needs the same ownership check GetTicketQrCode already had. The QR *image* was
+        // protected while the endpoint returning the same token as text was not.
+        var userId = GetUserId(principal);
+        var isOwner = userId is not null && ticket.UserId == userId;
+        var isOwningTenant = tenant.TenantId is not null && ticket.TenantId == tenant.TenantId;
+        if (!isOwner && !isOwningTenant)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(Map(ticket));
     }
 
     private static async Task<IResult> GetEventTicketsAsync(
