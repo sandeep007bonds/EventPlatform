@@ -2,6 +2,10 @@
 
 **Status:** Proposed · **Date:** 2026-08-20
 
+> The PII question is **settled** — full values, crypto-shredded (below). This stays Proposed
+> only because retention period and mandatory event coverage are set by a compliance regime
+> that has not been named. The mechanism is buildable now; those two parameters are not.
+
 ## Context
 
 An inventory of all 34 domain entities across the nine services found the platform has
@@ -99,20 +103,28 @@ proof against an attacker who can rewrite the whole chain — that needs externa
 The chain is worth having regardless: it converts "we think the log is intact" into something
 checkable.
 
-### PII and the erasure conflict, stated rather than buried
+### Full values, with erasure handled by crypto-shredding
 
-An immutable audit log is in direct tension with a data-subject erasure request. The resolution
-here:
+The log stores **before/after values verbatim, including personal data**. That was a deliberate
+call: a trail that records only that an email changed, not what it changed from, is of limited use
+in exactly the disputes an audit trail exists to settle.
 
-- The log stores **pseudonymous actor ids** (the `sub` GUID), never names, emails or phone numbers.
-- Properties holding personal data are **redacted in `Changes`** — the property name and the fact
-  it changed are recorded, the values are not.
-- Erasing a subject deletes the subject's record; the audit entries referencing their id survive,
-  which is the standard position for records kept under a legal obligation.
+An immutable log holding personal data collides head-on with a data-subject erasure request. Both
+properties are kept, via **crypto-shredding**:
 
-This is a real constraint on what the log may contain, not a footnote, and it has to be settled
-with whoever owns the compliance question before the interceptor is written — once a field is
-being captured, un-capturing it retroactively is not possible.
+- PII values inside `Changes` are encrypted under a **per-subject key**, held in Key Vault.
+- An erasure request destroys that subject's key. The audit rows and the hash chain are untouched,
+  so tamper-evidence still verifies over the full history; the values simply become permanently
+  unreadable.
+- What survives is exactly what should: the fact that an action occurred, by whom, when, against
+  which record. What is destroyed is the personal content.
+
+This is stronger than deleting rows, which would break the hash chain and leave the log unable to
+prove its own integrity — the point at which an auditor stops trusting all of it, not just the
+deleted part.
+
+Non-PII values — prices, statuses, tax rates, seat states — are stored in clear. Encrypting them
+would buy nothing and would make the log unqueryable for the reporting it is meant to support.
 
 ## Consequences
 
@@ -128,6 +140,12 @@ being captured, un-capturing it retroactively is not possible.
 - **The entity-field gaps are still worth closing independently.** A central log answers "who
   changed this and when"; `CreatedAt`/`UpdatedAt` on the row answers it without a join, and the
   absence of `CreatedAt` on `Event` is a plain modelling gap regardless of any audit subsystem.
+- **The audit store is now higher-sensitivity than most tables, not lower.** Holding personal data
+  verbatim means it inherits the same encryption, access control and retention obligations as the
+  primary data it describes. Read access must be organizer-scoped to their own tenant; a
+  platform-wide audit reader would be a single account able to read every tenant's personal data.
+- **Key management becomes load-bearing.** Losing a subject key is indistinguishable from an
+  erasure, so the keys need the same backup and rotation discipline as any other production secret.
 - **`Ticket` should record the scanning actor directly**, not only in the audit log. It is a
   domain fact about the check-in, not incidental metadata.
 
