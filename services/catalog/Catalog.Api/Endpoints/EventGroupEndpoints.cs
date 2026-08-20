@@ -12,10 +12,13 @@ public static class EventGroupEndpoints
 
         var group = app.MapGroup("/v1/event-groups").WithTags("Event groups");
 
-        group.MapPost("/", CreateEventGroupAsync).WithName("CreateEventGroup");
-        group.MapGet("/", ListEventGroupsAsync).WithName("ListEventGroups");
+        group.MapPost("/", CreateEventGroupAsync).WithName("CreateEventGroup").RequireOrganizer();
+        group.MapGet("/", ListEventGroupsAsync).WithName("ListEventGroups").RequireOrganizer();
+        group.MapPut("/{id:guid}", UpdateEventGroupAsync).WithName("UpdateEventGroup").RequireOrganizer();
+
+        // Anonymous: a tour page is public, and a group on its own — unlinked from its legs —
+        // reveals nothing sensitive.
         group.MapGet("/{id:guid}", GetEventGroupAsync).WithName("GetEventGroup").AllowAnonymous();
-        group.MapPut("/{id:guid}", UpdateEventGroupAsync).WithName("UpdateEventGroup");
 
         return app;
     }

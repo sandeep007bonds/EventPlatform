@@ -12,7 +12,7 @@ public static class EntryGateEndpoints
 
         var group = app.MapGroup("/v1/events/{eventId:guid}/entry-gates").WithTags("Entry gates");
 
-        group.MapPost("/", CreateEntryGateAsync).WithName("CreateEntryGate");
+        group.MapPost("/", CreateEntryGateAsync).WithName("CreateEntryGate").RequireOrganizer();
 
         // Anonymous — Ticketing resolves gate names/restrictions live at scan time via Dapr
         // service invocation, and a gate name alone reveals nothing sensitive.

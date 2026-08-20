@@ -12,9 +12,11 @@ public static class PromoCodeEndpoints
 
         var group = app.MapGroup("/v1/events/{eventId:guid}/promo-codes").WithTags("Promo codes");
 
-        group.MapPost("/", CreatePromoCodeAsync).WithName("CreatePromoCode");
-        group.MapGet("/", ListPromoCodesAsync).WithName("ListPromoCodes");
-        group.MapPost("/{id:guid}/deactivate", DeactivatePromoCodeAsync).WithName("DeactivatePromoCode");
+        group.MapPost("/", CreatePromoCodeAsync).WithName("CreatePromoCode").RequireOrganizer();
+        group.MapGet("/", ListPromoCodesAsync).WithName("ListPromoCodes").RequireOrganizer();
+        group.MapPost("/{id:guid}/deactivate", DeactivatePromoCodeAsync)
+            .WithName("DeactivatePromoCode")
+            .RequireOrganizer();
 
         // Anonymous: a buyer picking seats has not necessarily logged in yet, and these codes are
         // advertised by design. Returns only public, currently-redeemable codes, and a narrower

@@ -12,18 +12,25 @@ public static class CatalogEndpoints
 
         var group = app.MapGroup("/v1/events").WithTags("Events");
 
-        group.MapPost("/", CreateEventAsync).WithName("CreateEvent");
+        // Storefront reads. Anonymous by design — browsing is the product's front door. The
+        // handlers still apply Event.IsVisibleTo, so an anonymous caller sees non-draft events
+        // only; a tenant additionally sees its own drafts.
         group.MapGet("/", ListEventsAsync).WithName("ListEvents").AllowAnonymous();
         group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent").AllowAnonymous();
-        group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent");
-        group.MapPost("/{id:guid}/pause-sales", PauseSalesAsync).WithName("PauseSales");
-        group.MapPost("/{id:guid}/resume-sales", ResumeSalesAsync).WithName("ResumeSales");
-        group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap");
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
-        group.MapPost("/{id:guid}/seatmap/sections", AddSeatMapSectionsAsync).WithName("AddSeatMapSections");
-        group.MapPut("/{id:guid}/seatmap/sections", UpdateSeatMapSectionAsync).WithName("UpdateSeatMapSection");
-        group.MapDelete("/{id:guid}/seatmap/sections/{sectionName}", RemoveSeatMapSectionAsync).WithName("RemoveSeatMapSection");
-        group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails");
+
+        // Organizer writes. The policy establishes only that the caller is an organizer at all —
+        // each handler still checks that this event belongs to their tenant, and answers a
+        // mismatch with an opaque 404.
+        group.MapPost("/", CreateEventAsync).WithName("CreateEvent").RequireOrganizer();
+        group.MapPost("/{id:guid}/publish", PublishEventAsync).WithName("PublishEvent").RequireOrganizer();
+        group.MapPost("/{id:guid}/pause-sales", PauseSalesAsync).WithName("PauseSales").RequireOrganizer();
+        group.MapPost("/{id:guid}/resume-sales", ResumeSalesAsync).WithName("ResumeSales").RequireOrganizer();
+        group.MapPost("/{id:guid}/seatmap", DefineSeatMapAsync).WithName("DefineSeatMap").RequireOrganizer();
+        group.MapPost("/{id:guid}/seatmap/sections", AddSeatMapSectionsAsync).WithName("AddSeatMapSections").RequireOrganizer();
+        group.MapPut("/{id:guid}/seatmap/sections", UpdateSeatMapSectionAsync).WithName("UpdateSeatMapSection").RequireOrganizer();
+        group.MapDelete("/{id:guid}/seatmap/sections/{sectionName}", RemoveSeatMapSectionAsync).WithName("RemoveSeatMapSection").RequireOrganizer();
+        group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails").RequireOrganizer();
 
         return app;
     }
