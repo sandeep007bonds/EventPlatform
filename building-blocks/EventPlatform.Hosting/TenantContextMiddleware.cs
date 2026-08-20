@@ -7,8 +7,6 @@ namespace EventPlatform.Hosting;
 /// <param name="next">The next middleware in the pipeline.</param>
 internal sealed class TenantContextMiddleware(RequestDelegate next)
 {
-    private const string TenantClaim = "tenant_id";
-
     /// <summary>Executes the middleware for the current request.</summary>
     /// <param name="context">The HTTP context.</param>
     /// <param name="tenant">The scoped tenant context to populate.</param>
@@ -18,7 +16,7 @@ internal sealed class TenantContextMiddleware(RequestDelegate next)
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(tenant);
 
-        var claim = context.User.FindFirstValue(TenantClaim);
+        var claim = context.User.FindFirstValue(EventPlatformClaims.TenantId);
         if (Guid.TryParse(claim, out var tenantId))
         {
             tenant.TenantId = tenantId;

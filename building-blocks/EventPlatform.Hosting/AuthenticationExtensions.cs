@@ -62,7 +62,11 @@ public static class AuthenticationExtensions
                 }
             });
 
-        services.AddAuthorization();
+        // Named role policies (organizer/buyer). Deliberately no fallback policy yet: one would
+        // deny every endpoint that carries no authorization metadata, which today is most of them,
+        // and would take the Dapr pub/sub subscribers down with it. The fallback goes in once every
+        // endpoint is explicitly annotated — see ADR-0035.
+        services.AddEventPlatformAuthorization();
 
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(sp => sp.GetRequiredService<TenantContext>());
