@@ -16,24 +16,38 @@ public static class OrderingEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapPost("/v1/checkout", CheckoutAsync).WithName("Checkout").WithTags("Checkout");
-        app.MapPost("/v1/checkout/quote", QuoteCheckoutAsync).WithName("QuoteCheckout").WithTags("Checkout");
-        app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders");
-        app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders");
-        app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders");
+        // Buying is a buyer action: an organizer token has no business placing an order, and
+        // checkout derives the tenant from the fetched hold rather than any caller claim (ADR-0022).
+        app.MapPost("/v1/checkout", CheckoutAsync).WithName("Checkout").WithTags("Checkout").RequireBuyer();
+        app.MapPost("/v1/checkout/quote", QuoteCheckoutAsync).WithName("QuoteCheckout").WithTags("Checkout").RequireBuyer();
+        app.MapPost("/v1/orders/{id:guid}/cancel", CancelOrderAsync).WithName("CancelOrder").WithTags("Orders").RequireBuyer();
         app.MapPost("/v1/orders/{id:guid}/payment/sync", SyncOrderPaymentAsync)
             .WithName("SyncOrderPayment")
-            .WithTags("Orders");
+            .WithTags("Orders")
+            .RequireBuyer();
+
+        // Both roles reach these legitimately — a buyer sees their own orders (?mine=true), an
+        // organizer sees their tenant's (?forTenant=true). Which records come back is decided in
+        // the handler by ownership, not here.
+        app.MapGet("/v1/orders", ListOrdersAsync).WithName("ListOrders").WithTags("Orders").RequireAuthenticatedCaller();
+        app.MapGet("/v1/orders/{id:guid}", GetOrderAsync).WithName("GetOrder").WithTags("Orders").RequireAuthenticatedCaller();
 
         // Dapr pub/sub: resume a checkout saga waiting on payment authentication (ADR-0028). The
         // order id doubles as the saga's own Dapr instance id, so no lookup is needed.
+        //
+        // AllowAnonymous deliberately: the sidecar delivers these with no user token, so any
+        // authorization requirement here silently stops every payment outcome from reaching its
+        // saga — checkouts would hang rather than fail visibly. Not gateway-routed, so the only
+        // caller is the sidecar on localhost.
         app.MapPost("/integration/payments/payment-captured", OnPaymentCapturedAsync)
             .WithTopic("pubsub", nameof(PaymentCaptured))
             .WithName("OnPaymentCaptured")
+            .AllowAnonymous()
             .ExcludeFromDescription();
         app.MapPost("/integration/payments/payment-failed", OnPaymentFailedAsync)
             .WithTopic("pubsub", nameof(PaymentFailed))
             .WithName("OnPaymentFailed")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         return app;

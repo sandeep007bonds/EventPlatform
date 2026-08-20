@@ -14,6 +14,7 @@ public static class TicketingEndpoints
         app.MapPost("/integration/ordering/order-confirmed", OnOrderConfirmedAsync)
             .WithTopic("pubsub", nameof(OrderConfirmed))
             .WithName("OnOrderConfirmed")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         // Dapr pub/sub: warm the local scan cache when Catalog publishes an event — the check-in
@@ -22,32 +23,46 @@ public static class TicketingEndpoints
         app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
             .WithTopic("pubsub", nameof(EventPublished))
             .WithName("OnEventPublished")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
+        // Buyer reads their own tickets; the selling tenant reads its own. Both are legitimate, so
+        // the role check is only "authenticated" — the handlers decide which records by ownership,
+        // and each carries the token that admits someone at a gate, so those checks are the real
+        // control here (ADR-0035).
         app.MapGet("/v1/orders/{orderId:guid}/tickets", GetOrderTicketsAsync)
             .WithName("GetOrderTickets")
-            .WithTags("Tickets");
+            .WithTags("Tickets")
+            .RequireAuthenticatedCaller();
 
         app.MapGet("/v1/tickets/{id:guid}", GetTicketAsync)
             .WithName("GetTicket")
-            .WithTags("Tickets");
-
-        app.MapGet("/v1/events/{eventId:guid}/tickets", GetEventTicketsAsync)
-            .WithName("GetEventTickets")
-            .WithTags("Tickets");
-
-        app.MapPost("/v1/tickets/scan", ScanTicketAsync)
-            .WithName("ScanTicket")
-            .WithTags("Tickets");
+            .WithTags("Tickets")
+            .RequireAuthenticatedCaller();
 
         app.MapGet("/v1/tickets/{id:guid}/qrcode", GetTicketQrCodeAsync)
             .WithName("GetTicketQrCode")
-            .WithTags("Tickets");
+            .WithTags("Tickets")
+            .RequireAuthenticatedCaller();
+
+        // Organizer-only: the whole event's tickets, and admitting someone at the door.
+        app.MapGet("/v1/events/{eventId:guid}/tickets", GetEventTicketsAsync)
+            .WithName("GetEventTickets")
+            .WithTags("Tickets")
+            .RequireOrganizer();
+
+        app.MapPost("/v1/tickets/scan", ScanTicketAsync)
+            .WithName("ScanTicket")
+            .WithTags("Tickets")
+            .RequireOrganizer();
 
         // Internal (Ordering's cancellation saga, via Dapr service invocation): void every ticket
-        // for an order — not gateway-routed, same treatment as Payments' charge/refund.
+        // for an order. AllowAnonymous deliberately — Ordering invokes it with no user token, and
+        // it is not gateway-routed, so the only reachable caller is another service in the mesh.
+        // Same treatment as Payments' intents/refund.
         app.MapPost("/v1/orders/{orderId:guid}/tickets/void", VoidOrderTicketsAsync)
             .WithName("VoidOrderTickets")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         return app;
