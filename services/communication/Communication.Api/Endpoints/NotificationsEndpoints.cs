@@ -11,8 +11,11 @@ public static class NotificationsEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         // Internal, service-to-service only (Dapr invocation) — never gateway-routed.
+        // AllowAnonymous deliberately: Identity invokes this to deliver OTPs with no user token,
+        // by definition — the recipient is not logged in yet.
         app.MapPost("/v1/notifications/send", SendAsync)
             .WithName("SendNotification")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         // Dapr pub/sub: wired for redelivery-safety, but real delivery is deferred — see
@@ -20,11 +23,13 @@ public static class NotificationsEndpoints
         app.MapPost("/integration/ordering/order-confirmed", OnOrderConfirmedAsync)
             .WithTopic("pubsub", nameof(OrderConfirmed))
             .WithName("OnOrderConfirmed")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         app.MapPost("/integration/ticketing/ticket-issued", OnTicketIssuedAsync)
             .WithTopic("pubsub", nameof(TicketIssued))
             .WithName("OnTicketIssued")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         // One combined ticket-delivery email per order, sent directly (the buyer email arrived on
@@ -32,6 +37,7 @@ public static class NotificationsEndpoints
         app.MapPost("/integration/ticketing/order-tickets-issued", OnOrderTicketsIssuedAsync)
             .WithTopic("pubsub", nameof(OrderTicketsIssued))
             .WithName("OnOrderTicketsIssued")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         return app;

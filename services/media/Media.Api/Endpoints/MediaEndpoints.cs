@@ -36,7 +36,9 @@ public static class MediaEndpoints
 
         var group = app.MapGroup("/v1/media").WithTags("Media");
 
-        group.MapPost("/images", UploadImageAsync).WithName("UploadImage").DisableAntiforgery();
+        // Organizer-only: uploads cost storage and appear on a public event page, so an anonymous
+        // or buyer caller has no business writing here.
+        group.MapPost("/images", UploadImageAsync).WithName("UploadImage").RequireOrganizer().DisableAntiforgery();
 
         return app;
     }

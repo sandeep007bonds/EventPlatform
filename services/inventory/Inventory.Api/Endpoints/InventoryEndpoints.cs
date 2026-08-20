@@ -11,23 +11,30 @@ public static class InventoryEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         // Dapr pub/sub: provision seat inventory when Catalog publishes an event.
+        // AllowAnonymous deliberately: the Dapr sidecar delivers with no user token, and a
+        // denied subscriber fails by going quiet rather than erroring.
         app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
             .WithTopic("pubsub", nameof(EventPublished))
             .WithName("OnEventPublished")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         // Dapr pub/sub: an organizer manually paused/resumed sales for a published event.
         app.MapPost("/integration/catalog/event-sales-paused", OnEventSalesPausedAsync)
             .WithTopic("pubsub", nameof(EventSalesPaused))
             .WithName("OnEventSalesPaused")
+            .AllowAnonymous()
             .ExcludeFromDescription();
         app.MapPost("/integration/catalog/event-sales-resumed", OnEventSalesResumedAsync)
             .WithTopic("pubsub", nameof(EventSalesResumed))
             .WithName("OnEventSalesResumed")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
+        // Anonymous: remaining-capacity is public storefront data.
         app.MapGet("/v1/events/{eventId:guid}/inventory", GetInventoryCountAsync)
             .WithName("GetInventoryCount")
+            .AllowAnonymous()
             .WithTags("Inventory");
 
         // Anonymous, same visibility posture as Catalog's public seatmap: buyers need to see which
@@ -45,33 +52,46 @@ public static class InventoryEndpoints
             .AllowAnonymous();
 
         // Organizer seat blocking (e.g. a kill or a restricted view) — separate from the buyer-facing
-        // hold path. No RBAC yet (tracked separately): any authenticated caller in the tenant can
-        // block/unblock their own tenant's seats, same as other organizer-facing endpoints today.
+        // hold path. The policy establishes the role; the handler still checks the seats belong to
+        // the caller's tenant.
         app.MapPost("/v1/events/{eventId:guid}/inventory/block", BlockSeatsAsync)
+            .RequireOrganizer()
             .WithName("BlockSeats")
             .WithTags("Inventory");
         app.MapPost("/v1/events/{eventId:guid}/inventory/unblock", UnblockSeatsAsync)
+            .RequireOrganizer()
             .WithName("UnblockSeats")
             .WithTags("Inventory");
 
         var holds = app.MapGroup("/v1/holds").WithTags("Holds");
-        holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold");
-        holds.MapGet("/{holdId:guid}", GetHoldAsync).WithName("GetHold");
-        holds.MapDelete("/{holdId:guid}", ReleaseHoldAsync).WithName("ReleaseHold");
+        // Holding seats is the point at which a buyer must be identified (ADR-0016): browsing and
+        // queueing are anonymous, this is not.
+        holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold").RequireBuyer();
+        holds.MapGet("/{holdId:guid}", GetHoldAsync).WithName("GetHold").RequireBuyer();
+
+        // Internal twin of GetHold for the checkout saga, which invokes it over Dapr with no user
+        // token and so cannot pass the buyer check above. Split rather than making GetHold
+        // anonymous: that endpoint IS gateway-routed, and a hold reveals what someone is buying and
+        // for how much. Not gateway-routed, same treatment as convert/release/extend/cancel below.
+        holds.MapGet("/{holdId:guid}/snapshot", GetHoldSnapshotAsync)
+            .WithName("GetHoldSnapshot")
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+        holds.MapDelete("/{holdId:guid}", ReleaseHoldAsync).WithName("ReleaseHold").RequireBuyer();
 
         // Internal (checkout saga, via Dapr service invocation): convert a hold to a sale, or
         // release it on compensation (no owner check — the saga acts as the system).
-        holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").ExcludeFromDescription();
-        holds.MapPost("/{holdId:guid}/release", SystemReleaseHoldAsync).WithName("SystemReleaseHold").ExcludeFromDescription();
+        holds.MapPost("/{holdId:guid}/convert", ConvertHoldAsync).WithName("ConvertHold").AllowAnonymous().ExcludeFromDescription();
+        holds.MapPost("/{holdId:guid}/release", SystemReleaseHoldAsync).WithName("SystemReleaseHold").AllowAnonymous().ExcludeFromDescription();
 
         // Internal (checkout saga, via Dapr service invocation): extend a hold's expiry once payment
         // authentication begins. No request body — the extension duration is server-config-driven
         // (HoldOptions.PaymentExtensionTtl), never client-supplied.
-        holds.MapPost("/{holdId:guid}/extend", ExtendHoldAsync).WithName("ExtendHold").ExcludeFromDescription();
+        holds.MapPost("/{holdId:guid}/extend", ExtendHoldAsync).WithName("ExtendHold").AllowAnonymous().ExcludeFromDescription();
 
         // Internal (Ordering's cancellation saga, via Dapr service invocation): release a converted
         // hold's sold seats/quantities back to available.
-        holds.MapPost("/{holdId:guid}/cancel", CancelSoldAsync).WithName("CancelSold").ExcludeFromDescription();
+        holds.MapPost("/{holdId:guid}/cancel", CancelSoldAsync).WithName("CancelSold").AllowAnonymous().ExcludeFromDescription();
 
         return app;
     }
@@ -95,6 +115,30 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> GetHoldAsync(
+        Guid holdId,
+        ClaimsPrincipal principal,
+        HoldService holds,
+        CancellationToken cancellationToken)
+    {
+        var view = await holds.GetHoldViewAsync(holdId, cancellationToken);
+        if (view is null)
+        {
+            return Results.NotFound();
+        }
+
+        // A hold shows which seats someone picked and what they cost. Opaque not-found on a
+        // mismatch, so a guessed hold id never confirms whose it is.
+        var userId = GetUserId(principal);
+        return userId is not null && view.UserId == userId.Value
+            ? Results.Ok(view)
+            : Results.NotFound();
+    }
+
+    /// <remarks>
+    /// The saga's read path. Identical projection, no owner check — the caller is the checkout
+    /// workflow acting as the system, which is also why it carries no user token to check against.
+    /// </remarks>
+    private static async Task<IResult> GetHoldSnapshotAsync(
         Guid holdId,
         HoldService holds,
         CancellationToken cancellationToken)

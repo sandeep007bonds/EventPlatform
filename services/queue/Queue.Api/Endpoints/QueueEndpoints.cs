@@ -17,13 +17,17 @@ public static class QueueEndpoints
         group.MapPost("/join", JoinAsync).WithName("JoinQueue").AllowAnonymous();
         group.MapGet("/status", StatusAsync).WithName("QueueStatus").AllowAnonymous();
 
-        group.MapGet("/settings", GetSettingsAsync).WithName("GetQueueSettings");
-        group.MapPut("/settings", UpdateSettingsAsync).WithName("UpdateQueueSettings");
+        // Pacing is an organizer control, tunable while the event is live.
+        group.MapGet("/settings", GetSettingsAsync).WithName("GetQueueSettings").RequireOrganizer();
+        group.MapPut("/settings", UpdateSettingsAsync).WithName("UpdateQueueSettings").RequireOrganizer();
 
         // Dapr pub/sub: provision this event's queue settings when Catalog publishes it.
+        // AllowAnonymous deliberately: the Dapr sidecar delivers with no user token, and a
+        // denied subscriber fails by going quiet rather than erroring.
         app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
             .WithTopic("pubsub", nameof(EventPublished))
             .WithName("OnEventPublished")
+            .AllowAnonymous()
             .ExcludeFromDescription();
 
         return app;

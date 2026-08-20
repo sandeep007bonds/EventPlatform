@@ -13,7 +13,9 @@ internal sealed class DaprHoldClient : IHoldClient
     public async Task<HoldSnapshot?> GetHoldAsync(Guid holdId, CancellationToken cancellationToken)
     {
         using var http = DaprClient.CreateInvokeHttpClient(InventoryAppId);
-        using var response = await http.GetAsync($"v1/holds/{holdId}", cancellationToken);
+        // The /snapshot twin, not the buyer-facing GET: this call carries no user token, and the
+        // public endpoint requires the owning buyer (ADR-0035).
+        using var response = await http.GetAsync($"v1/holds/{holdId}/snapshot", cancellationToken);
 
         if (response.StatusCode == HttpStatusCode.NotFound)
         {

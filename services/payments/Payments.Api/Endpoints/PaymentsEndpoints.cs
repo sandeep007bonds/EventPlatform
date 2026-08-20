@@ -11,13 +11,16 @@ public static class PaymentsEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/v1/payments").WithTags("Payments");
-        group.MapPost("/intents", CreateIntentAsync).WithName("CreateIntent").ExcludeFromDescription();
-        group.MapPost("/refund", RefundAsync).WithName("Refund").ExcludeFromDescription();
+        // AllowAnonymous deliberately: the checkout and cancellation sagas invoke these over Dapr
+        // with no user token, and neither is gateway-routed. Money movement is authorized by the
+        // saga having got this far, not by a caller claim.
+        group.MapPost("/intents", CreateIntentAsync).WithName("CreateIntent").AllowAnonymous().ExcludeFromDescription();
+        group.MapPost("/refund", RefundAsync).WithName("Refund").AllowAnonymous().ExcludeFromDescription();
 
         // Pull counterpart to the Stripe webhook: re-reads a payment's live state from the provider
         // and applies the same reconciliation. Lets the checkout saga learn an outcome by asking,
         // so it doesn't depend on the provider being able to call us back (ADR-0028).
-        group.MapPost("/{orderId:guid}/sync", SyncPaymentAsync).WithName("SyncPayment").ExcludeFromDescription();
+        group.MapPost("/{orderId:guid}/sync", SyncPaymentAsync).WithName("SyncPayment").AllowAnonymous().ExcludeFromDescription();
 
         // Provider callback: authenticated by signature, not a bearer token, so anonymous.
         group.MapPost("/webhooks/stripe", StripeWebhookAsync)
