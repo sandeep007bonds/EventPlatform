@@ -30,6 +30,10 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         modelBuilder.HasDefaultSchema("identity");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(IdentityDbContext).Assembly);
 
+        // Audit shadow properties, last so every configuration and the outbox mapping are
+        // already in the model (ADR-0036).
+        modelBuilder.ApplyAuditFields();
+
         base.OnModelCreating(modelBuilder);
     }
 }

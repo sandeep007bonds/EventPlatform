@@ -32,6 +32,10 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
         modelBuilder.ApplyOutbox();
 
+        // Audit shadow properties, last so every configuration and the outbox mapping are
+        // already in the model (ADR-0036).
+        modelBuilder.ApplyAuditFields();
+
         base.OnModelCreating(modelBuilder);
     }
 }

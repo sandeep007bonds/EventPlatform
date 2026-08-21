@@ -29,6 +29,10 @@ public sealed class TicketingDbContext(DbContextOptions<TicketingDbContext> opti
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TicketingDbContext).Assembly);
         modelBuilder.ApplyOutbox();
 
+        // Audit shadow properties, last so every configuration and the outbox mapping are
+        // already in the model (ADR-0036).
+        modelBuilder.ApplyAuditFields();
+
         base.OnModelCreating(modelBuilder);
     }
 }

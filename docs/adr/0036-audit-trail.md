@@ -83,7 +83,35 @@ An `ISaveChangesInterceptor` reads EF's change tracker and writes an `AuditEntry
 entity, taking before/after from `OriginalValues`/`CurrentValues`. Hand-written audit calls were
 rejected: they are exactly what produced today's 8-of-34 coverage.
 
-Entities opt in via a marker so the log carries business facts rather than every row touched.
+### Audit fields are shadow properties, not entity properties
+
+`CreatedAt`/`CreatedBy`/`UpdatedAt`/`UpdatedBy` are declared in the **EF model only** and never
+appear on an entity class. An earlier draft of this ADR had entities opt in via an `IAuditable`
+marker; that is rejected, because every `*.Domain` project in this repo has **zero**
+`ProjectReference`s — Catalog's csproj states it outright: "Pure domain: entities, value objects,
+invariants. No framework or infrastructure deps." A marker interface would be the first dependency
+any domain project has ever taken, and it would be taken for persistence metadata rather than for
+anything the domain reasons about.
+
+Instead a **model convention** in `EventPlatform.Persistence` adds the four properties to every
+mapped entity type (excluding `OutboxMessage` and owned types), and the interceptor populates them
+on the change-tracker walk it is already doing. Uniform by construction — which is the real fix
+for today's 8-of-34 coverage, since that gap exists precisely because each factory sets the value
+by hand and some were never updated.
+
+Two categories deliberately stay real properties:
+
+- **Values already load-bearing in queries or responses** — the existing `CreatedAt` on `Order`,
+  `Payment`, `PromoCode` and Identity's entities is sorted on in four repositories, filtered by
+  Payments' reaper, and projected into `OrderSummaryResponse`. `EF.Property<T>` can express those,
+  but rewriting working queries for uniformity is churn carrying regression risk and no benefit.
+- **Domain facts, which are not row metadata** — `Ticket.CheckedInAt` and a new `CheckedInBy`,
+  `Event.PublishedAt`, `PromoCode.DeactivatedAt`. "When was this row last written" and "when was
+  this event published" are different questions; sharing one mechanism would blur them.
+
+The cost is real and worth naming: a shadow property is invisible to a domain unit test, so
+"the timestamp was stamped" moves from `EventTests` to an integration test against a `DbContext`.
+
 Domain-specific records that already exist (`LedgerEntry`, `DeliveryLogEntry`) stay where they
 are — they are richer than a generic diff — and gain an actor.
 

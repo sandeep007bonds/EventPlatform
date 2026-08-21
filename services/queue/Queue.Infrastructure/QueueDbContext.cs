@@ -18,6 +18,10 @@ public sealed class QueueDbContext(DbContextOptions<QueueDbContext> options) : D
         modelBuilder.HasDefaultSchema("queue");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(QueueDbContext).Assembly);
 
+        // Audit shadow properties, last so every configuration and the outbox mapping are
+        // already in the model (ADR-0036).
+        modelBuilder.ApplyAuditFields();
+
         base.OnModelCreating(modelBuilder);
     }
 }

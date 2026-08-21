@@ -22,6 +22,10 @@ public sealed class CommunicationDbContext(DbContextOptions<CommunicationDbConte
         modelBuilder.HasDefaultSchema("communication");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CommunicationDbContext).Assembly);
 
+        // Audit shadow properties, last so every configuration and the outbox mapping are
+        // already in the model (ADR-0036).
+        modelBuilder.ApplyAuditFields();
+
         base.OnModelCreating(modelBuilder);
     }
 }
