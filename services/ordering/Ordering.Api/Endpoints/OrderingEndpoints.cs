@@ -413,9 +413,6 @@ public static class OrderingEndpoints
             order.CatalogEventId,
             order.HoldId,
             lines,
-            // Only ever to the buyer. It exists so *they* can resume Payment Element after a reload
-            // or a redirect back from 3-D Secure; an organizer reading their tenant's order has no
-            // use for it and should not hold a credential that can act on someone's payment.
             isBuyer ? order.PaymentClientSecret : null);
 
         return Results.Ok(response);
