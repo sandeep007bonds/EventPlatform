@@ -11,6 +11,7 @@ public static class PaymentsEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/v1/payments").WithTags("Payments");
+
         // AllowAnonymous deliberately: the checkout and cancellation sagas invoke these over Dapr
         // with no user token, and neither is gateway-routed. Money movement is authorized by the
         // saga having got this far, not by a caller claim.

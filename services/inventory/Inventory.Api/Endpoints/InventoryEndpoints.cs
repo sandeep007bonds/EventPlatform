@@ -64,6 +64,7 @@ public static class InventoryEndpoints
             .WithTags("Inventory");
 
         var holds = app.MapGroup("/v1/holds").WithTags("Holds");
+
         // Holding seats is the point at which a buyer must be identified (ADR-0016): browsing and
         // queueing are anonymous, this is not.
         holds.MapPost("/", PlaceHoldAsync).WithName("PlaceHold").RequireBuyer();

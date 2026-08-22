@@ -2,6 +2,7 @@ global using System.Security.Cryptography;
 global using System.Text;
 global using Dapr.Client;
 global using EventPlatform.Messaging;
+global using EventPlatform.Persistence;
 global using Inventory.Application.Abstractions;
 global using Inventory.Application.Holds;
 global using Inventory.Application.Reconciliation;
