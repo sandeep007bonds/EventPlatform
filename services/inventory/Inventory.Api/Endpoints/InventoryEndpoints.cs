@@ -345,7 +345,10 @@ public static class InventoryEndpoints
 
     private static Guid? GetUserId(ClaimsPrincipal principal)
     {
-        var value = principal.FindFirstValue("sub") ?? principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        // `sub` only: AuthenticationExtensions turns MapInboundClaims off, so the claim keeps the
+        // name the issuer gave it. The ClaimTypes.NameIdentifier fallback that used to sit here was
+        // a workaround for that mapping, and kept working while the role policies silently did not.
+        var value = principal.FindFirstValue(EventPlatformClaims.Subject);
         return Guid.TryParse(value, out var id) ? id : null;
     }
 

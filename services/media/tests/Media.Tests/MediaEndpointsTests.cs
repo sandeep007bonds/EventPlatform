@@ -9,6 +9,8 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
     private const string DevSigningKey = "eventplatform-dev-hs256-signing-key-not-a-secret";
     private const string Issuer = "eventplatform-dev";
     private const string Audience = "eventplatform";
+    private const string OrganizerRole = "organizer";
+    private const string BuyerRole = "buyer";
 
     // --skipApiVersionCheck for the same reason docker-compose.yml passes it: the pinned
     // Azure.Storage.Blobs SDK negotiates a newer x-ms-version than the Azurite image recognizes
@@ -108,6 +110,26 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
     }
 
+    // The test that would have caught the 403 this file's MintToken comment describes. The 201 case
+    // above fails on any misconfiguration at all; only a wrong-role case proves the policy
+    // discriminates rather than merely denying everything or allowing everything.
+    [Fact]
+    public async Task UploadImage_BuyerRoleToken_ReturnsForbidden()
+    {
+        using var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", MintToken(BuyerRole));
+
+        using var content = new MultipartFormDataContent();
+        var fileContent = new ByteArrayContent(BuildFakePngBytes());
+        fileContent.Headers.ContentType = new MediaTypeHeaderValue("image/png");
+        content.Add(fileContent, "file", "banner.png");
+
+        var response = await client.PostAsync("/v1/media/images", content);
+
+        response.StatusCode.ShouldBe(HttpStatusCode.Forbidden);
+    }
+
     [Fact]
     public async Task UploadImage_NoBearerToken_ReturnsUnauthorized()
     {
@@ -123,14 +145,20 @@ public sealed class MediaEndpointsTests : IAsyncLifetime
         response.StatusCode.ShouldBe(HttpStatusCode.Unauthorized);
     }
 
-    // Matches DevTokenIssuer's claim shape exactly (see gateways/EventPlatform.Gateway/DevAuth) —
+    // Matches DevTokenIssuer's claim shape (see gateways/EventPlatform.Gateway/DevAuth) —
     // Media.Api validates against the same DevSigningKey path every service uses in Development.
-    private static string MintToken()
+    //
+    // The `role` claim is the part that matters here and it was missing until the 403 that led to
+    // this fix: the upload endpoint is RequireOrganizer(), so a token without a role could never
+    // have produced the 201 the first test asserts. Note the short claim name, which reaches the
+    // policy intact only because AuthenticationExtensions sets MapInboundClaims = false.
+    private static string MintToken(string role = OrganizerRole)
     {
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, Guid.NewGuid().ToString()),
             new("tenant_id", Guid.NewGuid().ToString()),
+            new("role", role),
         };
 
         var credentials = new SigningCredentials(

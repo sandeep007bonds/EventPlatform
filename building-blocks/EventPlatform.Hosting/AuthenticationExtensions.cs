@@ -29,6 +29,16 @@ public static class AuthenticationExtensions
             {
                 options.RequireHttpsMetadata = jwt.GetValue("RequireHttpsMetadata", defaultValue: true);
 
+                // Off, deliberately. Left at its default of true, the handler rewrites inbound
+                // claims through the legacy WS-Federation map before any policy sees them: `role`
+                // becomes http://schemas.microsoft.com/ws/2008/06/identity/claims/role and `sub`
+                // becomes ...claims/nameidentifier. Both token issuers mint the short names
+                // (ADR-0022), so RequireClaim(EventPlatformClaims.Role, ...) then cannot match a
+                // token this platform issued, and every organizer endpoint answers 403 to a
+                // perfectly good token. `tenant_id` is absent from that map, which is why tenant
+                // scoping kept working and hid the problem for as long as it did.
+                options.MapInboundClaims = false;
+
                 if (string.IsNullOrWhiteSpace(devSigningKey))
                 {
                     // Production: validate against the real OIDC identity provider.
@@ -41,6 +51,8 @@ public static class AuthenticationExtensions
                         ValidateLifetime = true,
                         ValidateIssuerSigningKey = true,
                         ClockSkew = TimeSpan.FromSeconds(30),
+                        NameClaimType = EventPlatformClaims.Subject,
+                        RoleClaimType = EventPlatformClaims.Role,
                     };
                 }
                 else
@@ -58,6 +70,8 @@ public static class AuthenticationExtensions
                         ValidateIssuerSigningKey = true,
                         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(devSigningKey)),
                         ClockSkew = TimeSpan.FromSeconds(30),
+                        NameClaimType = EventPlatformClaims.Subject,
+                        RoleClaimType = EventPlatformClaims.Role,
                     };
                 }
             });
