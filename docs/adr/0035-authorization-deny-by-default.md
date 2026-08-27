@@ -66,38 +66,60 @@ can act on someone else's payment.
 
 ### Deny-by-default goes on last, deliberately
 
-The obvious fix — a fallback policy requiring an authenticated user — is the right end state and
-is **not** being applied yet. Today nearly every endpoint carries no authorization metadata, so a
-fallback would deny all of them at once. That includes the Dapr pub/sub subscribers at
-`/integration/*`, which the sidecar calls with no user token; denying those silently breaks every
+A fallback policy requiring an authenticated user is the right end state, but applying it first
+would have denied nearly every endpoint at once — including the Dapr pub/sub subscribers at
+`/integration/*`, which the sidecar calls with no user token. Denying those silently breaks every
 integration event in the platform, and the failure mode is messages that stop flowing rather than
 an obvious error.
 
-So the rollout is staged, and each stage is independently shippable:
+So the rollout was staged, and each stage was independently shippable:
 
 1. Primitives, with no fallback (done).
 2. Annotate every endpoint explicitly, service by service — including `AllowAnonymous` on the
-   `/integration/*` subscribers, health checks and OpenAPI.
-3. Only then set the fallback policy, so a new endpoint added later is protected unless its author
-   says otherwise.
+   `/integration/*` subscribers, health checks and OpenAPI (done).
+3. Set the fallback policy, so a new endpoint added later is protected unless its author says
+   otherwise (done).
 
-Step 3 is the point of the exercise. Steps 1–2 without it leave the next forgotten handler exactly
-as exposed as the three above.
+Step 3 was the point of the exercise. Steps 1–2 without it leave the next forgotten handler
+exactly as exposed as the three above.
+
+### What step 3 turned up
+
+Annotating "every endpoint" in step 2 meant every endpoint *in an `Endpoints/` file* — which is
+what `scripts/check-endpoint-auth.py` looked at, and it passed. Three kinds of endpoint are not
+registered there and were all still unannotated:
+
+| Endpoint | Registered in | What the fallback would have done |
+|---|---|---|
+| `/health/live`, `/health/ready` | `HealthCheckExtensions` | 401 to the kubelet — liveness failing restarts every pod, on all eight services |
+| `/openapi/v1.json`, `/scalar/v1` | `OpenApiExtensions` | 401, taking the Scalar UI with it |
+| `/dapr/subscribe` | five `Program.cs` files | sidecar registers no subscriptions — pub/sub dies exactly as quietly as the failure mode above |
+
+All are now explicitly `AllowAnonymous`, and the checker has a second sweep covering
+`Program.cs` and `EventPlatform.Hosting` so the same class of gap fails the build rather than the
+cluster. The lesson generalises: "the checker passes" is a statement about the checker's glob.
+
+`AllowAnonymous` is what makes this safe — ASP.NET Core's authorization middleware short-circuits
+on `IAllowAnonymous` metadata *before* evaluating the fallback policy, so an explicitly-anonymous
+endpoint is unaffected by it.
 
 ## Consequences
 
 - The three IDORs are closed, and the ownership pattern is now uniform across order and ticket
   reads.
-- Until step 3 lands, **an endpoint with no annotation is still anonymous**. Reviewers cannot read
-  the absence of a policy as "protected". This is the main risk of a staged rollout and it is
-  accepted knowingly, because the alternative — flipping the fallback first — trades a known,
-  bounded exposure for an unbounded outage.
-- Service-to-service calls over Dapr carry no user token. They are unaffected today because they
-  target endpoints that were already unauthenticated; step 3 must mark each one explicitly rather
-  than letting it inherit anything. A service identity for those calls is **not** in scope here.
-- The `role` claim becomes a real security boundary once policies are applied, which it was not
-  before. `frontend/CLAUDE.md` says the claim is "UI routing, not security" — that statement needs
-  revisiting at step 3, not before.
+- **An endpoint with no annotation is now denied, not anonymous.** A forgotten annotation surfaces
+  as a 401 the first time the endpoint is exercised, which is a bug report rather than a breach.
+  The cost is that "public" must be said out loud, every time.
+- Service-to-service calls over Dapr carry no user token, so every endpoint they reach is
+  explicitly `AllowAnonymous` — the `/integration/*` subscribers, the subscribe manifest, and
+  Inventory's `GET /v1/holds/{id}/snapshot`, which exists precisely so the public hold endpoint
+  could require a buyer without breaking the checkout saga's first step. Anonymous here means
+  "no user token", not "unauthenticated caller from outside": these endpoints are
+  `ExcludeFromDescription` and not routed by the gateway. A real service identity for those calls
+  is **not** in scope here, and remains the honest gap.
+- The `role` claim is now a real security boundary on the backend, which it was not before.
+  `frontend/CLAUDE.md` has been corrected accordingly: route guards there remain cosmetic, and the
+  API is where the door is.
 - Multi-user-per-tenant and finer-grained organizer permissions (P8) are **not** addressed. This
   establishes only buyer-vs-organizer.
 

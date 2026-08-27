@@ -84,10 +84,15 @@ src/
   gateway's `POST /api/auth/dev-login` endpoint still exists for
   curl/script testing (like `scripts/dev-token.sh`) but nothing in the
   frontend calls it any more — `LoginPage.tsx`/`authApi.ts` were deleted.
-- **`role` is UI routing, not security.** The `role` claim on either token
-  decides which themed section a user lands in after login. It is not
-  enforced by any backend authorization check today — `ProtectedRoute` only
-  checks "is anyone logged in," never "is this the right role."
+- **`role` is UI routing here; the backend is what enforces it.** The `role`
+  claim on either token decides which themed section a user lands in after
+  login, and `ProtectedRoute` still only checks "is anyone logged in," never
+  "is this the right role." What changed is the other side: every service now
+  registers a deny-by-default fallback policy plus `RequireOrganizer`/
+  `RequireBuyer` policies over the same `role` claim (ADR-0035), so an
+  organizer-only endpoint rejects a buyer token whatever the SPA renders.
+  Route guards are still cosmetic — a hidden admin route is not a closed
+  door, and the API is where the door is.
 - **Token storage: sessionStorage, explicitly, for now.** Scopes an XSS leak
   to the tab's lifetime. The hardened target — an httpOnly/Secure/SameSite
   cookie issued and read only by the gateway, plus CSRF protection — is
@@ -248,6 +253,7 @@ Two consequences for how you write code:
 
 - Call a backend service directly — only the gateway.
 - Store a token in `localStorage` — `sessionStorage` only (see above).
-- Treat the `role` claim as a security boundary — it isn't one.
+- Rely on a route guard as a security boundary — the backend policies are the
+  boundary, and anything the SPA hides is still reachable by hand.
 - Reintroduce a dev-login path into the UI — both roles have real login now.
 - Add a UI library beyond Ant Design without discussion.

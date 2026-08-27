@@ -29,8 +29,15 @@ public static class HealthCheckExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
-        app.MapHealthChecks("/health/ready", new HealthCheckOptions { Predicate = check => check.Tags.Contains(ReadyTag) });
+        // AllowAnonymous deliberately: Kubernetes probes carry no token, and under the
+        // deny-by-default fallback policy (ADR-0035) an unannotated probe endpoint would answer 401.
+        // Liveness failing that way restarts every pod in the deployment.
+        app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false })
+            .AllowAnonymous();
+        app.MapHealthChecks(
+                "/health/ready",
+                new HealthCheckOptions { Predicate = check => check.Tags.Contains(ReadyTag) })
+            .AllowAnonymous();
 
         return app;
     }

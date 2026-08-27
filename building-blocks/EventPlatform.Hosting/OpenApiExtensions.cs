@@ -37,11 +37,14 @@ public static class OpenApiExtensions
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        app.MapOpenApi();
+        // AllowAnonymous deliberately: the document describes the API surface, it does not expose
+        // data, and under the deny-by-default fallback policy (ADR-0035) it would otherwise 401 —
+        // taking the Scalar UI with it, since the UI fetches this document.
+        app.MapOpenApi().AllowAnonymous();
 
         if (!app.Environment.IsProduction())
         {
-            app.MapScalarApiReference();
+            app.MapScalarApiReference().AllowAnonymous();
         }
 
         return app;

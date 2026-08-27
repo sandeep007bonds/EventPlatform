@@ -22,6 +22,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Before the build, because it needs no toolchain and answers a question the compiler cannot:
+      # an endpoint with no authorization metadata compiles perfectly and is reachable by anyone.
+      # The deny-by-default fallback policy (ADR-0035) now closes that, but it closes it at runtime
+      # — and for a health probe or a Dapr subscriber, failing closed is its own outage. This step
+      # is where a missing decision is supposed to be caught.
+      - name: Check endpoint authorization
+        run: python3 scripts/check-endpoint-auth.py
+
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:

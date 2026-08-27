@@ -62,10 +62,9 @@ public static class AuthenticationExtensions
                 }
             });
 
-        // Named role policies (organizer/buyer). Deliberately no fallback policy yet: one would
-        // deny every endpoint that carries no authorization metadata, which today is most of them,
-        // and would take the Dapr pub/sub subscribers down with it. The fallback goes in once every
-        // endpoint is explicitly annotated — see ADR-0035.
+        // Named role policies (organizer/buyer) plus the deny-by-default fallback: an endpoint that
+        // carries no authorization metadata is denied rather than open. Every public endpoint says
+        // AllowAnonymous explicitly, which suppresses the fallback for it — see ADR-0035.
         services.AddEventPlatformAuthorization();
 
         services.AddScoped<TenantContext>();

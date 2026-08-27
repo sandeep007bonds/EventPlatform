@@ -28,7 +28,9 @@ app.UseCloudEvents();
 
 app.MapNotificationsEndpoints();
 
-// Dapr: expose the subscription registration endpoint (/dapr/subscribe).
-app.MapSubscribeHandler();
+// Dapr: expose the subscription registration endpoint (/dapr/subscribe). AllowAnonymous
+// deliberately — the sidecar fetches this manifest with no user token, and a denied fetch
+// means no subscriptions are ever registered: pub/sub fails silently, not loudly.
+app.MapSubscribeHandler().AllowAnonymous();
 
 await app.RunAsync();

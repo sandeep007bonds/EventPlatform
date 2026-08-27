@@ -12,9 +12,10 @@ namespace EventPlatform.Hosting;
 /// separate concerns and both are required.
 /// </para>
 /// <para>
-/// Nothing here is a substitute for marking public endpoints <c>AllowAnonymous</c> explicitly.
-/// Until a fallback policy is in place, an endpoint carrying no authorization metadata at all is
-/// reachable by anyone — silence is not a deny.
+/// Public endpoints must still be marked <c>AllowAnonymous</c> explicitly. The fallback policy
+/// registered by <see cref="AddEventPlatformAuthorization"/> means an endpoint carrying no
+/// authorization metadata is now denied rather than open, so the failure mode of forgetting an
+/// annotation is a 401 in testing instead of a silent hole in production.
 /// </para>
 /// </remarks>
 public static class AuthorizationExtensions
@@ -61,13 +62,21 @@ public static class AuthorizationExtensions
     }
 
     /// <summary>
-    /// Registers the EventPlatform authorization policies.
+    /// Registers the EventPlatform authorization policies and the deny-by-default fallback policy.
     /// </summary>
+    /// <remarks>
+    /// The fallback policy applies only where an endpoint supplies no authorization metadata of its
+    /// own; <c>AllowAnonymous</c> suppresses it, which is why every public endpoint — including the
+    /// health probes, the OpenAPI document and the Dapr subscribe manifest — says so explicitly.
+    /// </remarks>
     /// <param name="services">The service collection.</param>
     /// <returns>The same <paramref name="services"/> for chaining.</returns>
     internal static IServiceCollection AddEventPlatformAuthorization(this IServiceCollection services)
     {
         services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build())
             .AddPolicy(
                 AuthorizationPolicies.Organizer,
                 policy => policy
