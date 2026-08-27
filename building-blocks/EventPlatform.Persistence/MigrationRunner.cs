@@ -79,18 +79,20 @@ public static class MigrationRunner
     // is a create-if-not-exists, so a re-run against a live database is a no-op.
     private static async Task EnsureHistoryTableAsync(DbContext context, ILogger logger, string contextName)
     {
-        try
+        // The one case this cannot pre-empt: nothing to create the table in, because the database
+        // does not exist yet (or the server is unreachable). MigrateAsync creates the database and
+        // its history table itself when it is merely missing, so this is an ordinary first-run
+        // state rather than a failure. Asking first, rather than attempting and catching, keeps the
+        // normal path free of a handled exception — and CanConnectAsync opens its connection with
+        // errorsExpected, so a negative answer costs no error-level log either.
+        if (!await context.Database.CanConnectAsync())
         {
-            await context.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
-        }
-        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.InvalidCatalogName)
-        {
-            // The one case this cannot pre-empt: there is no database to create the table in.
-            // MigrateAsync creates the database and its history table itself, so this is a normal
-            // first-run state and not a failure — said plainly here rather than as a stack trace.
             logger.LogInformation(
-                "{Context}: database does not exist yet — it will be created along with the schema.",
+                "{Context}: no reachable database yet; MigrateAsync will create it if it is merely missing.",
                 contextName);
+            return;
         }
+
+        await context.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
     }
 }
