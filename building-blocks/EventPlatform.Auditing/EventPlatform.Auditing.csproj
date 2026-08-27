@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Who did it. Deliberately tiny and deliberately dependency-free: EventPlatform.Hosting owns the
+    ClaimsPrincipal and EventPlatform.Persistence owns the EF model, and the two are siblings with
+    no reference in either direction. Both need to agree on one actor abstraction, and neither
+    should take on the other's dependencies to get it — so it lives here instead, with no EF, no
+    ASP.NET, and no PackageReference at all (ADR-0036).
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>EventPlatform.Auditing</RootNamespace>
+  </PropertyGroup>
+
+</Project>

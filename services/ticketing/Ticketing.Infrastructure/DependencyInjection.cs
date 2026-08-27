@@ -19,7 +19,9 @@ public static class DependencyInjection
 
         var connectionString = configuration.GetConnectionString("ticketing");
 
-        services.AddDbContext<TicketingDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<TicketingDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<ITicketRepository, TicketRepository>();
         services.AddScoped<IEventScanContextRepository, EventScanContextRepository>();
         services.AddScoped<ICatalogEventClient, DaprCatalogEventClient>();

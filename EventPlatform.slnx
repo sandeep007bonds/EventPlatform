@@ -9,6 +9,7 @@
     <Project Path="building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
     <Project Path="building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
     <Project Path="building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
+    <Project Path="building-blocks/EventPlatform.Auditing/EventPlatform.Auditing.csproj" />
   </Folder>
   <Folder Name="/gateways/">
     <Project Path="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj" />

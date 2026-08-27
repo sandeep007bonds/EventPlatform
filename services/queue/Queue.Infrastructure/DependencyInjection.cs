@@ -24,7 +24,9 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("queue");
         var redisConnection = configuration.GetConnectionString("redis") ?? "localhost:6380";
 
-        services.AddDbContext<QueueDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<QueueDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<IQueueSettingsRepository, QueueSettingsRepository>();
 
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));

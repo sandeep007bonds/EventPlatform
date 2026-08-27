@@ -23,7 +23,9 @@ public static class DependencyInjection
 
         var connectionString = configuration.GetConnectionString("communication");
 
-        services.AddDbContext<CommunicationDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<CommunicationDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<INotificationRepository, NotificationRepository>();
 
         services.AddSingleton<ITemplateStore, EmbeddedTemplateStore>();

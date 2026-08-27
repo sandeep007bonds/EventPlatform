@@ -53,6 +53,12 @@ public static class HostingExtensions
 
         builder.Services.AddHttpContextAccessor();
 
+        // The audit actor, scoped per request. serviceName is already a parameter here, so every
+        // service gets a correct identity for its own background writes without configuring
+        // anything — which is what keeps saga and reaper writes from being recorded as nobody.
+        builder.Services.AddScoped<IAuditContext>(sp =>
+            new HttpAuditContext(sp.GetRequiredService<IHttpContextAccessor>(), serviceName));
+
         return builder;
     }
 

@@ -83,6 +83,25 @@ An `ISaveChangesInterceptor` reads EF's change tracker and writes an `AuditEntry
 entity, taking before/after from `OriginalValues`/`CurrentValues`. Hand-written audit calls were
 rejected: they are exactly what produced today's 8-of-34 coverage.
 
+**Shipped in two slices.** The first is built: `AuditFieldsInterceptor` in
+`EventPlatform.Persistence` populates the four shadow fields on every save, in all eight services.
+The `AuditEntry` diff it will also write is the second slice and is not built yet.
+
+The interceptor stamps a property only where `IsShadowProperty()` is true. That is not a filter
+bolted on afterwards — it is exactly the set `ApplyAuditFields` created, since the convention adds
+a property only where the entity declares no real one. So the same single condition keeps `Order`,
+`Payment`, `PromoCode` and Identity's `CreatedAt` domain-owned, keeps both of `QueueSettings`'
+timestamps, and skips owned types and the outbox, with no list of exceptions to drift out of step
+with the model.
+
+The actor abstraction lives in its own building block, `EventPlatform.Auditing`, holding only
+`IAuditContext` and `ActorType`. `EventPlatform.Hosting` (which owns the `ClaimsPrincipal`) and
+`EventPlatform.Persistence` (which owns the EF model) are siblings with no reference in either
+direction, and neither should acquire the other's dependencies to agree on who the actor is.
+`HttpAuditContext` in Hosting resolves a request principal's `sub`, and falls back to
+`service:{serviceName}` — taken from the name already passed to `AddServiceDefaults`, so every
+service's background writes are attributed correctly without configuring anything.
+
 ### Audit fields are shadow properties, not entity properties
 
 `CreatedAt`/`CreatedBy`/`UpdatedAt`/`UpdatedBy` are declared in the **EF model only** and never

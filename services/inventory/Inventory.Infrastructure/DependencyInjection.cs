@@ -26,7 +26,9 @@ public static class DependencyInjection
         var connectionString = configuration.GetConnectionString("inventory");
         var redisConnection = configuration.GetConnectionString("redis") ?? "localhost:6380";
 
-        services.AddDbContext<InventoryDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<InventoryDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<IInventoryRepository, InventoryRepository>();
         services.AddScoped<ISeatMapClient, DaprSeatMapClient>();
 

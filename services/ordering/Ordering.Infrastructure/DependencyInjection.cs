@@ -20,7 +20,9 @@ public static class DependencyInjection
 
         var connectionString = configuration.GetConnectionString("ordering");
 
-        services.AddDbContext<OrderingDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<OrderingDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<IOrderRepository, OrderRepository>();
         services.AddScoped<IHoldClient, DaprHoldClient>();
         services.AddScoped<IPaymentClient, DaprPaymentClient>();

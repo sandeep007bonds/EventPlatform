@@ -17,7 +17,9 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(configuration);
 
         var connectionString = configuration.GetConnectionString("identity");
-        services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<IdentityDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
 
         services.AddScoped<IIdentityRepository, IdentityRepository>();
         services.AddScoped<IOrganizerRepository, OrganizerRepository>();

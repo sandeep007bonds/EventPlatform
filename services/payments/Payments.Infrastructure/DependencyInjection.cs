@@ -19,7 +19,9 @@ public static class DependencyInjection
 
         var connectionString = configuration.GetConnectionString("payments");
 
-        services.AddDbContext<PaymentDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<PaymentDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<IPaymentRepository, PaymentRepository>();
 
         // Use the real Stripe gateway when a real Stripe key is configured, otherwise the dev

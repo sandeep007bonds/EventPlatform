@@ -19,7 +19,9 @@ public static class DependencyInjection
 
         var connectionString = configuration.GetConnectionString("catalog");
 
-        services.AddDbContext<CatalogDbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<CatalogDbContext>((sp, options) => options
+            .UseNpgsql(connectionString)
+            .UseAuditFields(sp));
         services.AddScoped<IEventRepository, EventRepository>();
         services.AddScoped<ISeatMapRepository, SeatMapRepository>();
         services.AddScoped<IEventGroupRepository, EventGroupRepository>();

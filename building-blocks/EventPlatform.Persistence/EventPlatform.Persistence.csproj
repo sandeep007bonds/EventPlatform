@@ -13,6 +13,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../EventPlatform.Auditing/EventPlatform.Auditing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!--
       Logging/DI abstractions arrive transitively through EF Core; referencing them explicitly
       would trip NU1510 on .NET 10, where they are framework-provided and auto-pruned.
