@@ -44,6 +44,8 @@ public static class MigrationRunner
         var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
             .CreateLogger(typeof(MigrationRunner));
 
+        await EnsureHistoryTableAsync(context, logger, typeof(TContext).Name);
+
         var pending = (await context.Database.GetPendingMigrationsAsync()).ToList();
         if (pending.Count == 0)
         {
@@ -60,5 +62,35 @@ public static class MigrationRunner
         await context.Database.MigrateAsync();
 
         logger.LogInformation("{Context}: migrations applied.", typeof(TContext).Name);
+    }
+
+    // Creates __EFMigrationsHistory before anything reads it, purely so a first run against an empty
+    // database stops printing errors it then ignores.
+    //
+    // Npgsql never checks whether that table exists: Postgres's search_path decides what an
+    // unqualified table name resolves to, so a probe cannot answer reliably, and
+    // NpgsqlHistoryRepository.ExistsAsync therefore returns true unconditionally — it runs the
+    // SELECT, lets it come back 42P01, and catches that. The exception is handled and the migration
+    // proceeds correctly, but EF's command logger has already reported it at Error level. That is
+    // the whole story behind the two `fail: ...Command[20102]` blocks each service used to print on
+    // a fresh database before succeeding.
+    //
+    // Creating the table here is what MigrateAsync does moments later anyway, and the DDL it emits
+    // is a create-if-not-exists, so a re-run against a live database is a no-op.
+    private static async Task EnsureHistoryTableAsync(DbContext context, ILogger logger, string contextName)
+    {
+        try
+        {
+            await context.GetService<IHistoryRepository>().CreateIfNotExistsAsync();
+        }
+        catch (PostgresException e) when (e.SqlState == PostgresErrorCodes.InvalidCatalogName)
+        {
+            // The one case this cannot pre-empt: there is no database to create the table in.
+            // MigrateAsync creates the database and its history table itself, so this is a normal
+            // first-run state and not a failure — said plainly here rather than as a stack trace.
+            logger.LogInformation(
+                "{Context}: database does not exist yet — it will be created along with the schema.",
+                contextName);
+        }
     }
 }
