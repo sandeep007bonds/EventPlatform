@@ -44,6 +44,24 @@ public sealed class AuditFieldsInterceptor(IAuditContext auditContext) : SaveCha
         return base.SavingChangesAsync(eventData, result, cancellationToken);
     }
 
+    // Shadow properties only, and that single condition is the whole safety story.
+    //
+    // ApplyAuditFields adds a shadow property exactly where the entity does not already declare a
+    // real one, so "is a shadow property" is precisely the set this interceptor owns. Order,
+    // Payment, PromoCode and Identity's five entities keep the CreatedAt their domain factories
+    // set; QueueSettings keeps both of its real timestamps. Owned types and the outbox, which the
+    // convention skipped entirely, have no property of this name at all and fall out on the null
+    // check. No list of exceptions to keep in step with the model.
+    private static void SetIfShadow(EntityEntry entry, string name, object? value)
+    {
+        if (entry.Metadata.FindProperty(name)?.IsShadowProperty() != true)
+        {
+            return;
+        }
+
+        entry.Property(name).CurrentValue = value;
+    }
+
     private void Stamp(DbContext? context)
     {
         if (context is null)
@@ -74,23 +92,5 @@ public sealed class AuditFieldsInterceptor(IAuditContext auditContext) : SaveCha
                     break;
             }
         }
-    }
-
-    // Shadow properties only, and that single condition is the whole safety story.
-    //
-    // ApplyAuditFields adds a shadow property exactly where the entity does not already declare a
-    // real one, so "is a shadow property" is precisely the set this interceptor owns. Order,
-    // Payment, PromoCode and Identity's five entities keep the CreatedAt their domain factories
-    // set; QueueSettings keeps both of its real timestamps. Owned types and the outbox, which the
-    // convention skipped entirely, have no property of this name at all and fall out on the null
-    // check. No list of exceptions to keep in step with the model.
-    private static void SetIfShadow(EntityEntry entry, string name, object? value)
-    {
-        if (entry.Metadata.FindProperty(name)?.IsShadowProperty() != true)
-        {
-            return;
-        }
-
-        entry.Property(name).CurrentValue = value;
     }
 }
