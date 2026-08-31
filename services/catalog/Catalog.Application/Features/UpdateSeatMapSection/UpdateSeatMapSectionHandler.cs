@@ -12,10 +12,12 @@ namespace Catalog.Application.Features.UpdateSeatMapSection;
 /// <param name="eventRepository">The event repository.</param>
 /// <param name="seatMapRepository">The seat-map repository.</param>
 /// <param name="entryGateRepository">The entry-gate repository, to validate the section's gate reference.</param>
+/// <param name="ticketTypes">Resolves the section's tier name to the ticket type it is sold as.</param>
 internal sealed class UpdateSeatMapSectionHandler(
     IEventRepository eventRepository,
     ISeatMapRepository seatMapRepository,
-    IEntryGateRepository entryGateRepository)
+    IEntryGateRepository entryGateRepository,
+    TicketTypeResolver ticketTypes)
     : IRequestHandler<UpdateSeatMapSectionCommand, UpdateSeatMapSectionResult>
 {
     /// <inheritdoc />
@@ -59,13 +61,29 @@ internal sealed class UpdateSeatMapSectionHandler(
         try
         {
             var section = request.Section;
+            var ticketType = await ticketTypes.ResolveAsync(
+                request.EventId,
+                request.TenantId,
+                section.PriceTier,
+                section.PriceAmount,
+                cancellationToken);
+
             if (section.AllocationType == AllocationType.Reserved)
             {
-                seatMap.AddReservedSection(section.Name, section.PriceTier, section.PriceAmount, section.Rows!.Value, section.SeatsPerRow!.Value, section.EntryGateId);
+                seatMap.AddReservedSection(
+                    section.Name,
+                    ticketType,
+                    section.Rows!.Value,
+                    section.SeatsPerRow!.Value,
+                    section.EntryGateId);
             }
             else
             {
-                seatMap.AddGeneralAdmissionSection(section.Name, section.PriceTier, section.PriceAmount, section.Capacity!.Value, section.EntryGateId);
+                seatMap.AddGeneralAdmissionSection(
+                    section.Name,
+                    ticketType,
+                    section.Capacity!.Value,
+                    section.EntryGateId);
             }
         }
         catch (InvalidOperationException)

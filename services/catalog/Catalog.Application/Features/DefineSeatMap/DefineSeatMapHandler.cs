@@ -7,10 +7,12 @@ namespace Catalog.Application.Features.DefineSeatMap;
 /// <param name="eventRepository">The event repository.</param>
 /// <param name="seatMapRepository">The seat-map repository.</param>
 /// <param name="entryGateRepository">The entry-gate repository, to validate section gate references.</param>
+/// <param name="ticketTypes">Resolves each section's tier name to the ticket type it is sold as.</param>
 internal sealed class DefineSeatMapHandler(
     IEventRepository eventRepository,
     ISeatMapRepository seatMapRepository,
-    IEntryGateRepository entryGateRepository)
+    IEntryGateRepository entryGateRepository,
+    TicketTypeResolver ticketTypes)
     : IRequestHandler<DefineSeatMapCommand, DefineSeatMapResult>
 {
     /// <inheritdoc />
@@ -50,12 +52,18 @@ internal sealed class DefineSeatMapHandler(
         var seatMap = SeatMap.Create(request.EventId, request.TenantId, request.Name);
         foreach (var section in request.Sections)
         {
+            var ticketType = await ticketTypes.ResolveAsync(
+                request.EventId,
+                request.TenantId,
+                section.PriceTier,
+                section.PriceAmount,
+                cancellationToken);
+
             if (section.AllocationType == AllocationType.Reserved)
             {
                 seatMap.AddReservedSection(
                     section.Name,
-                    section.PriceTier,
-                    section.PriceAmount,
+                    ticketType,
                     section.Rows!.Value,
                     section.SeatsPerRow!.Value,
                     section.EntryGateId);
@@ -64,8 +72,7 @@ internal sealed class DefineSeatMapHandler(
             {
                 seatMap.AddGeneralAdmissionSection(
                     section.Name,
-                    section.PriceTier,
-                    section.PriceAmount,
+                    ticketType,
                     section.Capacity!.Value,
                     section.EntryGateId);
             }

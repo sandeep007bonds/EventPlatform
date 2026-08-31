@@ -20,6 +20,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>Organizer-created discount codes.</summary>
     public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
 
+    /// <summary>The named, priced ticket types seat-map sections are sold as.</summary>
+    public DbSet<TicketType> TicketTypes => Set<TicketType>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

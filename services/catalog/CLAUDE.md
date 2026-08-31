@@ -130,6 +130,22 @@ context: **Catalog** (ADR-0008).
   an event across a DST boundary would drift. Validated in the *validator*, not the aggregate:
   resolving an id depends on the host's tz database, and an invariant that varies by machine is not
   an invariant.
+- **`TicketType` — what a section is sold as (stage 1 of 3).** A named, priced aggregate per event:
+  `Name` (unique per event, case-insensitively), `PriceMinor`, `Description`, `SalesStartsAt`/
+  `SalesEndsAt`, `MaxPerBuyer`, `SortOrder`, `IsActive`. `Seat` and `GeneralAdmissionSection` now
+  carry a `TicketTypeId`; their `PriceTier`/`PriceAmount` columns survive the migration window but
+  **nothing reads them** — `GetSeatMapHandler` projects both from the joined type, so a rename or
+  reprice takes effect at once rather than leaving thousands of stale seat rows. Managed via
+  `/v1/events/{eventId}/ticket-types` (`POST`/`GET`/`PUT` + `.../{id}/deactivate`), all
+  `RequireOrganizer()` with the usual opaque-404 tenant check.
+  **Unlike every seat-map endpoint these are not Draft-only** — creating a type on a published event
+  is the point, since an organizer opening a late release should not have to make a second event.
+  The exception is **repricing, refused after publish** (409): Inventory holds its own copy of the
+  price from provisioning time, so changing it here would move the displayed number and not the
+  charged one. Seat-map requests still name a tier and a price; `TicketTypeResolver` finds or
+  creates the type, and **an existing type's price wins** — the validators reject a single request
+  naming one tier at two prices, which is the contradiction an organizer can see and fix.
+  Types created here sell nothing until stage 2 lets capacity be added to a published event.
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
   `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
 - **Events consumed:** —

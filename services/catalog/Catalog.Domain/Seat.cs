@@ -7,6 +7,7 @@ public sealed class Seat
         Guid id,
         Guid seatMapId,
         string section,
+        Guid ticketTypeId,
         string priceTier,
         decimal priceAmount,
         string row,
@@ -16,6 +17,7 @@ public sealed class Seat
         Id = id;
         SeatMapId = seatMapId;
         Section = section;
+        TicketTypeId = ticketTypeId;
         PriceTier = priceTier;
         PriceAmount = priceAmount;
         Row = row;
@@ -37,10 +39,31 @@ public sealed class Seat
     /// <summary>Section name (e.g. <c>Lower Tier</c>).</summary>
     public string Section { get; private set; } = default!;
 
-    /// <summary>Price tier name (e.g. <c>Gold</c>).</summary>
+    /// <summary>The <see cref="TicketType"/> this seat is sold as — its name, price and rules.</summary>
+    public Guid TicketTypeId { get; private set; }
+
+    /// <summary>
+    /// Price tier name, superseded by <see cref="TicketTypeId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Kept only so the migration that introduced ticket types did not have to drop columns in the
+    /// same step it backfilled them. Nothing reads it: the seat-map read model projects the name
+    /// and price from the referenced <see cref="TicketType"/>, so a rename or reprice takes effect
+    /// immediately instead of leaving stale copies here. Dropped once Ordering and promo codes
+    /// scope off the id.
+    /// </remarks>
     public string PriceTier { get; private set; } = default!;
 
-    /// <summary>Seat price in the event's currency.</summary>
+    /// <summary>
+    /// Seat price, superseded by <see cref="TicketTypeId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Kept only so the migration that introduced ticket types did not have to drop columns in the
+    /// same step it backfilled them. Nothing reads it: the seat-map read model projects the name
+    /// and price from the referenced <see cref="TicketType"/>, so a rename or reprice takes effect
+    /// immediately instead of leaving stale copies here. Dropped once Ordering and promo codes
+    /// scope off the id.
+    /// </remarks>
     public decimal PriceAmount { get; private set; }
 
     /// <summary>Row label within the section (e.g. <c>A</c>).</summary>

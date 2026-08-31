@@ -8,6 +8,13 @@ namespace Catalog.Domain;
 /// </summary>
 public sealed class SeatMap
 {
+    /// <summary>
+    /// Minor units per major unit, for the obsolete <c>PriceAmount</c> columns only. The live price
+    /// is <see cref="TicketType.PriceMinor"/>; this exists solely to keep those columns populated
+    /// until they are dropped, and goes with them.
+    /// </summary>
+    private const decimal MinorUnitsPerMajor = 100m;
+
     private readonly List<Seat> _seats = new();
     private readonly List<GeneralAdmissionSection> _generalAdmissionSections = new();
 
@@ -62,8 +69,7 @@ public sealed class SeatMap
     /// seat position. Rows are labelled <c>A</c>, <c>B</c>, … and seats numbered from 1.
     /// </summary>
     /// <param name="section">Section name; must be unique within the map (across both reserved and general-admission sections).</param>
-    /// <param name="priceTier">Price tier name for the section.</param>
-    /// <param name="priceAmount">Seat price (non-negative) in the event's currency.</param>
+    /// <param name="ticketType">The ticket type these seats are sold as — supplies the name and price.</param>
     /// <param name="rows">Number of rows (positive).</param>
     /// <param name="seatsPerRow">Seats per row (positive).</param>
     /// <param name="entryGateId">
@@ -73,25 +79,37 @@ public sealed class SeatMap
     /// <exception cref="InvalidOperationException">A section with the same name already exists.</exception>
     public void AddReservedSection(
         string section,
-        string priceTier,
-        decimal priceAmount,
+        TicketType ticketType,
         int rows,
         int seatsPerRow,
         Guid? entryGateId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
-        ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
-        ArgumentOutOfRangeException.ThrowIfNegative(priceAmount);
+        ArgumentNullException.ThrowIfNull(ticketType);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(rows);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(seatsPerRow);
         EnsureSectionNameIsUnique(section);
+
+        // The name and price are still written to each seat, but only so the columns stay populated
+        // through the migration window — the read model projects both from the ticket type, which is
+        // what makes a reprice take effect rather than leaving thousands of stale copies here.
+        var priceAmount = ticketType.PriceMinor / MinorUnitsPerMajor;
 
         for (var r = 0; r < rows; r++)
         {
             var rowLabel = BuildRowLabel(r);
             for (var number = 1; number <= seatsPerRow; number++)
             {
-                _seats.Add(new Seat(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, rowLabel, number, entryGateId));
+                _seats.Add(new Seat(
+                    Guid.CreateVersion7(),
+                    Id,
+                    section,
+                    ticketType.Id,
+                    ticketType.Name,
+                    priceAmount,
+                    rowLabel,
+                    number,
+                    entryGateId));
             }
         }
     }
@@ -101,8 +119,7 @@ public sealed class SeatMap
     /// identity.
     /// </summary>
     /// <param name="section">Section name; must be unique within the map (across both reserved and general-admission sections).</param>
-    /// <param name="priceTier">Price tier name for the section.</param>
-    /// <param name="priceAmount">Ticket price (non-negative) in the event's currency.</param>
+    /// <param name="ticketType">The ticket type this section is sold as — supplies the name and price.</param>
     /// <param name="capacity">Total number of admissions sellable in this section (positive).</param>
     /// <param name="entryGateId">
     /// The <see cref="EntryGate"/> this section is restricted to, if any — <see langword="null"/>
@@ -111,18 +128,24 @@ public sealed class SeatMap
     /// <exception cref="InvalidOperationException">A section with the same name already exists.</exception>
     public void AddGeneralAdmissionSection(
         string section,
-        string priceTier,
-        decimal priceAmount,
+        TicketType ticketType,
         int capacity,
         Guid? entryGateId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(section);
-        ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
-        ArgumentOutOfRangeException.ThrowIfNegative(priceAmount);
+        ArgumentNullException.ThrowIfNull(ticketType);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         EnsureSectionNameIsUnique(section);
 
-        _generalAdmissionSections.Add(new GeneralAdmissionSection(Guid.CreateVersion7(), Id, section, priceTier, priceAmount, capacity, entryGateId));
+        _generalAdmissionSections.Add(new GeneralAdmissionSection(
+            Guid.CreateVersion7(),
+            Id,
+            section,
+            ticketType.Id,
+            ticketType.Name,
+            ticketType.PriceMinor / MinorUnitsPerMajor,
+            capacity,
+            entryGateId));
     }
 
     /// <summary>

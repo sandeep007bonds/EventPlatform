@@ -12,6 +12,7 @@ public sealed class GeneralAdmissionSection
         Guid id,
         Guid seatMapId,
         string sectionName,
+        Guid ticketTypeId,
         string priceTier,
         decimal priceAmount,
         int capacity,
@@ -20,6 +21,7 @@ public sealed class GeneralAdmissionSection
         Id = id;
         SeatMapId = seatMapId;
         SectionName = sectionName;
+        TicketTypeId = ticketTypeId;
         PriceTier = priceTier;
         PriceAmount = priceAmount;
         Capacity = capacity;
@@ -40,10 +42,32 @@ public sealed class GeneralAdmissionSection
     /// <summary>Section name (e.g. <c>Lawn</c>, <c>Standing</c>).</summary>
     public string SectionName { get; private set; } = default!;
 
-    /// <summary>Price tier name (e.g. <c>General</c>).</summary>
+    /// <summary>The <see cref="TicketType"/> this section is sold as — its name, price and rules.</summary>
+    public Guid TicketTypeId { get; private set; }
+
+    /// <summary>
+    /// Price tier name, superseded by <see cref="TicketTypeId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Kept only so the migration that introduced ticket types did not have to drop columns in the
+    /// same step it backfilled them. Nothing reads it: the seat-map read model projects the name
+    /// and price from the referenced <see cref="TicketType"/>, so a rename or reprice takes effect
+    /// immediately instead of leaving stale copies here. Dropped once Ordering and promo codes
+    /// scope off the id.
+    /// </remarks>
     public string PriceTier { get; private set; } = default!;
 
-    /// <summary>Ticket price in the event's currency.</summary>
+    /// <summary>
+    /// Ticket price, superseded by <see cref="TicketTypeId"/>.
+    /// </summary>
+    /// <remarks>
+    /// Kept only so the migration that introduced ticket types did not have to drop columns in the
+    /// same step it backfilled them. Nothing reads it: the seat-map read model projects the name
+    /// and price from the referenced <see cref="TicketType"/>, so a rename or reprice takes effect
+    /// immediately instead of leaving stale copies here. Dropped once Ordering and promo codes
+    /// scope off the id.
+    /// </remarks>
+
     public decimal PriceAmount { get; private set; }
 
     /// <summary>Total number of admissions sellable in this section.</summary>

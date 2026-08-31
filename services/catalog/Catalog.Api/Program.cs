@@ -23,5 +23,6 @@ app.MapCatalogEndpoints();
 app.MapEventGroupEndpoints();
 app.MapEntryGateEndpoints();
 app.MapPromoCodeEndpoints();
+app.MapTicketTypeEndpoints();
 
 await app.RunAsync();

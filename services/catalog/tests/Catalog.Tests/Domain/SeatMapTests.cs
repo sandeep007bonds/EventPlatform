@@ -10,7 +10,7 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddReservedSection("Lower Tier", "A", priceAmount: 7500m, rows: 4, seatsPerRow: 10);
+        seatMap.AddReservedSection("Lower Tier", Tier("A", 7500m), rows: 4, seatsPerRow: 10);
 
         seatMap.Seats.Count.ShouldBe(40);
         seatMap.Capacity.ShouldBe(40);
@@ -23,7 +23,7 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddReservedSection("Lower Tier", "A", priceAmount: 7500m, rows: 3, seatsPerRow: 5);
+        seatMap.AddReservedSection("Lower Tier", Tier("A", 7500m), rows: 3, seatsPerRow: 5);
 
         seatMap.Seats
             .Select(seat => (seat.Row, seat.Number))
@@ -39,7 +39,7 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddGeneralAdmissionSection("Floor", "GA", priceAmount: 3500m, capacity: 500);
+        seatMap.AddGeneralAdmissionSection("Floor", Tier("GA", 3500m), capacity: 500);
 
         seatMap.Seats.ShouldBeEmpty();
         seatMap.GeneralAdmissionSections.Count.ShouldBe(1);
@@ -52,8 +52,8 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddReservedSection("Lower Tier", "A", priceAmount: 7500m, rows: 4, seatsPerRow: 10);
-        seatMap.AddGeneralAdmissionSection("Floor", "GA", priceAmount: 3500m, capacity: 500);
+        seatMap.AddReservedSection("Lower Tier", Tier("A", 7500m), rows: 4, seatsPerRow: 10);
+        seatMap.AddGeneralAdmissionSection("Floor", Tier("GA", 3500m), capacity: 500);
 
         seatMap.Capacity.ShouldBe(540);
     }
@@ -64,30 +64,30 @@ public sealed class SeatMapTests
     public void TwoReservedSectionsCannotShareAName()
     {
         var seatMap = CreateSeatMap();
-        seatMap.AddReservedSection("Floor", "A", priceAmount: 7500m, rows: 2, seatsPerRow: 2);
+        seatMap.AddReservedSection("Floor", Tier("A", 7500m), rows: 2, seatsPerRow: 2);
 
         Should.Throw<InvalidOperationException>(
-            () => seatMap.AddReservedSection("Floor", "B", priceAmount: 5000m, rows: 1, seatsPerRow: 1));
+            () => seatMap.AddReservedSection("Floor", Tier("B", 5000m), rows: 1, seatsPerRow: 1));
     }
 
     [Fact]
     public void ASectionNameIsUniqueAcrossBothKindsOfSection()
     {
         var seatMap = CreateSeatMap();
-        seatMap.AddReservedSection("Floor", "A", priceAmount: 7500m, rows: 2, seatsPerRow: 2);
+        seatMap.AddReservedSection("Floor", Tier("A", 7500m), rows: 2, seatsPerRow: 2);
 
         Should.Throw<InvalidOperationException>(
-            () => seatMap.AddGeneralAdmissionSection("Floor", "GA", priceAmount: 3500m, capacity: 100));
+            () => seatMap.AddGeneralAdmissionSection("Floor", Tier("GA", 3500m), capacity: 100));
     }
 
     [Fact]
     public void ARejectedSection_LeavesTheMapUntouched()
     {
         var seatMap = CreateSeatMap();
-        seatMap.AddReservedSection("Floor", "A", priceAmount: 7500m, rows: 2, seatsPerRow: 2);
+        seatMap.AddReservedSection("Floor", Tier("A", 7500m), rows: 2, seatsPerRow: 2);
 
         Should.Throw<InvalidOperationException>(
-            () => seatMap.AddReservedSection("Floor", "B", priceAmount: 5000m, rows: 3, seatsPerRow: 3));
+            () => seatMap.AddReservedSection("Floor", Tier("B", 5000m), rows: 3, seatsPerRow: 3));
 
         seatMap.Capacity.ShouldBe(4);
     }
@@ -100,8 +100,8 @@ public sealed class SeatMapTests
         var seatMap = CreateSeatMap();
         var gateId = Guid.CreateVersion7();
 
-        seatMap.AddReservedSection("North Stand", "A", priceAmount: 7500m, rows: 2, seatsPerRow: 3, entryGateId: gateId);
-        seatMap.AddGeneralAdmissionSection("Floor", "GA", priceAmount: 3500m, capacity: 100, entryGateId: gateId);
+        seatMap.AddReservedSection("North Stand", Tier("A", 7500m), rows: 2, seatsPerRow: 3, entryGateId: gateId);
+        seatMap.AddGeneralAdmissionSection("Floor", Tier("GA", 3500m), capacity: 100, entryGateId: gateId);
 
         seatMap.Seats.ShouldAllBe(seat => seat.EntryGateId == gateId);
         seatMap.GeneralAdmissionSections.ShouldAllBe(section => section.EntryGateId == gateId);
@@ -112,7 +112,7 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddReservedSection("North Stand", "A", priceAmount: 7500m, rows: 1, seatsPerRow: 2);
+        seatMap.AddReservedSection("North Stand", Tier("A", 7500m), rows: 1, seatsPerRow: 2);
 
         seatMap.Seats.ShouldAllBe(seat => seat.EntryGateId == null);
     }
@@ -123,17 +123,18 @@ public sealed class SeatMapTests
     [InlineData(-1, 5)]
     public void AReservedSectionWithNoSeats_IsRejected(int rows, int seatsPerRow) =>
         Should.Throw<ArgumentOutOfRangeException>(
-            () => CreateSeatMap().AddReservedSection("Floor", "A", priceAmount: 100m, rows, seatsPerRow));
+            () => CreateSeatMap().AddReservedSection("Floor", Tier("A", 100m), rows, seatsPerRow));
 
     [Fact]
     public void AGeneralAdmissionSectionWithNoCapacity_IsRejected() =>
         Should.Throw<ArgumentOutOfRangeException>(
-            () => CreateSeatMap().AddGeneralAdmissionSection("Floor", "GA", priceAmount: 100m, capacity: 0));
+            () => CreateSeatMap().AddGeneralAdmissionSection("Floor", Tier("GA", 100m), capacity: 0));
 
+    // The guard now lives on TicketType.Create rather than on the section: the type owns the price.
     [Fact]
-    public void ANegativelyPricedSection_IsRejected() =>
+    public void ANegativelyPricedTicketType_IsRejected() =>
         Should.Throw<ArgumentOutOfRangeException>(
-            () => CreateSeatMap().AddReservedSection("Floor", "A", priceAmount: -1m, rows: 1, seatsPerRow: 1));
+            () => CreateSeatMap().AddReservedSection("Floor", Tier("A", -1m), rows: 1, seatsPerRow: 1));
 
     // Free sections are legitimate — invitations, press, accessible seating.
     [Fact]
@@ -141,11 +142,20 @@ public sealed class SeatMapTests
     {
         var seatMap = CreateSeatMap();
 
-        seatMap.AddReservedSection("Press", "Comp", priceAmount: 0m, rows: 1, seatsPerRow: 10);
+        seatMap.AddReservedSection("Press", Tier("Comp", 0m), rows: 1, seatsPerRow: 10);
 
         seatMap.Capacity.ShouldBe(10);
     }
 
     private static SeatMap CreateSeatMap() =>
         SeatMap.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), "Stadium bowl");
+
+    // Sections are sold as a ticket type now, not as a loose (tier name, price) pair. The tests
+    // still speak in major units because that is what a seat-map request carries.
+    private static TicketType Tier(string name, decimal priceAmount) =>
+        TicketType.Create(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            name,
+            (long)(priceAmount * 100m));
 }

@@ -30,5 +30,18 @@ public sealed class DefineSeatMapValidator : AbstractValidator<DefineSeatMapComm
             section.RuleFor(s => s.SeatsPerRow).Null()
                 .When(s => s.AllocationType == AllocationType.GeneralAdmission);
         });
+
+        // One tier name means one price. Two sections naming the same tier at different prices is a
+        // contradiction under the ticket-type model — the type owns the price — and it is far
+        // cheaper to reject it here, where the organizer can see both sections, than to silently
+        // let whichever type already exists win.
+        RuleFor(command => command.Sections)
+            .Must(HaveOnePricePerTier)
+            .WithMessage("Each price tier must have a single price; the same tier is listed at two different prices.");
     }
+
+    private static bool HaveOnePricePerTier(IReadOnlyList<SeatMapSectionInput> sections) =>
+        sections
+            .GroupBy(s => s.PriceTier?.Trim() ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .All(tier => tier.Select(s => s.PriceAmount).Distinct().Count() == 1);
 }
