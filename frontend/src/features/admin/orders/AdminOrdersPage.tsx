@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Table, Tag } from 'antd';
+import { Card, Tag } from 'antd';
 import dayjs from 'dayjs';
 import {
   listTenantOrders,
@@ -10,6 +10,7 @@ import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleto
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { LoadError } from '../../../components/common/errors/LoadError';
 import { formatMoney } from '../../../utils/money';
+import { DataGrid } from '../../../components/common/grid/DataGrid';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS: OrderStatus[] = [
@@ -88,45 +89,53 @@ export function AdminOrdersPage() {
           />
         </Card>
       ) : (
-        <Card styles={{ body: { padding: 0 } }}>
-          <Table<OrderSummaryResponse>
-            rowKey="id"
-            dataSource={orders}
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: totalCount,
-              onChange: setPage,
-              showSizeChanger: false,
-            }}
-            columns={[
-              { title: 'Order', dataIndex: 'id', render: (id: string) => id.slice(0, 8) },
-              {
-                title: 'Status',
-                dataIndex: 'status',
-                // Client-side, current page only — Ordering has no server-side status filter yet.
-                filters: STATUS_OPTIONS.map((option) => ({ text: option, value: option })),
-                onFilter: (value, record) => record.status === value,
-                render: (status: OrderSummaryResponse['status']) => (
-                  <Tag color={STATUS_COLOR[status]}>{status}</Tag>
-                ),
-              },
-              {
-                title: 'Total',
-                key: 'total',
-                sorter: (a, b) => a.totalMinor - b.totalMinor,
-                render: (_, order) => formatMoney(order.totalMinor, order.currency),
-              },
-              {
-                title: 'Created',
-                dataIndex: 'createdAt',
-                sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
-                defaultSortOrder: 'descend',
-                render: (createdAt: string) => dayjs(createdAt).format('MMM D, YYYY · h:mm A'),
-              },
-            ]}
-          />
-        </Card>
+        <DataGrid<OrderSummaryResponse>
+          rowKey="id"
+          rows={orders}
+          searchPlaceholder="Search this page by order id"
+          exportFileName="orders"
+          countLabel={`${totalCount.toLocaleString()} order${totalCount === 1 ? '' : 's'}`}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: totalCount,
+            onChange: setPage,
+            showSizeChanger: false,
+          }}
+          columns={[
+            {
+              title: 'Order',
+              dataIndex: 'id',
+              searchable: true,
+              render: (id: string) => id.slice(0, 8),
+            },
+            {
+              title: 'Status',
+              dataIndex: 'status',
+              // Client-side, current page only — Ordering has no server-side status filter yet.
+              filters: STATUS_OPTIONS.map((option) => ({ text: option, value: option })),
+              onFilter: (value, record) => record.status === value,
+              render: (status: OrderSummaryResponse['status']) => (
+                <Tag color={STATUS_COLOR[status]}>{status}</Tag>
+              ),
+            },
+            {
+              title: 'Total',
+              key: 'total',
+              sorter: (a, b) => a.totalMinor - b.totalMinor,
+              // Exported unformatted: a spreadsheet should get a number it can sum, not "₹1,234.00".
+              exportValue: (order) => order.totalMinor / 100,
+              render: (_, order) => formatMoney(order.totalMinor, order.currency),
+            },
+            {
+              title: 'Created',
+              dataIndex: 'createdAt',
+              sorter: (a, b) => dayjs(a.createdAt).valueOf() - dayjs(b.createdAt).valueOf(),
+              defaultSortOrder: 'descend',
+              render: (createdAt: string) => dayjs(createdAt).format('MMM D, YYYY · h:mm A'),
+            },
+          ]}
+        />
       )}
     </>
   );

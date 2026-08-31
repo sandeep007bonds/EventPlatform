@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Table } from 'antd';
+import { Button, Card, Input } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Link, useNavigate } from 'react-router-dom';
 import { listEventGroups, type EventGroupResponse } from '../../../services/catalog/catalogApi';
 import { TableSkeleton } from '../../../components/common/skeletons/TableSkeleton';
+import { DataGrid } from '../../../components/common/grid/DataGrid';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { Toolbar } from '../../../components/common/layout/Toolbar';
 import { LoadError } from '../../../components/common/errors/LoadError';
@@ -96,30 +97,30 @@ export function EventGroupsPage() {
           />
         </Card>
       ) : (
-        <Card styles={{ body: { padding: 0 } }}>
-          <Table<EventGroupResponse>
-            rowKey="id"
-            dataSource={visibleGroups}
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: totalCount,
-              onChange: setPage,
-              showSizeChanger: false,
-            }}
-            onRow={(record) => ({
-              onClick: () => void navigate(`/admin/tours/${record.id}`),
-              style: { cursor: 'pointer' },
-            })}
-            columns={[
-              {
-                title: 'Title',
-                dataIndex: 'title',
-                sorter: (a, b) => a.title.localeCompare(b.title),
-              },
-            ]}
-          />
-        </Card>
+        <DataGrid<EventGroupResponse>
+          rowKey="id"
+          rows={visibleGroups}
+          exportFileName="tours"
+          countLabel={`${totalCount.toLocaleString()} tour${totalCount === 1 ? '' : 's'}`}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: totalCount,
+            onChange: setPage,
+            showSizeChanger: false,
+          }}
+          onRow={(record) => ({
+            onClick: () => void navigate(`/admin/tours/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={[
+            {
+              title: 'Title',
+              dataIndex: 'title',
+              sorter: (a, b) => a.title.localeCompare(b.title),
+            },
+          ]}
+        />
       )}
     </>
   );

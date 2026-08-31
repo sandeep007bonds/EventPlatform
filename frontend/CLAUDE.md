@@ -174,6 +174,20 @@ src/
   post-purchase breakdowns can't drift apart. Amounts cross the wire in minor
   units; `utils/money.ts` has `toMinor`/`toMajor` for the admin forms that let
   an organizer type a fee in major units.
+- **Admin tables go through `DataGrid`** (`components/common/grid/`), not
+  `Table` directly. It wraps Ant's `Table` — sorting and column filters are
+  still Ant's own — and adds a free-text search across columns marked
+  `searchable`, a row-count label, and a CSV export. Columns declare
+  `exportValue` when the cell renders a React node or a formatted string: a
+  `<Tag>` or `₹1,234.00` does not belong in a spreadsheet, so money exports as
+  a number and dates as the ISO instant.
+  **The client-side export covers the rows the grid was given.** Where paging
+  is server-side that is one page, which is the honest behaviour — producing a
+  file for everything matching a query is the API's job, and lands as a
+  separate server-side export. `csv.ts` handles RFC 4180 quoting and prefixes
+  formula-leading fields (`=`, `+`, `-`, `@`) with a quote so a malicious event
+  title cannot execute in the recipient's Excel; bare numbers are exempt from
+  that guard so a negative amount still sums.
 - **Event times render in the venue's zone, not the reader's.** `utils/eventTime.ts`
   (`formatEventDateTime`/`formatEventDate`/`formatEventTime`/`eventZoneAbbreviation`)
   wraps `Intl.DateTimeFormat` with the event's `timeZoneId`; the browser's own

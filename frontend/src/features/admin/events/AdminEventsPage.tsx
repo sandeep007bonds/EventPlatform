@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Input, Select, Table, Tag, Typography } from 'antd';
+import { Button, Card, Input, Select, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { formatEventDateTime } from '../../../utils/eventTime';
+import { DataGrid } from '../../../components/common/grid/DataGrid';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   getEventGroup,
@@ -151,59 +152,64 @@ export function AdminEventsPage() {
           />
         </Card>
       ) : (
-        <Card styles={{ body: { padding: 0 } }}>
-          <Table<EventResponse>
-            rowKey="id"
-            dataSource={visibleEvents}
-            pagination={{
-              current: page,
-              pageSize: PAGE_SIZE,
-              total: totalCount,
-              onChange: setPage,
-              showSizeChanger: false,
-            }}
-            onRow={(record) => ({
-              onClick: () => void navigate(`/admin/events/${record.id}`),
-              style: { cursor: 'pointer' },
-            })}
-            columns={[
-              {
-                title: 'Title',
-                dataIndex: 'title',
-                sorter: (a, b) => a.title.localeCompare(b.title),
-              },
-              {
-                title: 'Status',
-                dataIndex: 'status',
-                render: (eventStatus: EventResponse['status']) => (
-                  <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
+        <DataGrid<EventResponse>
+          rowKey="id"
+          rows={visibleEvents}
+          exportFileName="events"
+          countLabel={`${totalCount.toLocaleString()} event${totalCount === 1 ? '' : 's'}`}
+          pagination={{
+            current: page,
+            pageSize: PAGE_SIZE,
+            total: totalCount,
+            onChange: setPage,
+            showSizeChanger: false,
+          }}
+          onRow={(record) => ({
+            onClick: () => void navigate(`/admin/events/${record.id}`),
+            style: { cursor: 'pointer' },
+          })}
+          columns={[
+            {
+              title: 'Title',
+              dataIndex: 'title',
+              sorter: (a, b) => a.title.localeCompare(b.title),
+            },
+            {
+              title: 'Status',
+              dataIndex: 'status',
+              render: (eventStatus: EventResponse['status']) => (
+                <Tag color={eventStatusColor[eventStatus]}>{eventStatus}</Tag>
+              ),
+            },
+            {
+              title: 'Tour',
+              dataIndex: 'eventGroupId',
+              exportValue: (row) =>
+                row.eventGroupId ? (tourTitles.get(row.eventGroupId) ?? row.eventGroupId) : '',
+              render: (eventGroupId: EventResponse['eventGroupId']) =>
+                eventGroupId ? (
+                  (tourTitles.get(eventGroupId) ?? '…')
+                ) : (
+                  <Typography.Text type="secondary">—</Typography.Text>
                 ),
-              },
-              {
-                title: 'Tour',
-                dataIndex: 'eventGroupId',
-                render: (eventGroupId: EventResponse['eventGroupId']) =>
-                  eventGroupId ? (
-                    (tourTitles.get(eventGroupId) ?? '…')
-                  ) : (
-                    <Typography.Text type="secondary">—</Typography.Text>
-                  ),
-              },
-              {
-                title: 'City',
-                dataIndex: 'city',
-              },
-              {
-                title: 'Starts',
-                dataIndex: 'startsAt',
-                sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
-                defaultSortOrder: 'ascend',
-                render: (_: string, row: EventResponse) =>
-                  formatEventDateTime(row.startsAt, row.timeZoneId),
-              },
-            ]}
-          />
-        </Card>
+            },
+            {
+              title: 'City',
+              dataIndex: 'city',
+            },
+            {
+              title: 'Starts',
+              dataIndex: 'startsAt',
+              sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
+              defaultSortOrder: 'ascend',
+              // Exported as the ISO instant, not the rendered local string: a spreadsheet can
+              // sort and filter on that, and it stays unambiguous once the file leaves here.
+              exportValue: (row) => row.startsAt,
+              render: (_: string, row: EventResponse) =>
+                formatEventDateTime(row.startsAt, row.timeZoneId),
+            },
+          ]}
+        />
       )}
     </>
   );
