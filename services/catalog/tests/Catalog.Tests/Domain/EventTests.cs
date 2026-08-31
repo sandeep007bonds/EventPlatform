@@ -165,6 +165,7 @@ public sealed class EventTests
             requiresQueue: false,
             taxRatePercent: null,
             taxLabel: null,
+            bookingFeePerTicketMinor: 0,
             ageRestriction: null,
             bannerImageUrl: null,
             videoUrl: null,

@@ -48,13 +48,13 @@ internal sealed class DaprPaymentClient : IPaymentClient
     }
 
     /// <inheritdoc />
-    public async Task RefundAsync(Guid orderId, string idempotencyKey, CancellationToken cancellationToken)
+    public async Task RefundAsync(Guid orderId, string idempotencyKey, long? amountMinor, CancellationToken cancellationToken)
     {
         // Compensation is best-effort; a failed refund is retried by ops, not the saga.
         using var http = DaprClient.CreateInvokeHttpClient(PaymentsAppId);
         using var response = await http.PostAsJsonAsync(
             "v1/payments/refund",
-            new { orderId },
+            new { orderId, amountMinor },
             JsonOptions,
             cancellationToken);
     }

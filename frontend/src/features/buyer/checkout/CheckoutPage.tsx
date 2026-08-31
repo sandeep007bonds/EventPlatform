@@ -360,6 +360,13 @@ export function CheckoutPage() {
                   emphasis="success"
                 />
               )}
+              {quote.bookingFeeMinor > 0 && (
+                <PriceRow
+                  label="Booking fee"
+                  amountMinor={quote.bookingFeeMinor}
+                  currency={currency}
+                />
+              )}
               {quote.taxMinor > 0 && (
                 <PriceRow
                   label={quote.taxLabel ?? 'Tax'}

@@ -22,6 +22,7 @@ namespace Ordering.Workflow;
 /// <param name="PromoCodeText">The accepted code as redeemed, for display on the order.</param>
 /// <param name="TaxRatePercent">The event's tax rate as a percentage, or <see langword="null"/> when untaxed.</param>
 /// <param name="TaxLabel">The tax's display name (e.g. <c>"GST 18%"</c>).</param>
+/// <param name="BookingFeePerTicketMinor">The event's per-ticket booking fee in minor units; 0 when it charges none.</param>
 public sealed record CreateOrderInput(
     Guid TenantId,
     Guid UserId,
@@ -36,4 +37,5 @@ public sealed record CreateOrderInput(
     Guid? PromoCodeId = null,
     string? PromoCodeText = null,
     decimal? TaxRatePercent = null,
-    string? TaxLabel = null);
+    string? TaxLabel = null,
+    long BookingFeePerTicketMinor = 0);

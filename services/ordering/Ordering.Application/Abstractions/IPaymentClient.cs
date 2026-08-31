@@ -37,5 +37,5 @@ public interface IPaymentClient
     /// <param name="idempotencyKey">Idempotency key for the refund.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the refund is requested.</returns>
-    Task RefundAsync(Guid orderId, string idempotencyKey, CancellationToken cancellationToken);
+    Task RefundAsync(Guid orderId, string idempotencyKey, long? amountMinor, CancellationToken cancellationToken);
 }

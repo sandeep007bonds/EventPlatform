@@ -33,7 +33,8 @@ public sealed class Event
         int? maxTicketsPerBuyer,
         bool requiresQueue,
         decimal? taxRatePercent,
-        string? taxLabel)
+        string? taxLabel,
+        long bookingFeePerTicketMinor)
     {
         Id = id;
         TenantId = tenantId;
@@ -55,6 +56,7 @@ public sealed class Event
         RequiresQueue = requiresQueue;
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
+        BookingFeePerTicketMinor = bookingFeePerTicketMinor;
         Status = EventStatus.Draft;
     }
 
@@ -144,6 +146,18 @@ public sealed class Event
     /// </summary>
     public string? TaxLabel { get; private set; }
 
+    /// <summary>
+    /// Booking fee charged per ticket, in minor currency units (e.g. <c>3000</c> for ₹30 a ticket).
+    /// Zero means no fee.
+    /// </summary>
+    /// <remarks>
+    /// Per ticket rather than per order, so it scales with what the buyer actually gets, and stored
+    /// in minor units rather than as a percentage so an organizer advertising "₹30 booking fee" can
+    /// state the exact number. As with <see cref="TaxRatePercent"/>, Catalog stores it and computes
+    /// nothing — Ordering owns the money (ADR-0034).
+    /// </remarks>
+    public long BookingFeePerTicketMinor { get; private set; }
+
     /// <summary>Free-text age restriction (e.g. "18+", "All ages"), if any.</summary>
     public string? AgeRestriction { get; private set; }
 
@@ -226,10 +240,12 @@ public sealed class Event
     /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
     /// <param name="taxRatePercent">Sales-tax rate as a percentage, if this event is taxed. See <see cref="TaxRatePercent"/>.</param>
     /// <param name="taxLabel">Display name for the tax on a receipt. See <see cref="TaxLabel"/>.</param>
+    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units. See <see cref="BookingFeePerTicketMinor"/>.</param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>, or
-    /// <paramref name="taxRatePercent"/> is outside [0, 100].
+    /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>,
+    /// <paramref name="taxRatePercent"/> is outside [0, 100], or
+    /// <paramref name="bookingFeePerTicketMinor"/> is negative.
     /// </exception>
     public static Event Create(
         Guid tenantId,
@@ -250,7 +266,8 @@ public sealed class Event
         int? maxTicketsPerBuyer = null,
         bool requiresQueue = false,
         decimal? taxRatePercent = null,
-        string? taxLabel = null)
+        string? taxLabel = null,
+        long bookingFeePerTicketMinor = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -270,6 +287,14 @@ public sealed class Event
                 nameof(taxRatePercent),
                 taxRatePercent,
                 "The tax rate must be between 0 and 100 percent.");
+        }
+
+        if (bookingFeePerTicketMinor < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bookingFeePerTicketMinor),
+                bookingFeePerTicketMinor,
+                "The booking fee cannot be negative.");
         }
 
         return new Event(
@@ -292,7 +317,8 @@ public sealed class Event
             maxTicketsPerBuyer,
             requiresQueue,
             taxRatePercent,
-            taxLabel);
+            taxLabel,
+            bookingFeePerTicketMinor);
     }
 
     /// <summary>
@@ -365,6 +391,7 @@ public sealed class Event
     /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
     /// <param name="taxRatePercent">Sales-tax rate as a percentage — see <see cref="TaxRatePercent"/>.</param>
     /// <param name="taxLabel">Display name for the tax on a receipt — see <see cref="TaxLabel"/>.</param>
+    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units — see <see cref="BookingFeePerTicketMinor"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
@@ -388,6 +415,7 @@ public sealed class Event
         bool requiresQueue,
         decimal? taxRatePercent,
         string? taxLabel,
+        long bookingFeePerTicketMinor,
         string? ageRestriction,
         string? bannerImageUrl,
         string? videoUrl,
@@ -425,6 +453,14 @@ public sealed class Event
                 "The tax rate must be between 0 and 100 percent.");
         }
 
+        if (bookingFeePerTicketMinor < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bookingFeePerTicketMinor),
+                bookingFeePerTicketMinor,
+                "The booking fee cannot be negative.");
+        }
+
         Description = description;
         Category = category;
         EndsAt = endsAt;
@@ -435,6 +471,7 @@ public sealed class Event
         RequiresQueue = requiresQueue;
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
+        BookingFeePerTicketMinor = bookingFeePerTicketMinor;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;

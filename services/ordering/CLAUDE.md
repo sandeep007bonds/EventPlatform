@@ -93,10 +93,15 @@ is named `Ordering` so the type never clashes with its namespace.
 - **Ordering computes the money, and it is the only thing that does (ADR-0034).** One model,
   in one pure static class (`Ordering.Domain/OrderPricingCalculator.cs`, no I/O):
   `subtotal = Σ line.PriceMinor` → `discount` (clamped to the subtotal of the lines the code's
-  tiers actually cover) → `tax = round((subtotal − discount) × rate/100, AwayFromZero)` →
-  `total = subtotal − discount + tax`. `TotalMinor` keeps its meaning — the payable amount — so
+  tiers actually cover) → `fee = event.BookingFeePerTicketMinor × Σ line.Quantity` (per admission,
+  never discounted) → `tax = round(net × rate) + round(fee × rate)`, both AwayFromZero →
+  `total = net + fee + tax`. The tax is two roundings rather than one because the fee is
+  **non-refundable**: `Order.RefundableMinor` (= `net + round(net × rate)`) has to be an exact
+  subtraction, and a single combined rounding leaves it a minor unit out. `CancelOrderWorkflow`
+  refunds `RefundableMinor`; `CheckoutWorkflow`'s compensation refunds in full, since that buyer
+  got nothing. `TotalMinor` keeps its meaning — the payable amount — so
   `CreateIntentInput`/`ConfirmInput`/`OrderConfirmed` were untouched; `Order` stores
-  `SubtotalMinor`/`DiscountMinor`/`TaxMinor`/`TaxRatePercent`/`TaxLabel`/`PromoCodeId`/`PromoCodeText`
+  `SubtotalMinor`/`DiscountMinor`/`BookingFeeMinor`/`TaxMinor`/`TaxRatePercent`/`TaxLabel`/`PromoCodeId`/`PromoCodeText`
   alongside it so a placed order can explain itself later. Catalog owns the *definition* of a promo
   code, but **redemption counting lives here**, because Ordering owns the orders and reading
   Catalog's database is forbidden. `PromoCodeEvaluator` (Application) is the single implementation

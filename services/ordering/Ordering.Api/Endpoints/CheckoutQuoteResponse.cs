@@ -6,7 +6,8 @@ namespace Ordering.Api.Endpoints;
 /// </summary>
 /// <param name="SubtotalMinor">Sum of the held seats' prices, before discount or tax.</param>
 /// <param name="DiscountMinor">What the promo code takes off. Zero when none applied or accepted.</param>
-/// <param name="TaxMinor">Tax on the post-discount subtotal. Zero for an untaxed event.</param>
+/// <param name="BookingFeeMinor">The event's per-ticket booking fee times the ticket count. Zero when it charges none.</param>
+/// <param name="TaxMinor">Tax on the post-discount subtotal, plus tax on the booking fee. Zero for an untaxed event.</param>
 /// <param name="TotalMinor">What the buyer would pay.</param>
 /// <param name="Currency">ISO 4217 currency code.</param>
 /// <param name="TaxLabel">Display name for the tax (e.g. <c>"GST 18%"</c>), when taxed.</param>
@@ -20,6 +21,7 @@ namespace Ordering.Api.Endpoints;
 public sealed record CheckoutQuoteResponse(
     long SubtotalMinor,
     long DiscountMinor,
+    long BookingFeeMinor,
     long TaxMinor,
     long TotalMinor,
     string Currency,

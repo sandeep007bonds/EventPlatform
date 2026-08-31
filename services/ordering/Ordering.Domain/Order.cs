@@ -55,7 +55,8 @@ public sealed class Order
 
     /// <summary>
     /// What the buyer pays, in minor currency units: <see cref="SubtotalMinor"/> −
-    /// <see cref="DiscountMinor"/> + <see cref="TaxMinor"/>. This is the amount charged.
+    /// <see cref="DiscountMinor"/> + <see cref="BookingFeeMinor"/> + <see cref="TaxMinor"/>. This is
+    /// the amount charged.
     /// </summary>
     public long TotalMinor { get; private set; }
 
@@ -66,7 +67,15 @@ public sealed class Order
     public long DiscountMinor { get; private set; }
 
     /// <summary>
-    /// Tax charged on the post-discount subtotal, in minor units. Zero for an untaxed event.
+    /// The booking fee charged, in minor units — the event's per-ticket fee times the number of
+    /// admissions on the order. Zero when the event charges none. Not discountable, and not
+    /// returned on a cancellation; see <see cref="RefundableMinor"/>.
+    /// </summary>
+    public long BookingFeeMinor { get; private set; }
+
+    /// <summary>
+    /// Tax charged, in minor units: tax on the post-discount subtotal plus tax on the booking fee.
+    /// Zero for an untaxed event.
     /// </summary>
     public long TaxMinor { get; private set; }
 
@@ -79,6 +88,23 @@ public sealed class Order
 
     /// <summary>The tax's display name at the time of purchase (e.g. <c>"GST 18%"</c>).</summary>
     public string? TaxLabel { get; private set; }
+
+    /// <summary>
+    /// What a full cancellation returns, in minor units: everything except the booking fee and the
+    /// tax charged on that fee.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than stored, from values that are themselves frozen at checkout — so it
+    /// cannot drift out of step with the total it is subtracted from, and an organizer changing the
+    /// event's fee or tax rate later cannot alter what an existing order refunds.
+    /// <para>
+    /// The tax being subtracted is recomputed with the same rounding the charge used, and the
+    /// calculator taxes the fee separately for exactly this reason: subtracting a re-derived share
+    /// of a single combined rounding could leave the buyer a minor unit short.
+    /// </para>
+    /// </remarks>
+    public long RefundableMinor =>
+        TotalMinor - BookingFeeMinor - OrderPricingCalculator.TaxOnMinor(BookingFeeMinor, TaxRatePercent);
 
     /// <summary>
     /// The Catalog promo code redeemed, if any. Ordering counts redemptions by this id to enforce
@@ -139,6 +165,7 @@ public sealed class Order
     /// <param name="promoCodeText">The code as redeemed, for display.</param>
     /// <param name="taxRatePercent">The event's tax rate as a percentage, or <see langword="null"/> when untaxed.</param>
     /// <param name="taxLabel">The tax's display name (e.g. <c>"GST 18%"</c>).</param>
+    /// <param name="bookingFeePerTicketMinor">The event's per-ticket booking fee, in minor units.</param>
     /// <returns>A new pending <see cref="Order"/>.</returns>
     public static Order Create(
         Guid id,
@@ -154,7 +181,8 @@ public sealed class Order
         Guid? promoCodeId = null,
         string? promoCodeText = null,
         decimal? taxRatePercent = null,
-        string? taxLabel = null)
+        string? taxLabel = null,
+        long bookingFeePerTicketMinor = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
@@ -177,10 +205,12 @@ public sealed class Order
 
         // The same calculator the /v1/checkout/quote preview uses, so the buyer is never quoted one
         // total and charged another.
-        var pricing = OrderPricingCalculator.Calculate(lineSpecs, promoTerms, taxRatePercent);
+        var pricing = OrderPricingCalculator.Calculate(
+            lineSpecs, promoTerms, taxRatePercent, bookingFeePerTicketMinor);
 
         order.SubtotalMinor = pricing.SubtotalMinor;
         order.DiscountMinor = pricing.DiscountMinor;
+        order.BookingFeeMinor = pricing.BookingFeeMinor;
         order.TaxMinor = pricing.TaxMinor;
         order.TotalMinor = pricing.TotalMinor;
         order.TaxRatePercent = taxRatePercent;

@@ -58,5 +58,5 @@ public interface IPaymentGateway
     /// <param name="providerReference">The provider reference to refund.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the refund is requested.</returns>
-    Task RefundAsync(string providerReference, CancellationToken cancellationToken);
+    Task RefundAsync(string providerReference, long amountMinor, CancellationToken cancellationToken);
 }

@@ -99,9 +99,12 @@ internal sealed class StripePaymentGateway : IPaymentGateway
     }
 
     /// <inheritdoc />
-    public async Task RefundAsync(string providerReference, CancellationToken cancellationToken)
+    public async Task RefundAsync(string providerReference, long amountMinor, CancellationToken cancellationToken)
     {
-        var options = new RefundCreateOptions { PaymentIntent = providerReference };
+        // Amount is always set explicitly. Omitting it makes Stripe refund the intent in full, which
+        // is what shipped before booking fees existed and would now silently hand back a fee the
+        // platform is entitled to keep.
+        var options = new RefundCreateOptions { PaymentIntent = providerReference, Amount = amountMinor };
         await refunds.CreateAsync(options, cancellationToken: cancellationToken);
     }
 

@@ -8,4 +8,9 @@ namespace Ordering.Infrastructure;
 /// <param name="Currency">ISO 4217 currency code the event is priced in.</param>
 /// <param name="TaxRatePercent">Sales-tax rate as a percentage, or <see langword="null"/> when untaxed.</param>
 /// <param name="TaxLabel">Display name for the tax on a receipt.</param>
-internal sealed record CatalogEventPricing(string Currency, decimal? TaxRatePercent, string? TaxLabel);
+/// <param name="BookingFeePerTicketMinor">The event's per-ticket booking fee in minor units; 0 when it charges none.</param>
+internal sealed record CatalogEventPricing(
+    string Currency,
+    decimal? TaxRatePercent,
+    string? TaxLabel,
+    long BookingFeePerTicketMinor);

@@ -32,7 +32,11 @@ internal sealed class DaprCatalogEventClient : ICatalogEventClient
 
         return string.IsNullOrWhiteSpace(pricing?.Currency)
             ? null
-            : new EventPricing(pricing.Currency, pricing.TaxRatePercent, pricing.TaxLabel);
+            : new EventPricing(
+                pricing.Currency,
+                pricing.TaxRatePercent,
+                pricing.TaxLabel,
+                pricing.BookingFeePerTicketMinor);
     }
 
     /// <inheritdoc />

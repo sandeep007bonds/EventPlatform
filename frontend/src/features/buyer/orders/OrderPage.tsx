@@ -306,6 +306,13 @@ export function OrderPage() {
               emphasis="success"
             />
           )}
+          {order.bookingFeeMinor > 0 && (
+            <PriceRow
+              label="Booking fee"
+              amountMinor={order.bookingFeeMinor}
+              currency={order.currency}
+            />
+          )}
           {order.taxMinor > 0 && (
             <PriceRow
               label={order.taxLabel ?? 'Tax'}

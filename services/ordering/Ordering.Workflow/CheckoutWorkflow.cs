@@ -110,7 +110,8 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
                 promoCodeId,
                 promoCodeText,
                 pricing.TaxRatePercent,
-                pricing.TaxLabel));
+                pricing.TaxLabel,
+                pricing.BookingFeePerTicketMinor));
 
         // A concurrent checkout for the same idempotency key already owns this order — stop here so
         // we never charge twice. The winning saga drives the order to its terminal state; the caller
@@ -237,7 +238,12 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
         if (!converted)
         {
             await context.CallActivityAsync<bool>(nameof(FailOrderActivity), new FailInput(order.OrderId, "convert_failed"));
-            await context.CallActivityAsync<bool>(nameof(RefundActivity), new RefundInput(order.OrderId, input.IdempotencyKey));
+
+            // No AmountMinor, so the refund is the full captured amount — including any booking
+            // fee. This checkout never completed; the fee is only earned by a sale that did.
+            await context.CallActivityAsync<bool>(
+                nameof(RefundActivity),
+                new RefundInput(order.OrderId, input.IdempotencyKey));
             await context.CallActivityAsync<bool>(nameof(ReleaseHoldActivity), input.HoldId);
             return new CheckoutWorkflowResult(nameof(CheckoutOutcome.ConvertFailed), order.OrderId);
         }

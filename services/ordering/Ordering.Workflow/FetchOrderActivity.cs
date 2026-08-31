@@ -10,6 +10,12 @@ public sealed class FetchOrderActivity(IOrderRepository orders) : WorkflowActivi
         var order = await orders.GetByIdAsync(orderId, CancellationToken.None);
         return order is null
             ? null
-            : new OrderSnapshot(order.Id, order.UserId, order.HoldId, order.Status.ToString(), order.IdempotencyKey);
+            : new OrderSnapshot(
+                order.Id,
+                order.UserId,
+                order.HoldId,
+                order.Status.ToString(),
+                order.IdempotencyKey,
+                order.RefundableMinor);
     }
 }

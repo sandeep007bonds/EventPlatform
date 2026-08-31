@@ -6,7 +6,8 @@ namespace Ordering.Api.Endpoints;
 /// <param name="TotalMinor">What the buyer paid, in minor currency units: subtotal − discount + tax.</param>
 /// <param name="SubtotalMinor">Sum of the line prices, before discount or tax.</param>
 /// <param name="DiscountMinor">What a promo code took off. Zero when none was applied.</param>
-/// <param name="TaxMinor">Tax charged on the post-discount subtotal. Zero for an untaxed event.</param>
+/// <param name="BookingFeeMinor">The booking fee charged. Not returned on a cancellation.</param>
+/// <param name="TaxMinor">Tax charged on the post-discount subtotal, plus tax on the booking fee. Zero for an untaxed event.</param>
 /// <param name="TaxLabel">The tax's display name at time of purchase (e.g. <c>"GST 18%"</c>).</param>
 /// <param name="PromoCode">The discount code redeemed, if any.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
@@ -24,6 +25,7 @@ public sealed record OrderResponse(
     long TotalMinor,
     long SubtotalMinor,
     long DiscountMinor,
+    long BookingFeeMinor,
     long TaxMinor,
     string? TaxLabel,
     string? PromoCode,

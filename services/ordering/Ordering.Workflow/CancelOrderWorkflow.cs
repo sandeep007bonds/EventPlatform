@@ -59,11 +59,13 @@ public sealed class CancelOrderWorkflow : Workflow<CancelOrderWorkflowInput, Can
             return new CancelOrderWorkflowResult(nameof(CancelOrderOutcome.Failed), order.OrderId);
         }
 
-        // 3. Refund the payment (best-effort — a failed refund is retried by ops, not the saga; see
-        //    RefundActivity).
+        // 3. Refund the payment, less the booking fee, which is not returned on a cancellation —
+        //    the sale completed and the platform rendered the service the fee pays for. Contrast
+        //    CheckoutWorkflow's compensation, which refunds in full because that buyer got nothing.
+        //    Best-effort: a failed refund is retried by ops, not the saga; see RefundActivity.
         await context.CallActivityAsync<bool>(
             nameof(RefundActivity),
-            new RefundInput(order.OrderId, order.IdempotencyKey));
+            new RefundInput(order.OrderId, order.IdempotencyKey, order.RefundableMinor));
 
         // 4. Mark the order refunded.
         await context.CallActivityAsync<bool>(nameof(MarkOrderRefundedActivity), order.OrderId);

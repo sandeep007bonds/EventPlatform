@@ -23,6 +23,7 @@ namespace Catalog.Application.Features.CreateEvent;
 /// <param name="RequiresQueue">Whether to gate holds behind the Queue service's waiting room.</param>
 /// <param name="TaxRatePercent">Sales-tax rate as a percentage (e.g. 18 for 18% GST); <see langword="null"/> means untaxed.</param>
 /// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
+/// <param name="BookingFeePerTicketMinor">Booking fee per ticket in minor currency units (e.g. 3000 for ₹30); 0 means no fee.</param>
 public sealed record CreateEventCommand(
     Guid TenantId,
     string Title,
@@ -42,4 +43,5 @@ public sealed record CreateEventCommand(
     int? MaxTicketsPerBuyer = null,
     bool RequiresQueue = false,
     decimal? TaxRatePercent = null,
-    string? TaxLabel = null) : IRequest<CreateEventResult>;
+    string? TaxLabel = null,
+    long BookingFeePerTicketMinor = 0) : IRequest<CreateEventResult>;

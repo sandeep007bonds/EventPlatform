@@ -117,6 +117,11 @@ context: **Catalog** (ADR-0008).
   There is no edit-after-create (`EntryGate`'s precedent): deactivate and make another.
   `Event.TaxRatePercent`/`TaxLabel` are one rate per event, Draft-only editable like every other
   detail field; Ordering charges it on the **post-discount** amount.
+  `Event.BookingFeePerTicketMinor` is the same shape — Draft-only, stored here, computed by
+  Ordering — a flat per-ticket fee in minor units. It is **not** discountable, **is** taxed, and is
+  **not** returned on a cancellation, which is why Ordering rounds tax on the fee separately from
+  tax on the tickets (ADR-0034). Catalog stores the number and enforces only that it is not
+  negative.
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
   `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
 - **Events consumed:** —

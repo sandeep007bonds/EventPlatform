@@ -40,5 +40,5 @@ internal sealed class SimulatedPaymentGateway : IPaymentGateway
         Task.FromResult(true);
 
     /// <inheritdoc />
-    public Task RefundAsync(string providerReference, CancellationToken cancellationToken) => Task.CompletedTask;
+    public Task RefundAsync(string providerReference, long amountMinor, CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -37,7 +37,8 @@ public sealed class CreateOrderActivity(IOrderRepository orders)
             input.PromoCodeId,
             input.PromoCodeText,
             input.TaxRatePercent,
-            input.TaxLabel);
+            input.TaxLabel,
+            input.BookingFeePerTicketMinor);
         order.MarkAwaitingPayment();
 
         // Race window: two attempts both passed the check above. The unique index on

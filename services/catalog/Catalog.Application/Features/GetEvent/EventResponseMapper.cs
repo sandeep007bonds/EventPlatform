@@ -35,6 +35,7 @@ public static class EventResponseMapper
             @event.RequiresQueue,
             @event.TaxRatePercent,
             @event.TaxLabel,
+            @event.BookingFeePerTicketMinor,
             @event.SalesPaused,
             @event.AgeRestriction,
             @event.BannerImageUrl,

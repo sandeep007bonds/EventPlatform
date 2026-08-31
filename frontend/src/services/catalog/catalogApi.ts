@@ -32,6 +32,8 @@ export interface EventResponse {
   taxRatePercent: number | null;
   /** Display name for the tax on a receipt (e.g. "GST 18%"). */
   taxLabel: string | null;
+  /** Booking fee per ticket in minor units (e.g. 3000 for ₹30); 0 means no fee. */
+  bookingFeePerTicketMinor: number;
   salesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
@@ -64,6 +66,7 @@ export interface UpdateEventDetailsRequest {
   requiresQueue?: boolean;
   taxRatePercent?: number | null;
   taxLabel?: string | null;
+  bookingFeePerTicketMinor?: number;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -200,6 +203,7 @@ export interface CreateEventRequest {
   requiresQueue?: boolean;
   taxRatePercent?: number | null;
   taxLabel?: string | null;
+  bookingFeePerTicketMinor?: number;
 }
 
 /** Creates a new draft event for the caller's tenant. */

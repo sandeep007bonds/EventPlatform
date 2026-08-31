@@ -7,7 +7,7 @@ public sealed class RefundActivity(IPaymentClient payments) : WorkflowActivity<R
     /// <inheritdoc />
     public override async Task<bool> RunAsync(WorkflowActivityContext context, RefundInput input)
     {
-        await payments.RefundAsync(input.OrderId, input.IdempotencyKey, CancellationToken.None);
+        await payments.RefundAsync(input.OrderId, input.IdempotencyKey, input.AmountMinor, CancellationToken.None);
         return true;
     }
 }

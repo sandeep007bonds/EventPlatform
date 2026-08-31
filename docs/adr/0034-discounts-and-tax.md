@@ -36,16 +36,41 @@ Two existing facts shaped the design, both already in the codebase before this w
 ### One money model, stated once
 
 ```
-subtotal  = Σ line.PriceMinor
-discount  = f(code, lines eligible by tier)        # clamped to the eligible subtotal
-tax       = round((subtotal − discount) × rate/100, AwayFromZero)
-total     = subtotal − discount + tax              # what Stripe charges
+subtotal    = Σ line.PriceMinor
+discount    = f(code, lines eligible by tier)      # clamped to the eligible subtotal
+net         = subtotal − discount
+fee         = event.BookingFeePerTicketMinor × Σ line.Quantity
+taxTickets  = round(net × rate/100, AwayFromZero)
+taxFee      = round(fee × rate/100, AwayFromZero)
+tax         = taxTickets + taxFee
+total       = net + fee + tax                      # what Stripe charges
+refundable  = net + taxTickets                     # what a cancellation returns
 ```
+
+**Amended** to add the booking fee. Three properties define it, and each was a decision, not a
+default:
+
+- **Per ticket, not per order or per cent.** A general-admission line of four is four tickets, so
+  the fee is taken over `Σ Quantity` rather than over the line count — a per-line fee would
+  under-charge exactly the largest orders.
+- **Not discountable.** A promo code reduces what the tickets cost, not what the platform charges
+  to sell them, so the fee is added after the discount and never enters the clamp.
+- **Not refundable, but taxed.** These two together are why `tax` is *two* roundings rather than
+  one. A cancellation must return the tickets and their tax while keeping the fee and the tax
+  collected on it; with a single rounding over `net + fee`, the ticket share is not recoverable by
+  subtraction. `1001 + 102` at 18% rounds to `199` combined but `180 + 18 = 198` split — refunding
+  by subtraction from the combined figure returns one minor unit too much, every time. Splitting
+  the rounding at source makes `refundable` exact.
+
+`Order.RefundableMinor` is derived from values frozen at checkout, so an organizer changing the
+event's fee or tax rate later cannot alter what an already-placed order refunds. The cancellation
+saga passes it to `IPaymentClient.RefundAsync`; `CheckoutWorkflow`'s own compensation passes
+`null` instead and refunds in full, because that buyer received nothing to charge a fee for.
 
 `TotalMinor` keeps its existing meaning — the payable amount — so `CreateIntentInput`,
 `ConfirmInput` and the `OrderConfirmed` contract needed no change. `Order` gains
-`SubtotalMinor`, `DiscountMinor`, `TaxMinor`, `TaxRatePercent`, `TaxLabel`, `PromoCodeId`
-and `PromoCodeText` alongside it, so a placed order carries its own arithmetic and can be
+`SubtotalMinor`, `DiscountMinor`, `BookingFeeMinor`, `TaxMinor`, `TaxRatePercent`, `TaxLabel`,
+`PromoCodeId` and `PromoCodeText` alongside it, so a placed order carries its own arithmetic and can be
 re-explained to a buyer months later without recomputing anything.
 
 The whole calculation lives in one pure static class,

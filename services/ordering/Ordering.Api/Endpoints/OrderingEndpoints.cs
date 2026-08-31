@@ -191,11 +191,13 @@ public static class OrderingEndpoints
             }
         }
 
-        var quote = OrderPricingCalculator.Calculate(lines, terms, pricing.TaxRatePercent);
+        var quote = OrderPricingCalculator.Calculate(
+            lines, terms, pricing.TaxRatePercent, pricing.BookingFeePerTicketMinor);
 
         return Results.Ok(new CheckoutQuoteResponse(
             quote.SubtotalMinor,
             quote.DiscountMinor,
+            quote.BookingFeeMinor,
             quote.TaxMinor,
             quote.TotalMinor,
             pricing.Currency,
@@ -280,7 +282,11 @@ public static class OrderingEndpoints
                 logger.LogWarning(
                     "Payment for order {OrderId} captured after its checkout saga already failed; refunding.",
                     orderId);
-                await payments.RefundAsync(orderId, $"late-capture-refund-{orderId:N}", cancellationToken);
+
+                // In full (null amount): the saga already failed, so this buyer has no tickets and
+                // there is no completed sale to charge a booking fee for.
+                await payments.RefundAsync(
+                    orderId, $"late-capture-refund-{orderId:N}", amountMinor: null, cancellationToken);
             }
         }
 
@@ -406,6 +412,7 @@ public static class OrderingEndpoints
             order.TotalMinor,
             order.SubtotalMinor,
             order.DiscountMinor,
+            order.BookingFeeMinor,
             order.TaxMinor,
             order.TaxLabel,
             order.PromoCodeText,

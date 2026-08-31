@@ -24,7 +24,9 @@ export interface OrderResponse {
   subtotalMinor: number;
   /** What the promo code took off. Zero when none was applied. */
   discountMinor: number;
-  /** Tax charged on the post-discount subtotal. Zero for an untaxed event. */
+  /** The event's per-ticket booking fee times the ticket count. Not refunded on a cancellation. */
+  bookingFeeMinor: number;
+  /** Tax on the post-discount subtotal, plus tax on the booking fee. Zero for an untaxed event. */
   taxMinor: number;
   /** Display name for the tax (e.g. `"GST 18%"`), or `null` when untaxed. */
   taxLabel: string | null;
@@ -86,6 +88,8 @@ export async function checkout(
 export interface CheckoutQuoteResponse {
   subtotalMinor: number;
   discountMinor: number;
+  /** The event's per-ticket booking fee times the ticket count. */
+  bookingFeeMinor: number;
   taxMinor: number;
   totalMinor: number;
   currency: string;

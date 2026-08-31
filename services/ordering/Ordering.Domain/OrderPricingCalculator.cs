@@ -9,9 +9,17 @@ namespace Ordering.Domain;
 /// is quoted a total and then charged a different one has been mis-sold, so "the preview and the
 /// charge run the same code" is a correctness requirement, not tidiness.
 /// <para>
-/// Order of operations is fixed: <b>discount first, then tax on what remains</b>. Taxing the
-/// pre-discount amount would over-collect, and in most jurisdictions tax is owed on the
-/// consideration actually paid.
+/// Order of operations is fixed: <b>discount first, then the booking fee, then tax on both</b>.
+/// Taxing the pre-discount amount would over-collect, and in most jurisdictions tax is owed on the
+/// consideration actually paid. The booking fee is charged per ticket and is <b>not</b> discountable
+/// — a promo code reduces what the tickets cost, not what the platform charges to sell them.
+/// </para>
+/// <para>
+/// Tax is computed as two separate roundings — one on the discounted tickets, one on the fee —
+/// rather than one rounding over their sum. That looks like a detail and is not: the booking fee is
+/// non-refundable, so a cancellation has to return the ticket money and its tax while keeping the
+/// fee and its tax. Only a tax split at source makes that an exact subtraction instead of one that
+/// can be a minor unit out.
 /// </para>
 /// </remarks>
 public static class OrderPricingCalculator
@@ -35,11 +43,16 @@ public static class OrderPricingCalculator
     /// <param name="taxRatePercent">
     /// The event's tax rate as a percentage, or <see langword="null"/>/zero when untaxed.
     /// </param>
+    /// <param name="bookingFeePerTicketMinor">
+    /// The event's booking fee per ticket, in minor units. Zero when the event charges none.
+    /// Negative values are treated as zero rather than credited.
+    /// </param>
     /// <returns>The full breakdown.</returns>
     public static OrderPricing Calculate(
         IReadOnlyList<OrderLineSpec> lines,
         PromoCodeTerms? terms,
-        decimal? taxRatePercent)
+        decimal? taxRatePercent,
+        long bookingFeePerTicketMinor)
     {
         ArgumentNullException.ThrowIfNull(lines);
 
@@ -48,14 +61,35 @@ public static class OrderPricingCalculator
 
         // Cannot go negative: the discount is clamped to the eligible lines' subtotal, and the
         // eligible lines are a subset of all lines.
-        var taxableMinor = subtotalMinor - discountMinor;
+        var netMinor = subtotalMinor - discountMinor;
 
-        var taxMinor = taxRatePercent is > 0m
-            ? (long)Math.Round(taxableMinor * taxRatePercent.Value / 100m, MidpointRounding.AwayFromZero)
-            : 0L;
+        // Per admission, not per line: a general-admission line of four is four tickets, and a fee
+        // charged per line would quietly under-charge exactly the orders that are largest.
+        var ticketCount = lines.Sum(line => (long)line.Quantity);
+        var bookingFeeMinor = Math.Max(0L, bookingFeePerTicketMinor) * ticketCount;
 
-        return new OrderPricing(subtotalMinor, discountMinor, taxMinor, taxableMinor + taxMinor);
+        var taxOnTicketsMinor = TaxOnMinor(netMinor, taxRatePercent);
+        var taxOnFeeMinor = TaxOnMinor(bookingFeeMinor, taxRatePercent);
+
+        return new OrderPricing(
+            subtotalMinor,
+            discountMinor,
+            bookingFeeMinor,
+            taxOnTicketsMinor + taxOnFeeMinor,
+            netMinor + bookingFeeMinor + taxOnTicketsMinor + taxOnFeeMinor,
+            netMinor + taxOnTicketsMinor);
     }
+
+    /// <summary>
+    /// Tax on an amount at a rate, rounded half away from zero.
+    /// </summary>
+    /// <param name="baseMinor">The amount being taxed, in minor units.</param>
+    /// <param name="taxRatePercent">The rate as a percentage, or <see langword="null"/>/zero for untaxed.</param>
+    /// <returns>The tax in minor units; zero when the rate is null, zero or negative.</returns>
+    public static long TaxOnMinor(long baseMinor, decimal? taxRatePercent) =>
+        taxRatePercent is > 0m
+            ? (long)Math.Round(baseMinor * taxRatePercent.Value / 100m, MidpointRounding.AwayFromZero)
+            : 0L;
 
     /// <summary>
     /// Works out how much a promo code takes off, considering only the lines it applies to.

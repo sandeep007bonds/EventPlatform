@@ -48,6 +48,7 @@ import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPa
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toast } from '../../../components/common/feedback/toast';
+import { formatMoney, toMajor, toMinor } from '../../../utils/money';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 import { TourLegsList } from '../eventGroups/TourLegsList';
@@ -81,6 +82,8 @@ interface EventDetailsFormValues {
   requiresQueue?: boolean;
   taxRatePercent?: number;
   taxLabel?: string;
+  /** Major units, as typed — converted to minor on submit. */
+  bookingFeePerTicket?: number;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -169,6 +172,9 @@ export function AdminEventDetailPage() {
       requiresQueue: event.requiresQueue,
       taxRatePercent: event.taxRatePercent ?? undefined,
       taxLabel: event.taxLabel ?? undefined,
+      bookingFeePerTicket: event.bookingFeePerTicketMinor
+        ? toMajor(event.bookingFeePerTicketMinor)
+        : undefined,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -275,6 +281,9 @@ export function AdminEventDetailPage() {
         requiresQueue: values.requiresQueue ?? false,
         taxRatePercent: values.taxRatePercent ?? null,
         taxLabel: values.taxLabel?.trim() || null,
+        bookingFeePerTicketMinor: values.bookingFeePerTicket
+          ? toMinor(values.bookingFeePerTicket)
+          : 0,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -387,6 +396,11 @@ export function AdminEventDetailPage() {
           <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
           <Descriptions.Item label="Tax">
             {event.taxRatePercent ? (event.taxLabel ?? `${event.taxRatePercent}%`) : 'None'}
+          </Descriptions.Item>
+          <Descriptions.Item label="Booking fee">
+            {event.bookingFeePerTicketMinor
+              ? `${formatMoney(event.bookingFeePerTicketMinor, event.currency)} per ticket`
+              : 'None'}
           </Descriptions.Item>
           <Descriptions.Item label="Capacity">
             {seatMap ? `${seatMap.capacity} total` : '—'}
@@ -523,7 +537,7 @@ export function AdminEventDetailPage() {
 
             <Divider />
             <Typography.Title level={5} style={SECTION_HEADING_STYLE}>
-              Tax
+              Fees and tax
             </Typography.Title>
             <Row gutter={20}>
               <Col xs={24} sm={12} md={6}>
@@ -550,6 +564,16 @@ export function AdminEventDetailPage() {
                   rules={[{ max: 50 }]}
                 >
                   <Input placeholder="e.g. GST 18%" />
+                </Form.Item>
+              </Col>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="bookingFeePerTicket"
+                  label={`Booking fee per ticket (${event.currency})`}
+                  tooltip="Charged on every ticket, taxed at the rate above, and not refunded if the buyer cancels. Leave empty for none."
+                  rules={[{ type: 'number', min: 0 }]}
+                >
+                  <InputNumber min={0} step={1} style={{ width: '100%' }} placeholder="No fee" />
                 </Form.Item>
               </Col>
             </Row>

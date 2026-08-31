@@ -77,9 +77,15 @@ public sealed class PaymentService(
 
     /// <summary>Refunds the captured payment for an order, if any. Idempotent.</summary>
     /// <param name="orderId">The order to refund.</param>
+    /// <param name="amountMinor">
+    /// How much to return, in minor units, or <see langword="null"/> to return the whole captured
+    /// amount. Ordering decides this — a cancelled sale keeps its non-refundable booking fee, while
+    /// a checkout that never completed returns everything. Payments has no concept of a fee and
+    /// deliberately does not acquire one; it refunds the number it is given.
+    /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true"/> if a payment was refunded.</returns>
-    public async Task<bool> RefundAsync(Guid orderId, CancellationToken cancellationToken)
+    public async Task<bool> RefundAsync(Guid orderId, long? amountMinor, CancellationToken cancellationToken)
     {
         var payment = await payments.GetCapturedByOrderAsync(orderId, cancellationToken);
         if (payment is null)
@@ -87,10 +93,15 @@ public sealed class PaymentService(
             return false;
         }
 
+        // Clamped to what was actually captured: a caller asking for more than the payment is worth
+        // is a bug, and passing it to the provider would fail the refund outright rather than
+        // returning what can legitimately be returned.
+        var refundMinor = Math.Clamp(amountMinor ?? payment.AmountMinor, 0L, payment.AmountMinor);
+
         payment.MarkRefunded();
         if (payment.ProviderReference is not null)
         {
-            await gateway.RefundAsync(payment.ProviderReference, cancellationToken);
+            await gateway.RefundAsync(payment.ProviderReference, refundMinor, cancellationToken);
         }
 
         events.Enqueue(new PaymentRefunded(
@@ -99,7 +110,7 @@ public sealed class PaymentService(
             payment.TenantId,
             payment.Id,
             orderId,
-            payment.AmountMinor));
+            refundMinor));
 
         await payments.SaveChangesAsync(cancellationToken);
         return true;

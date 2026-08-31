@@ -10,4 +10,9 @@ namespace Ordering.Application.Abstractions;
 /// the **post-discount** subtotal.
 /// </param>
 /// <param name="TaxLabel">Display name for the tax on a receipt (e.g. <c>"GST 18%"</c>).</param>
-public sealed record EventPricing(string Currency, decimal? TaxRatePercent, string? TaxLabel);
+/// <param name="BookingFeePerTicketMinor">The event's per-ticket booking fee in minor units; 0 when it charges none.</param>
+public sealed record EventPricing(
+    string Currency,
+    decimal? TaxRatePercent,
+    string? TaxLabel,
+    long BookingFeePerTicketMinor);

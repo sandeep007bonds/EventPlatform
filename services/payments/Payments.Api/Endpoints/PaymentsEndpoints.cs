@@ -102,7 +102,7 @@ public static class PaymentsEndpoints
         PaymentService payments,
         CancellationToken cancellationToken)
     {
-        await payments.RefundAsync(request.OrderId, cancellationToken);
+        await payments.RefundAsync(request.OrderId, request.AmountMinor, cancellationToken);
         return Results.NoContent();
     }
 }

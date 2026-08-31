@@ -169,9 +169,11 @@ src/
   with a reason attached, not an error; the buyer-facing prose for each reason
   lives in `PROMO_REJECTION_MESSAGES` in `CheckoutPage.tsx` (the backend
   returns `NotFound`/`Expired`/… precisely so the wording is translatable
-  here). `PriceRow` renders the Subtotal/Discount/Tax lines and is shared by
-  `CheckoutPage` and `OrderPage` so the pre- and post-purchase breakdowns
-  can't drift apart.
+  here). `PriceRow` renders the Subtotal/Discount/Booking fee/Tax
+  lines and is shared by `CheckoutPage` and `OrderPage` so the pre- and
+  post-purchase breakdowns can't drift apart. Amounts cross the wire in minor
+  units; `utils/money.ts` has `toMinor`/`toMajor` for the admin forms that let
+  an organizer type a fee in major units.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft
