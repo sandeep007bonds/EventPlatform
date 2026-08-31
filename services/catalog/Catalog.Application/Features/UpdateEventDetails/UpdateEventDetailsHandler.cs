@@ -66,6 +66,7 @@ internal sealed class UpdateEventDetailsHandler(
             request.TaxRatePercent,
             request.TaxLabel,
             request.BookingFeePerTicketMinor,
+            request.TimeZoneId,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

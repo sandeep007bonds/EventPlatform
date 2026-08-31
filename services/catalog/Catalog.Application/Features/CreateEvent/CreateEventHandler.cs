@@ -51,7 +51,8 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
             request.RequiresQueue,
             request.TaxRatePercent,
             request.TaxLabel,
-            request.BookingFeePerTicketMinor);
+            request.BookingFeePerTicketMinor,
+            request.TimeZoneId);
 
         repository.Add(@event);
         await repository.SaveChangesAsync(cancellationToken);

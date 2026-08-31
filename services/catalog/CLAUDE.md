@@ -122,6 +122,14 @@ context: **Catalog** (ADR-0008).
   **not** returned on a cancellation, which is why Ordering rounds tax on the fee separately from
   tax on the tickets (ADR-0034). Catalog stores the number and enforces only that it is not
   negative.
+- **`Event.TimeZoneId`** (nullable IANA id, e.g. `Asia/Kolkata`), Draft-only editable like every
+  other detail field. Nothing on the backend reads it: every date is a `DateTimeOffset` and already
+  an unambiguous instant, so this changes *when* nothing. It exists because a client otherwise has
+  to render a start time in the **reader's** zone — a 7pm Delhi show reads as 1:30pm to a buyer in
+  London. Stored as an IANA identifier rather than an offset, since offsets shift twice a year and
+  an event across a DST boundary would drift. Validated in the *validator*, not the aggregate:
+  resolving an id depends on the host's tz database, and an invariant that varies by machine is not
+  an invariant.
 - **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
   `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
 - **Events consumed:** —

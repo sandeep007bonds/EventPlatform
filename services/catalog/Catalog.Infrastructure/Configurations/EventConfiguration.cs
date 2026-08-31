@@ -17,6 +17,7 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
 
         builder.Property(e => e.Description).HasMaxLength(4000);
         builder.Property(e => e.Category).HasMaxLength(100);
+        builder.Property(e => e.TimeZoneId).HasMaxLength(100);
         builder.Property(e => e.AgeRestriction).HasMaxLength(50);
         builder.Property(e => e.BannerImageUrl).HasMaxLength(2000);
         builder.Property(e => e.VideoUrl).HasMaxLength(2000);

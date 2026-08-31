@@ -66,7 +66,8 @@ public static class CatalogEndpoints
             request.RequiresQueue,
             request.TaxRatePercent,
             request.TaxLabel,
-            request.BookingFeePerTicketMinor);
+            request.BookingFeePerTicketMinor,
+            request.TimeZoneId);
 
         var result = await sender.Send(command, cancellationToken);
         return result.Outcome switch
@@ -356,6 +357,7 @@ public static class CatalogEndpoints
             request.TaxRatePercent,
             request.TaxLabel,
             request.BookingFeePerTicketMinor,
+            request.TimeZoneId,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,

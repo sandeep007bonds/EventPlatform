@@ -166,6 +166,7 @@ public sealed class EventTests
             taxRatePercent: null,
             taxLabel: null,
             bookingFeePerTicketMinor: 0,
+            timeZoneId: null,
             ageRestriction: null,
             bannerImageUrl: null,
             videoUrl: null,

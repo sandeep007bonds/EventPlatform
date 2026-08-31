@@ -24,5 +24,17 @@ public sealed class CreateEventValidator : AbstractValidator<CreateEventCommand>
         RuleFor(command => command.TaxRatePercent).InclusiveBetween(0, 100).When(c => c.TaxRatePercent is not null);
         RuleFor(command => command.TaxLabel).MaximumLength(50);
         RuleFor(command => command.BookingFeePerTicketMinor).GreaterThanOrEqualTo(0);
+        RuleFor(command => command.TimeZoneId).MaximumLength(100);
+        RuleFor(command => command.TimeZoneId)
+            .Must(BeAKnownTimeZone)
+            .When(c => !string.IsNullOrWhiteSpace(c.TimeZoneId))
+            .WithMessage("'{PropertyName}' must be a known IANA time zone, e.g. 'Asia/Kolkata'.");
     }
+
+    // Checked here rather than in the domain: resolving an id depends on the host's time-zone
+    // database, and an aggregate whose invariants vary with the machine it runs on is not an
+    // invariant. The API rejects an unknown zone with a clear message; Event itself only requires
+    // that the string be a plausible length.
+    private static bool BeAKnownTimeZone(string? timeZoneId) =>
+        timeZoneId is not null && TimeZoneInfo.TryFindSystemTimeZoneById(timeZoneId, out _);
 }

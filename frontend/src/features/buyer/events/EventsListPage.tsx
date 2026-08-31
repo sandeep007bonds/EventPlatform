@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Empty, Input, Pagination, Row, Select, Tag, Typography } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import { formatEventDateTime } from '../../../utils/eventTime';
 import { Link } from 'react-router-dom';
 import {
   listEvents,
@@ -161,7 +161,7 @@ export function EventsListPage() {
                     {event.title}
                   </Typography.Title>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                    {dayjs(event.startsAt).format('ddd, MMM D, YYYY · h:mm A')}
+                    {formatEventDateTime(event.startsAt, event.timeZoneId)}
                   </Typography.Text>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
                     <EnvironmentOutlined style={{ marginRight: 6 }} />

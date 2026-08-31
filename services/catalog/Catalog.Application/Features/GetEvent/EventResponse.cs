@@ -21,6 +21,7 @@ namespace Catalog.Application.Features.GetEvent;
 /// <param name="TaxRatePercent">Sales-tax rate applied to orders for this event, as a percentage; <see langword="null"/> means untaxed.</param>
 /// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 /// <param name="BookingFeePerTicketMinor">Booking fee per ticket in minor currency units; 0 means no fee.</param>
+/// <param name="TimeZoneId">The venue's IANA time zone (e.g. "Asia/Kolkata"); null when not set.</param>
 /// <param name="SalesPaused">Whether an organizer has manually paused sales for this published event.</param>
 /// <param name="AgeRestriction">Free-text age restriction, if set.</param>
 /// <param name="BannerImageUrl">Banner image URL, if set.</param>
@@ -59,6 +60,7 @@ public sealed record EventResponse(
     decimal? TaxRatePercent,
     string? TaxLabel,
     long BookingFeePerTicketMinor,
+    string? TimeZoneId,
     bool SalesPaused,
     string? AgeRestriction,
     string? BannerImageUrl,

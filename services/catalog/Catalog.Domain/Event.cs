@@ -34,7 +34,8 @@ public sealed class Event
         bool requiresQueue,
         decimal? taxRatePercent,
         string? taxLabel,
-        long bookingFeePerTicketMinor)
+        long bookingFeePerTicketMinor,
+        string? timeZoneId)
     {
         Id = id;
         TenantId = tenantId;
@@ -57,6 +58,7 @@ public sealed class Event
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
         BookingFeePerTicketMinor = bookingFeePerTicketMinor;
+        TimeZoneId = timeZoneId;
         Status = EventStatus.Draft;
     }
 
@@ -145,6 +147,25 @@ public sealed class Event
     /// the arithmetic uses <see cref="TaxRatePercent"/> alone.
     /// </summary>
     public string? TaxLabel { get; private set; }
+
+    /// <summary>
+    /// The venue's IANA time zone (e.g. <c>"Asia/Kolkata"</c>), or <see langword="null"/> when not
+    /// set.
+    /// </summary>
+    /// <remarks>
+    /// Every date on this aggregate is a <see cref="DateTimeOffset"/> and therefore already
+    /// unambiguous as an instant — this changes nothing about when anything happens. What it fixes
+    /// is display: without it a client can only render a start time in the *reader's* zone, so a
+    /// buyer abroad sees a 7pm Delhi show at 1:30pm and a door time that looks wrong. Stored as an
+    /// IANA identifier rather than a fixed offset because offsets change twice a year in much of
+    /// the world, and an event scheduled across a DST boundary would otherwise drift.
+    /// <para>
+    /// Nullable, because events created before this existed have no answer and guessing one would
+    /// be worse than admitting it — a client with no zone falls back to the reader's own, which is
+    /// exactly today's behaviour.
+    /// </para>
+    /// </remarks>
+    public string? TimeZoneId { get; private set; }
 
     /// <summary>
     /// Booking fee charged per ticket, in minor currency units (e.g. <c>3000</c> for ₹30 a ticket).
@@ -241,6 +262,7 @@ public sealed class Event
     /// <param name="taxRatePercent">Sales-tax rate as a percentage, if this event is taxed. See <see cref="TaxRatePercent"/>.</param>
     /// <param name="taxLabel">Display name for the tax on a receipt. See <see cref="TaxLabel"/>.</param>
     /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units. See <see cref="BookingFeePerTicketMinor"/>.</param>
+    /// <param name="timeZoneId">The venue's IANA time zone. See <see cref="TimeZoneId"/>.</param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>,
@@ -267,7 +289,8 @@ public sealed class Event
         bool requiresQueue = false,
         decimal? taxRatePercent = null,
         string? taxLabel = null,
-        long bookingFeePerTicketMinor = 0)
+        long bookingFeePerTicketMinor = 0,
+        string? timeZoneId = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -318,7 +341,8 @@ public sealed class Event
             requiresQueue,
             taxRatePercent,
             taxLabel,
-            bookingFeePerTicketMinor);
+            bookingFeePerTicketMinor,
+            timeZoneId);
     }
 
     /// <summary>
@@ -392,6 +416,7 @@ public sealed class Event
     /// <param name="taxRatePercent">Sales-tax rate as a percentage — see <see cref="TaxRatePercent"/>.</param>
     /// <param name="taxLabel">Display name for the tax on a receipt — see <see cref="TaxLabel"/>.</param>
     /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units — see <see cref="BookingFeePerTicketMinor"/>.</param>
+    /// <param name="timeZoneId">The venue's IANA time zone — see <see cref="TimeZoneId"/>.</param>
     /// <param name="ageRestriction">Free-text age restriction.</param>
     /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
     /// <param name="videoUrl">Video embed URL.</param>
@@ -416,6 +441,7 @@ public sealed class Event
         decimal? taxRatePercent,
         string? taxLabel,
         long bookingFeePerTicketMinor,
+        string? timeZoneId,
         string? ageRestriction,
         string? bannerImageUrl,
         string? videoUrl,
@@ -472,6 +498,7 @@ public sealed class Event
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
         BookingFeePerTicketMinor = bookingFeePerTicketMinor;
+        TimeZoneId = timeZoneId;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;

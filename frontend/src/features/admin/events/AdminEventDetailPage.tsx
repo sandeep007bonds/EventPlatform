@@ -13,6 +13,7 @@ import {
   Modal,
   Popconfirm,
   Row,
+  Select,
   Space,
   Tag,
   Typography,
@@ -20,6 +21,7 @@ import {
 } from 'antd';
 import { DeleteOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons';
 import dayjs, { type Dayjs } from 'dayjs';
+import { formatEventDateTime } from '../../../utils/eventTime';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -84,6 +86,7 @@ interface EventDetailsFormValues {
   taxLabel?: string;
   /** Major units, as typed — converted to minor on submit. */
   bookingFeePerTicket?: number;
+  timeZoneId?: string;
   ageRestriction?: string;
   bannerImageUrl?: string;
   videoUrl?: string;
@@ -95,6 +98,18 @@ interface EventDetailsFormValues {
 }
 
 const SECTION_HEADING_STYLE = { marginTop: 0, marginBottom: 16 };
+
+/**
+ * Every IANA zone the browser knows, straight from the platform's own tz database — so the list
+ * cannot go stale against a bundled copy, and the zones offered are exactly the ones
+ * `formatEventDateTime` can render. `supportedValuesOf` is not in every engine; falling back to a
+ * short list of common zones keeps the field usable rather than empty.
+ */
+const TIME_ZONE_OPTIONS = (
+  typeof Intl.supportedValuesOf === 'function'
+    ? Intl.supportedValuesOf('timeZone')
+    : ['Asia/Kolkata', 'Asia/Qatar', 'Asia/Dubai', 'Europe/London', 'America/New_York', 'UTC']
+).map((zone) => ({ value: zone, label: zone }));
 
 /** Organizer's event detail: define seat map, publish, and (once published) block/unblock seats. */
 export function AdminEventDetailPage() {
@@ -175,6 +190,7 @@ export function AdminEventDetailPage() {
       bookingFeePerTicket: event.bookingFeePerTicketMinor
         ? toMajor(event.bookingFeePerTicketMinor)
         : undefined,
+      timeZoneId: event.timeZoneId ?? undefined,
       ageRestriction: event.ageRestriction ?? undefined,
       bannerImageUrl: event.bannerImageUrl ?? undefined,
       videoUrl: event.videoUrl ?? undefined,
@@ -284,6 +300,7 @@ export function AdminEventDetailPage() {
         bookingFeePerTicketMinor: values.bookingFeePerTicket
           ? toMinor(values.bookingFeePerTicket)
           : 0,
+        timeZoneId: values.timeZoneId || null,
         ageRestriction: values.ageRestriction ?? null,
         bannerImageUrl: values.bannerImageUrl ?? null,
         videoUrl: values.videoUrl ?? null,
@@ -388,11 +405,12 @@ export function AdminEventDetailPage() {
       <Card style={{ marginBottom: 24 }}>
         <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
           <Descriptions.Item label="Starts">
-            {dayjs(event.startsAt).format('MMM D, YYYY · h:mm A')}
+            {formatEventDateTime(event.startsAt, event.timeZoneId)}
           </Descriptions.Item>
           <Descriptions.Item label="Ends">
-            {dayjs(event.endsAt).format('MMM D, YYYY · h:mm A')}
+            {formatEventDateTime(event.endsAt, event.timeZoneId)}
           </Descriptions.Item>
+          <Descriptions.Item label="Time zone">{event.timeZoneId ?? 'Not set'}</Descriptions.Item>
           <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
           <Descriptions.Item label="Tax">
             {event.taxRatePercent ? (event.taxLabel ?? `${event.taxRatePercent}%`) : 'None'}
@@ -458,6 +476,21 @@ export function AdminEventDetailPage() {
               Schedule
             </Typography.Title>
             <Row gutter={20}>
+              <Col xs={24} sm={12} md={6}>
+                <Form.Item
+                  name="timeZoneId"
+                  label="Venue time zone"
+                  tooltip="Buyers see this event's times in this zone, wherever they are. Leave empty to show each reader their own local time."
+                >
+                  <Select
+                    showSearch
+                    allowClear
+                    placeholder="e.g. Asia/Kolkata"
+                    optionFilterProp="value"
+                    options={TIME_ZONE_OPTIONS}
+                  />
+                </Form.Item>
+              </Col>
               <Col xs={24} sm={12} md={6}>
                 <Form.Item name="doorsOpenAt" label="Doors open">
                   <DatePicker showTime style={{ width: '100%' }} />

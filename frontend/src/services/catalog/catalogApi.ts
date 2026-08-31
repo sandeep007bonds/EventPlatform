@@ -34,6 +34,8 @@ export interface EventResponse {
   taxLabel: string | null;
   /** Booking fee per ticket in minor units (e.g. 3000 for ₹30); 0 means no fee. */
   bookingFeePerTicketMinor: number;
+  /** The venue's IANA time zone (e.g. "Asia/Kolkata"), or null when not set. */
+  timeZoneId: string | null;
   salesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
@@ -67,6 +69,7 @@ export interface UpdateEventDetailsRequest {
   taxRatePercent?: number | null;
   taxLabel?: string | null;
   bookingFeePerTicketMinor?: number;
+  timeZoneId?: string | null;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -204,6 +207,7 @@ export interface CreateEventRequest {
   taxRatePercent?: number | null;
   taxLabel?: string | null;
   bookingFeePerTicketMinor?: number;
+  timeZoneId?: string | null;
 }
 
 /** Creates a new draft event for the caller's tenant. */

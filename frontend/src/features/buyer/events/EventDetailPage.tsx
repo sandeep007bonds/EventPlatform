@@ -10,6 +10,13 @@ import {
   PhoneOutlined,
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import {
+  eventZoneAbbreviation,
+  formatEventDate,
+  formatEventDateTime,
+  formatEventDateTimeLong,
+  formatEventTime,
+} from '../../../utils/eventTime';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getEvent,
@@ -155,6 +162,9 @@ export function EventDetailPage() {
     event.bookingEndsAt !== null && dayjs(event.bookingEndsAt).isBefore(dayjs());
   const notOnSaleYet = event.onSaleAt !== null && dayjs(event.onSaleAt).isAfter(dayjs());
 
+  // Named only when the event has a zone; without one the times are already in the reader's own.
+  const zoneLabel = eventZoneAbbreviation(event.startsAt, event.timeZoneId);
+
   return (
     <div>
       {event.bannerImageUrl ? (
@@ -206,8 +216,10 @@ export function EventDetailPage() {
               <Space>
                 <CalendarOutlined style={{ color: '#3ea8c4' }} />
                 <Typography.Text>
-                  {dayjs(event.startsAt).format('dddd, MMMM D, YYYY · h:mm A')}
-                  {event.doorsOpenAt && ` · Doors ${dayjs(event.doorsOpenAt).format('h:mm A')}`}
+                  {formatEventDateTimeLong(event.startsAt, event.timeZoneId)}
+                  {event.doorsOpenAt &&
+                    ` · Doors ${formatEventTime(event.doorsOpenAt, event.timeZoneId)}`}
+                  {zoneLabel && ` (${zoneLabel})`}
                 </Typography.Text>
               </Space>
               <Space align="start">
@@ -216,9 +228,9 @@ export function EventDetailPage() {
                   {event.locationName} — {event.addressLine1}, {event.city}
                 </Typography.Text>
               </Space>
-              {notOnSaleYet && (
+              {notOnSaleYet && event.onSaleAt && (
                 <Tag color="blue" style={{ width: 'fit-content' }}>
-                  On sale {dayjs(event.onSaleAt).format('MMMM D, YYYY · h:mm A')}
+                  On sale {formatEventDateTime(event.onSaleAt, event.timeZoneId)}
                 </Tag>
               )}
               {event.salesPaused && (
@@ -235,7 +247,8 @@ export function EventDetailPage() {
                 <Space>
                   <ClockCircleOutlined style={{ color: '#faad14' }} />
                   <Typography.Text type="warning">
-                    Booking closes {dayjs(event.bookingEndsAt).format('MMMM D, YYYY · h:mm A')}
+                    Booking closes{' '}
+                    {formatEventDateTime(event.bookingEndsAt, event.timeZoneId)}
                   </Typography.Text>
                 </Space>
               )}
@@ -364,7 +377,7 @@ export function EventDetailPage() {
                 <Space direction="vertical" size={4}>
                   {otherLegs.map((leg) => (
                     <Link key={leg.id} to={`/events/${leg.id}`}>
-                      {dayjs(leg.startsAt).format('MMM D, YYYY')} — {leg.city}
+                      {formatEventDate(leg.startsAt, leg.timeZoneId)} — {leg.city}
                     </Link>
                   ))}
                 </Space>
@@ -379,7 +392,7 @@ export function EventDetailPage() {
               Get your tickets
             </Typography.Title>
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
-              {dayjs(event.startsAt).format('MMM D, YYYY')} · {event.currency}
+              {formatEventDate(event.startsAt, event.timeZoneId)} · {event.currency}
             </Typography.Text>
             {seatMap ? (
               <Button

@@ -17,6 +17,7 @@ namespace Catalog.Application.Features.UpdateEventDetails;
 /// <param name="TaxRatePercent">Sales-tax rate as a percentage (e.g. 18 for 18% GST); <see langword="null"/> means untaxed.</param>
 /// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 /// <param name="BookingFeePerTicketMinor">Booking fee per ticket in minor currency units (e.g. 3000 for ₹30); 0 means no fee.</param>
+/// <param name="TimeZoneId">The venue's IANA time zone (e.g. "Asia/Kolkata"); null when not set.</param>
 /// <param name="AgeRestriction">Free-text age restriction.</param>
 /// <param name="BannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
 /// <param name="VideoUrl">Video embed URL.</param>
@@ -39,6 +40,7 @@ public sealed record UpdateEventDetailsCommand(
     decimal? TaxRatePercent,
     string? TaxLabel,
     long BookingFeePerTicketMinor,
+    string? TimeZoneId,
     string? AgeRestriction,
     string? BannerImageUrl,
     string? VideoUrl,

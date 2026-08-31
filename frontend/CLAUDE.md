@@ -174,6 +174,16 @@ src/
   post-purchase breakdowns can't drift apart. Amounts cross the wire in minor
   units; `utils/money.ts` has `toMinor`/`toMajor` for the admin forms that let
   an organizer type a fee in major units.
+- **Event times render in the venue's zone, not the reader's.** `utils/eventTime.ts`
+  (`formatEventDateTime`/`formatEventDate`/`formatEventTime`/`eventZoneAbbreviation`)
+  wraps `Intl.DateTimeFormat` with the event's `timeZoneId`; the browser's own
+  tz database does the work, so there is no dependency and no dayjs timezone
+  plugin to keep in step. Use these for anything that is an **event** time —
+  starts/ends/doors/on-sale/booking-close. Do **not** use them for order or
+  check-in timestamps: "when did I place this order" is correctly the reader's
+  own zone. `dayjs` is still right for comparisons (`isBefore`/`isAfter`),
+  which are zone-independent. An event with no `timeZoneId` falls back to the
+  reader's zone, which is exactly the old behaviour.
 - **`GET /v1/events?mine=true` vs the plain public list.** The buyer events
   list and the admin events list call the _same_ Catalog endpoint with
   different query params — `mine=true` switches from "everyone's non-draft

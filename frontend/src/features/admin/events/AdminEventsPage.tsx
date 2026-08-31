@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Input, Select, Table, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { formatEventDateTime } from '../../../utils/eventTime';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   getEventGroup,
@@ -197,7 +198,8 @@ export function AdminEventsPage() {
                 dataIndex: 'startsAt',
                 sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
                 defaultSortOrder: 'ascend',
-                render: (startsAt: string) => dayjs(startsAt).format('MMM D, YYYY · h:mm A'),
+                render: (_: string, row: EventResponse) =>
+                  formatEventDateTime(row.startsAt, row.timeZoneId),
               },
             ]}
           />
