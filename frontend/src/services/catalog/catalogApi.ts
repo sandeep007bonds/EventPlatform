@@ -437,3 +437,76 @@ export async function createPromoCode(
 export async function deactivatePromoCode(eventId: string, id: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/promo-codes/${id}/deactivate`);
 }
+
+/** A named, priced kind of ticket for an event. Seat-map sections are sold as one of these. */
+export interface TicketTypeResponse {
+  id: string;
+  name: string;
+  /** Price per ticket in minor currency units — divide by 100 for display. */
+  priceMinor: number;
+  description: string | null;
+  /** Narrows the event's own on-sale window for this type only. */
+  salesStartsAt: string | null;
+  salesEndsAt: string | null;
+  /** Cap for this type, on top of the event's overall per-buyer limit. */
+  maxPerBuyer: number | null;
+  sortOrder: number;
+  isActive: boolean;
+}
+
+/** Body for creating a ticket type. */
+export interface CreateTicketTypeRequest {
+  name: string;
+  priceMinor: number;
+  description?: string | null;
+  salesStartsAt?: string | null;
+  salesEndsAt?: string | null;
+  maxPerBuyer?: number | null;
+  sortOrder?: number;
+}
+
+/**
+ * Body for updating a ticket type.
+ *
+ * `priceMinor` is rejected with a 409 once the event is published: Inventory holds its own copy of
+ * the price from provisioning time, so a change here would move the displayed price without moving
+ * the charged one. Send the unchanged value on a published event.
+ */
+export type UpdateTicketTypeRequest = Required<
+  Pick<CreateTicketTypeRequest, 'name' | 'priceMinor' | 'sortOrder'>
+> &
+  Pick<CreateTicketTypeRequest, 'description' | 'salesStartsAt' | 'salesEndsAt' | 'maxPerBuyer'>;
+
+/** Lists an event's ticket types, active or not — the organizer's view. */
+export async function listTicketTypes(eventId: string): Promise<TicketTypeResponse[]> {
+  const response = await httpClient.get<TicketTypeResponse[]>(
+    `/api/catalog/v1/events/${eventId}/ticket-types`,
+  );
+  return response.data;
+}
+
+/** Creates a ticket type. Allowed after publish, unlike the seat-map endpoints. */
+export async function createTicketType(
+  eventId: string,
+  request: CreateTicketTypeRequest,
+): Promise<{ id: string }> {
+  const response = await httpClient.post<{ id: string }>(
+    `/api/catalog/v1/events/${eventId}/ticket-types`,
+    request,
+  );
+  return response.data;
+}
+
+/** Updates a ticket type. See {@link UpdateTicketTypeRequest} on repricing after publish. */
+export async function updateTicketType(
+  eventId: string,
+  id: string,
+  request: UpdateTicketTypeRequest,
+): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/events/${eventId}/ticket-types/${id}`, request);
+}
+
+/** Retires a ticket type. Never deleted — seats and orders reference it by id. */
+export async function deactivateTicketType(eventId: string, id: string): Promise<void> {
+  await httpClient.post(`/api/catalog/v1/events/${eventId}/ticket-types/${id}/deactivate`);
+}

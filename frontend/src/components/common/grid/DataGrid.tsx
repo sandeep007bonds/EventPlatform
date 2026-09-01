@@ -66,7 +66,11 @@ export function DataGrid<T extends object>({
       return rows;
     }
     return rows.filter((row) =>
-      searchable.some((column) => String(cellValue(column, row) ?? '').toLowerCase().includes(term)),
+      searchable.some((column) =>
+        String(cellValue(column, row) ?? '')
+          .toLowerCase()
+          .includes(term),
+      ),
     );
   }, [rows, search, searchable]);
 

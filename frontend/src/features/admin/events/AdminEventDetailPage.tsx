@@ -57,6 +57,7 @@ import { TourLegsList } from '../eventGroups/TourLegsList';
 import { EntryGatesPanel } from './EntryGatesPanel';
 import { QueueSettingsPanel } from './QueueSettingsPanel';
 import { PromoCodesPanel } from '../promoCodes/PromoCodesPanel';
+import { TicketTypesPanel } from '../ticketTypes/TicketTypesPanel';
 import { SeatMapSectionsFields } from './SeatMapSectionsFields';
 import { DEFAULT_SEAT_MAP_SECTION } from './seatMapSectionDefaults';
 
@@ -883,6 +884,14 @@ export function AdminEventDetailPage() {
             </Space>
           </Form>
         </Card>
+      )}
+
+      {id && (
+        <TicketTypesPanel
+          eventId={id}
+          currency={event.currency}
+          isDraft={event.status === 'Draft'}
+        />
       )}
 
       {id && (

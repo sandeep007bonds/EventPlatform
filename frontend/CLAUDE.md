@@ -174,6 +174,17 @@ src/
   post-purchase breakdowns can't drift apart. Amounts cross the wire in minor
   units; `utils/money.ts` has `toMinor`/`toMajor` for the admin forms that let
   an organizer type a fee in major units.
+- **`TicketTypesPanel` mirrors `PromoCodesPanel`, with two deliberate differences.**
+  Ticket types **are** editable (an Edit action opening a `Modal`), because
+  renaming a tier or correcting a price is ordinary work — whereas an
+  advertised promo code must not silently change value, which is why that
+  panel has no edit at all. And **the price field disables once the event is
+  published**: the server refuses a reprice with a 409, and saying why up
+  front beats letting someone type a number and then rejecting it. The 409 is
+  still handled, since this component's idea of the event status can be stale
+  if someone published in another tab — the server stays the authority.
+  Prices are typed in major units and converted with `toMinor`/`toMajor`; the
+  API speaks minor units throughout.
 - **Admin tables go through `DataGrid`** (`components/common/grid/`), not
   `Table` directly. It wraps Ant's `Table` — sorting and column filters are
   still Ant's own — and adds a free-text search across columns marked

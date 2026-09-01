@@ -247,8 +247,7 @@ export function EventDetailPage() {
                 <Space>
                   <ClockCircleOutlined style={{ color: '#faad14' }} />
                   <Typography.Text type="warning">
-                    Booking closes{' '}
-                    {formatEventDateTime(event.bookingEndsAt, event.timeZoneId)}
+                    Booking closes {formatEventDateTime(event.bookingEndsAt, event.timeZoneId)}
                   </Typography.Text>
                 </Space>
               )}
