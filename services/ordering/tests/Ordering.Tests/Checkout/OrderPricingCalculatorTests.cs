@@ -14,7 +14,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("VIP", 5000), Line("GA", 2500)],
             terms: null,
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.SubtotalMinor.ShouldBe(7500);
         pricing.DiscountMinor.ShouldBe(0);
@@ -28,7 +29,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("VIP", 5000), Line("GA", 2500)],
             Percentage(10m),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(750);
         pricing.TotalMinor.ShouldBe(6750);
@@ -40,7 +42,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("VIP", 5000), Line("GA", 2500)],
             Percentage(10m, "VIP"),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         // 10% of the VIP line only — the GA line is untouched.
         pricing.DiscountMinor.ShouldBe(500);
@@ -54,7 +57,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("VIP", 5000)],
             Percentage(10m, "vip"),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(500);
     }
@@ -65,7 +69,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("GA", 2500)],
             Percentage(10m, "VIP"),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(0);
         pricing.TotalMinor.ShouldBe(2500);
@@ -77,7 +82,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("GA", 5000)],
             Fixed(12.50m),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(1250);
         pricing.TotalMinor.ShouldBe(3750);
@@ -89,7 +95,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("VIP", 1000), Line("GA", 9000)],
             Fixed(500m, "VIP"),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         // The code is worth far more than the one line it applies to; it can only take that line
         // to zero, not eat into the ineligible one.
@@ -103,7 +110,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("GA", 10000)],
             Percentage(50m),
-            taxRatePercent: 18m, bookingFeePerTicketMinor: 0);
+            taxRatePercent: 18m,
+            bookingFeePerTicketMinor: 0);
 
         pricing.SubtotalMinor.ShouldBe(10000);
         pricing.DiscountMinor.ShouldBe(5000);
@@ -133,7 +141,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("GA", 333)],
             Percentage(50m),
-            taxRatePercent: null, bookingFeePerTicketMinor: 0);
+            taxRatePercent: null,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(167);
         pricing.TotalMinor.ShouldBe(166);
@@ -158,7 +167,8 @@ public sealed class OrderPricingCalculatorTests
         var pricing = OrderPricingCalculator.Calculate(
             [Line("GA", 4000)],
             Percentage(100m),
-            taxRatePercent: 18m, bookingFeePerTicketMinor: 0);
+            taxRatePercent: 18m,
+            bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(4000);
         pricing.TaxMinor.ShouldBe(0);

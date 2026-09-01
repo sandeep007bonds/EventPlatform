@@ -71,8 +71,8 @@ public sealed class EventTests
         Should.Throw<ArgumentException>(() => UpdatePresentation(@event, title: "   "));
     }
 
-    // The slug is a published URL as soon as the event is. Renaming a live event is allowed above;
-    // moving the link people were given is not.
+    // A slug turns into a published URL the moment the event goes live. Renaming a live event is
+    // fine, as the test above shows, but moving the link people were already given is not.
     [Fact]
     public void ASlug_CanBeChangedWhileDraftAndNotAfterPublish()
     {

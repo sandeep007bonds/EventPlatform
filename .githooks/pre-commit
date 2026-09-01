@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Runs the checks that need no toolchain, against what is actually being committed.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# Skip a single commit with `git commit --no-verify` when you genuinely need to —
+# a WIP commit on a branch nobody builds, say. Do not make a habit of it: every
+# rule here is a hard build error, so skipping only moves the failure later.
+set -uo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root" || exit 1
+
+status=0
+
+staged_cs=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cs|csproj)$' || true)
+staged_fe=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.(ts|tsx)$' || true)
+
+if [ -n "$staged_cs" ]; then
+  echo "==> C# style"
+  python3 scripts/check-csharp-style.py --staged || status=1
+
+  # Endpoint authorization is a whole-tree question — a route's decision can be
+  # removed by editing a file that is not itself staged.
+  echo "==> Endpoint authorization"
+  python3 scripts/check-endpoint-auth.py || status=1
+fi
+
+if [ -n "$staged_fe" ] && [ -d frontend/node_modules ]; then
+  # Prettier only. Typecheck and lint are too slow for a commit hook, and CI runs
+  # them — but formatting has slipped into main before precisely because nothing
+  # local checked it.
+  echo "==> Frontend formatting"
+  (cd frontend && npx prettier --check $(echo "$staged_fe" | sed 's|^frontend/||' | tr '\n' ' ')) || status=1
+fi
+
+if [ "$status" -ne 0 ]; then
+  echo
+  echo "Commit refused. Fix the above, or re-run with --no-verify if you know why you are skipping."
+fi
+
+exit "$status"

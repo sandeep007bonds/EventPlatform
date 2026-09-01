@@ -30,6 +30,14 @@ jobs:
       - name: Check endpoint authorization
         run: python3 scripts/check-endpoint-auth.py
 
+      # Also before the build, and for the same reason: no toolchain needed. This one is not
+      # answering a question the compiler cannot — it is answering the same questions *faster*.
+      # `dotnet build` stops at the first failing project, so a run surfaces one project's errors
+      # at a time; this checks every file at once. Only rules calibrated to zero false positives
+      # on the tree live here (see the script's docstring).
+      - name: Check C# style
+        run: python3 scripts/check-csharp-style.py
+
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
         with:

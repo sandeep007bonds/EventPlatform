@@ -93,6 +93,27 @@ dotnet test             # unit + integration (Testcontainers)
 dotnet format --verify-no-changes   # style check
 ```
 
+### Check before you build
+
+```bash
+python3 scripts/check-csharp-style.py     # analyzer errors, whole tree, no toolchain
+python3 scripts/check-endpoint-auth.py    # every endpoint has an explicit auth decision
+git config core.hooksPath .githooks       # once per clone: run both on commit
+```
+
+`dotnet build` is still the authority, but it is the *slow* one: it stops at the
+first failing project, so one run surfaces one project's errors and the next run
+surfaces the next project's. `check-csharp-style.py` checks all 719 files in under
+a second and front-loads the rules that keep breaking the build — SA1117, S125,
+SA1506, the `<param>` rules, and record arity.
+
+**Its rules are calibrated, and new ones must be too.** The bar is zero findings on
+a tree that compiles: a rule that fires on passing code is a wrong rule, not a
+finding, and a checker that cries wolf gets ignored. Rules needing real semantic
+analysis (SA1204/SA1201 ordering, nullability, the CA performance rules) are
+deliberately absent rather than approximated — the script's docstring says so, and
+that list should stay honest.
+
 ## Repo layout
 
 ```
