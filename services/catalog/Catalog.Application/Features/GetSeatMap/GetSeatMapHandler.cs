@@ -63,9 +63,12 @@ internal sealed class GetSeatMapHandler(
         return new SeatMapResponse(seatMap.EventId, seatMap.Name, seatMap.Capacity, seats, gaSections);
     }
 
-    private static string NameOf(IReadOnlyDictionary<Guid, TicketType> types, Guid ticketTypeId, string fallback) =>
+    // Concrete Dictionary rather than IReadOnlyDictionary (CA1859): these are private helpers with
+    // one caller that builds the dictionary itself, so the interface buys no flexibility and costs
+    // an interface dispatch per seat — on a map with tens of thousands of them.
+    private static string NameOf(Dictionary<Guid, TicketType> types, Guid ticketTypeId, string fallback) =>
         types.TryGetValue(ticketTypeId, out var type) ? type.Name : fallback;
 
-    private static decimal PriceOf(IReadOnlyDictionary<Guid, TicketType> types, Guid ticketTypeId, decimal fallback) =>
+    private static decimal PriceOf(Dictionary<Guid, TicketType> types, Guid ticketTypeId, decimal fallback) =>
         types.TryGetValue(ticketTypeId, out var type) ? type.PriceMinor / MinorUnitsPerMajor : fallback;
 }

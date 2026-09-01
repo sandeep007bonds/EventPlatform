@@ -258,7 +258,7 @@ public sealed class CheckoutWorkflowTests
 
     private static void StubCurrency(WorkflowContext context) =>
         context.CallActivityAsync<EventPricing>(nameof(FetchEventPricingActivity), Arg.Any<object?>())
-            .Returns(new EventPricing("INR", null, null));
+            .Returns(new EventPricing("INR", null, null, 0));
 
     private static void StubCreateOrder(WorkflowContext context, bool alreadyExisted) =>
         context.CallActivityAsync<CreateOrderOutput>(nameof(CreateOrderActivity), Arg.Any<object?>())

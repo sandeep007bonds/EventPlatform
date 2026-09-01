@@ -6,10 +6,10 @@ namespace Ordering.Workflow;
 /// depend on it (Stripe only offers UPI on INR charges).
 /// </summary>
 /// <remarks>
-/// Falls back to <see cref="CheckoutOptions.DefaultCurrency"/> and no tax when Catalog can't be
-/// read, so an unreachable Catalog degrades rather than failing the checkout outright. Charging
-/// *no* tax on a fallback is the conservative direction: under-collecting is a reconcilable
-/// accounting problem, while over-charging a buyer who never agreed to it is not.
+/// Falls back to <see cref="CheckoutOptions.DefaultCurrency"/>, no tax and no booking fee when
+/// Catalog can't be read, so an unreachable Catalog degrades rather than failing the checkout
+/// outright. Charging *neither* on a fallback is the conservative direction: under-collecting is a
+/// reconcilable accounting problem, while over-charging a buyer who never agreed to it is not.
 /// </remarks>
 /// <param name="catalog">The Catalog client.</param>
 /// <param name="options">Checkout options (the fallback currency).</param>
@@ -22,7 +22,7 @@ public sealed class FetchEventPricingActivity(ICatalogEventClient catalog, Check
         var pricing = await catalog.GetEventPricingAsync(catalogEventId, CancellationToken.None);
 
         return pricing is null || string.IsNullOrWhiteSpace(pricing.Currency)
-            ? new EventPricing(options.DefaultCurrency, null, null)
+            ? new EventPricing(options.DefaultCurrency, null, null, 0)
             : pricing;
     }
 }

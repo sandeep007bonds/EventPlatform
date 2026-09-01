@@ -164,7 +164,7 @@ public static class OrderingEndpoints
             .ToList();
 
         var pricing = await catalog.GetEventPricingAsync(hold.CatalogEventId, cancellationToken)
-                      ?? new EventPricing(options.DefaultCurrency, null, null);
+                      ?? new EventPricing(options.DefaultCurrency, null, null, 0);
 
         PromoCodeTerms? terms = null;
         string? appliedCode = null;
