@@ -23,9 +23,9 @@ internal sealed class PolicyHtmlSanitizer : IHtmlSanitizer
 
     private static GanssHtmlSanitizer BuildSanitizer()
     {
-        var sanitizer = new GanssHtmlSanitizer();
+        var built = new GanssHtmlSanitizer();
 
-        sanitizer.AllowedTags.Clear();
+        built.AllowedTags.Clear();
         foreach (var tag in new[]
         {
             "p", "br", "hr", "strong", "b", "em", "i", "u", "s", "sub", "sup",
@@ -35,23 +35,23 @@ internal sealed class PolicyHtmlSanitizer : IHtmlSanitizer
             "a", "span", "div",
         })
         {
-            sanitizer.AllowedTags.Add(tag);
+            built.AllowedTags.Add(tag);
         }
 
-        sanitizer.AllowedAttributes.Clear();
-        sanitizer.AllowedAttributes.Add("href");
-        sanitizer.AllowedAttributes.Add("title");
-        sanitizer.AllowedAttributes.Add("colspan");
-        sanitizer.AllowedAttributes.Add("rowspan");
+        built.AllowedAttributes.Clear();
+        built.AllowedAttributes.Add("href");
+        built.AllowedAttributes.Add("title");
+        built.AllowedAttributes.Add("colspan");
+        built.AllowedAttributes.Add("rowspan");
 
-        sanitizer.AllowedSchemes.Clear();
-        sanitizer.AllowedSchemes.Add("http");
-        sanitizer.AllowedSchemes.Add("https");
-        sanitizer.AllowedSchemes.Add("mailto");
+        built.AllowedSchemes.Clear();
+        built.AllowedSchemes.Add("http");
+        built.AllowedSchemes.Add("https");
+        built.AllowedSchemes.Add("mailto");
 
-        sanitizer.AllowedCssProperties.Clear();
-        sanitizer.AllowDataAttributes = false;
+        built.AllowedCssProperties.Clear();
+        built.AllowDataAttributes = false;
 
-        return sanitizer;
+        return built;
     }
 }
