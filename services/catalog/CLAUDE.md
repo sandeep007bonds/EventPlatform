@@ -194,8 +194,12 @@ and the validation pipeline is part of what the endpoint actually invokes.
 
 ## Migrations
 
-`events.Slug` is `NOT NULL UNIQUE` on a table that already has rows, so the generated migration
-will not apply as written. Backfill between the `AddColumn` and the `CreateIndex`:
+**On an empty database there is nothing special to do** — generate the migration and apply it. The
+note below is only for a database that already holds events.
+
+`events.Slug` is `NOT NULL UNIQUE`, so against a populated table the generated migration will not
+apply as written: every existing row would get the same empty default and collide on the index.
+Backfill between the `AddColumn` and the `CreateIndex`:
 
 ```sql
 UPDATE catalog.events SET "Slug" = 'e-' || replace("Id"::text, '-', '') WHERE "Slug" = '';
