@@ -67,7 +67,6 @@ public sealed class GeneralAdmissionSection
     /// immediately instead of leaving stale copies here. Dropped once Ordering and promo codes
     /// scope off the id.
     /// </remarks>
-
     public decimal PriceAmount { get; private set; }
 
     /// <summary>Total number of admissions sellable in this section.</summary>

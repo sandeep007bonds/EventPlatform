@@ -35,6 +35,12 @@ public interface IPaymentClient
     /// <summary>Refunds a charge (compensation).</summary>
     /// <param name="orderId">The order to refund.</param>
     /// <param name="idempotencyKey">Idempotency key for the refund.</param>
+    /// <param name="amountMinor">
+    /// How much to return, in minor units, or <see langword="null"/> for the whole captured amount.
+    /// Ordering supplies it because only Ordering knows which part of the total was a
+    /// non-refundable booking fee and the tax charged on that fee (ADR-0034) — Payments holds the
+    /// captured total and nothing that would let it work the split out.
+    /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the refund is requested.</returns>
     Task RefundAsync(Guid orderId, string idempotencyKey, long? amountMinor, CancellationToken cancellationToken);

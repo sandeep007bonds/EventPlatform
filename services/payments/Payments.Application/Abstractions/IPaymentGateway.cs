@@ -56,6 +56,11 @@ public interface IPaymentGateway
 
     /// <summary>Refunds a captured charge.</summary>
     /// <param name="providerReference">The provider reference to refund.</param>
+    /// <param name="amountMinor">
+    /// How much to return, in minor units. Always a concrete amount by the time it reaches the
+    /// gateway: the caller has already resolved "refund everything" against the captured total and
+    /// clamped it, so a partial refund and a full one take the same path here.
+    /// </param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when the refund is requested.</returns>
     Task RefundAsync(string providerReference, long amountMinor, CancellationToken cancellationToken);
