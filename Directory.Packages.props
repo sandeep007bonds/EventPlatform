@@ -87,8 +87,11 @@
       MIT-licensed. Whitelist-based: it parses with AngleSharp and keeps only known-safe tags and
       attributes, rather than pattern-matching for known-bad ones — which is the difference between
       a sanitiser and a filter someone will get past.
+
+      Do not drop below 9.2: 9.0.886 carries GHSA-j92c-7v7g-gj3f (moderate), which NU1902 turns
+      into a build error here. Ironic in a sanitiser and exactly why the version is pinned centrally.
     -->
-    <PackageVersion Include="HtmlSanitizer" Version="9.0.886" />
+    <PackageVersion Include="HtmlSanitizer" Version="9.2.1039" />
   </ItemGroup>
 
   <ItemGroup Label="Ticketing (QR code generation)">
