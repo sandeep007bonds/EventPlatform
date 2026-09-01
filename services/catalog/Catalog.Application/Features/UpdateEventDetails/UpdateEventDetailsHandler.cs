@@ -1,8 +1,8 @@
 namespace Catalog.Application.Features.UpdateEventDetails;
 
 /// <summary>
-/// Handles <see cref="UpdateEventDetailsCommand"/> by setting a draft event's descriptive
-/// details and enqueuing an <see cref="EventUpdated"/> integration event in the same unit of
+/// Handles <see cref="UpdateEventDetailsCommand"/> by setting a draft event's dates, venue and
+/// pricing rules and enqueuing an <see cref="EventUpdated"/> integration event in the same unit of
 /// work — reusing <c>PublishEvent</c>'s existing outbox pattern.
 /// </summary>
 /// <param name="repository">The event repository.</param>
@@ -28,7 +28,7 @@ internal sealed class UpdateEventDetailsHandler(
             return UpdateEventDetailsOutcome.NotDraft;
         }
 
-        if (request.BookingEndsAt is not null && request.BookingEndsAt > @event.StartsAt)
+        if (request.BookingEndsAt is not null && request.BookingEndsAt > request.StartsAt)
         {
             return UpdateEventDetailsOutcome.BookingCutoffAfterStart;
         }
@@ -38,7 +38,10 @@ internal sealed class UpdateEventDetailsHandler(
             var group = await eventGroupRepository.GetByIdAsync(eventGroupId, cancellationToken);
             if (group is not null)
             {
-                if ((group.StartsAt is not null && @event.StartsAt < group.StartsAt)
+                // Checked against the *incoming* dates, not the stored ones: the start time is now
+                // editable here, so validating the persisted value would let an edit walk a leg
+                // straight out of its tour's advertised range.
+                if ((group.StartsAt is not null && request.StartsAt < group.StartsAt)
                     || (group.EndsAt is not null && request.EndsAt > group.EndsAt))
                 {
                     return UpdateEventDetailsOutcome.OutsideEventGroupRange;
@@ -46,7 +49,7 @@ internal sealed class UpdateEventDetailsHandler(
 
                 var siblingLegs = await repository.ListLegsForEventGroupAsync(eventGroupId, cancellationToken);
                 var overlaps = siblingLegs.Any(leg =>
-                    leg.Id != @event.Id && leg.StartsAt < request.EndsAt && @event.StartsAt < leg.EndsAt);
+                    leg.Id != @event.Id && leg.StartsAt < request.EndsAt && request.StartsAt < leg.EndsAt);
                 if (overlaps)
                 {
                     return UpdateEventDetailsOutcome.OverlapsExistingLeg;
@@ -54,27 +57,28 @@ internal sealed class UpdateEventDetailsHandler(
             }
         }
 
-        @event.UpdateDetails(
-            request.Description,
-            request.Category,
+        @event.UpdateSchedule(
+            request.StartsAt,
             request.EndsAt,
             request.DoorsOpenAt,
             request.OnSaleAt,
             request.BookingEndsAt,
+            new EventLocation(
+                request.LocationName,
+                request.AddressLine1,
+                request.AddressLine2,
+                request.City,
+                request.Region,
+                request.PostalCode,
+                request.Country,
+                request.Latitude,
+                request.Longitude),
             request.MaxTicketsPerBuyer,
             request.RequiresQueue,
             request.TaxRatePercent,
             request.TaxLabel,
             request.BookingFeePerTicketMinor,
-            request.TimeZoneId,
-            request.AgeRestriction,
-            request.BannerImageUrl,
-            request.VideoUrl,
-            request.ContactPhone,
-            request.ContactMobile,
-            request.ContactEmail,
-            request.WebsiteUrl,
-            request.SocialLinks.Select(link => (link.Platform, link.Url)));
+            request.TimeZoneId);
 
         events.Enqueue(new EventUpdated(
             Guid.CreateVersion7(),

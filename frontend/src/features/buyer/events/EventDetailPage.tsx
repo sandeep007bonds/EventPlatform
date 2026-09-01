@@ -20,6 +20,7 @@ import {
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   getEvent,
+  getEventBySlug,
   getEventGroup,
   getSeatMap,
   listEvents,
@@ -34,8 +35,15 @@ import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPa
 import { eventStatusColor } from '../../../utils/eventStatus';
 import { toEmbedUrl } from '../../../utils/videoEmbed';
 import { toast } from '../../../components/common/feedback/toast';
+import { EventPoliciesSection } from './EventPoliciesSection';
 
-/** Public event detail page — no login required to view (see ADR-0015). */
+/**
+ * Public event detail page — no login required to view (see ADR-0015).
+ *
+ * The route param is either the event's GUID or its slug. Both resolve to the same page: links
+ * issued before slugs existed keep working, and everything the platform hands out from now on is
+ * the readable one.
+ */
 export function EventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -56,12 +64,15 @@ export function EventDetailPage() {
 
     let cancelled = false;
 
-    Promise.all([
-      getEvent(id),
-      getSeatMap(id).catch(() => null),
-      getInventoryCount(id).catch(() => null),
-    ])
-      .then(([eventResult, seatMapResult, inventoryResult]) => {
+    // The event resolves first, then everything keyed on its id — a slug in the URL means the id is
+    // not known until the first call returns, so these cannot all start together.
+    (isGuid(id) ? getEvent(id) : getEventBySlug(id))
+      .then(async (eventResult) => {
+        const [seatMapResult, inventoryResult] = await Promise.all([
+          getSeatMap(eventResult.id).catch(() => null),
+          getInventoryCount(eventResult.id).catch(() => null),
+        ]);
+
         if (cancelled) {
           return;
         }
@@ -120,23 +131,26 @@ export function EventDetailPage() {
   const handleSelectSeats = () => {
     // No login gate here — a buyer picks seats freely and only verifies via OTP when they
     // actually hold them (see SeatSelectionPage.tsx's handleHold, ADR-0016).
+    if (!event) {
+      return;
+    }
     if (!seatMap) {
       toast.error('This event has no seat map yet.');
       return;
     }
-    if (event?.onSaleAt && dayjs(event.onSaleAt).isAfter(dayjs())) {
+    if (event.onSaleAt && dayjs(event.onSaleAt).isAfter(dayjs())) {
       toast.error('Tickets are not on sale yet for this event.');
       return;
     }
-    if (event?.salesPaused) {
+    if (event.salesPaused) {
       toast.error('Sales are currently paused for this event.');
       return;
     }
-    if (event?.requiresQueue) {
-      void navigate(`/events/${id}/queue`);
+    if (event.requiresQueue) {
+      void navigate(`/events/${event.id}/queue`);
       return;
     }
-    void navigate(`/events/${id}/seats`);
+    void navigate(`/events/${event.id}/seats`);
   };
 
   if (loading) {
@@ -375,13 +389,15 @@ export function EventDetailPage() {
                 </Typography.Title>
                 <Space direction="vertical" size={4}>
                   {otherLegs.map((leg) => (
-                    <Link key={leg.id} to={`/events/${leg.id}`}>
+                    <Link key={leg.id} to={`/events/${leg.slug}`}>
                       {formatEventDate(leg.startsAt, leg.timeZoneId)} — {leg.city}
                     </Link>
                   ))}
                 </Space>
               </>
             )}
+
+            <EventPoliciesSection eventId={event.id} />
           </Card>
         </Col>
 
@@ -419,4 +435,14 @@ export function EventDetailPage() {
       </Link>
     </div>
   );
+}
+
+/**
+ * Whether the route param is an event id rather than a slug.
+ *
+ * A slug can never look like this: `EventSlug` refuses anything with two adjacent hyphens, which is
+ * every GUID in this shape. So the check is unambiguous in both directions, not just a heuristic.
+ */
+function isGuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

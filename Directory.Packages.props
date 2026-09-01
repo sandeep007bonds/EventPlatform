@@ -82,6 +82,15 @@
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.29.1" />
   </ItemGroup>
 
+  <ItemGroup Label="Catalog (HTML sanitising for organizer-authored policy documents)">
+    <!--
+      MIT-licensed. Whitelist-based: it parses with AngleSharp and keeps only known-safe tags and
+      attributes, rather than pattern-matching for known-bad ones — which is the difference between
+      a sanitiser and a filter someone will get past.
+    -->
+    <PackageVersion Include="HtmlSanitizer" Version="9.0.886" />
+  </ItemGroup>
+
   <ItemGroup Label="Ticketing (QR code generation)">
     <!-- MIT-licensed, pure-managed, no native/WASM dependency. -->
     <PackageVersion Include="QRCoder" Version="1.8.0" />

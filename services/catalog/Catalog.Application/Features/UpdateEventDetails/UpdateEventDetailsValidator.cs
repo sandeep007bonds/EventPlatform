@@ -7,15 +7,25 @@ public sealed class UpdateEventDetailsValidator : AbstractValidator<UpdateEventD
     public UpdateEventDetailsValidator()
     {
         RuleFor(command => command.Id).NotEmpty();
-        RuleFor(command => command.Description).MaximumLength(4000);
-        RuleFor(command => command.Category).MaximumLength(100);
-        RuleFor(command => command.AgeRestriction).MaximumLength(50);
-        RuleFor(command => command.BannerImageUrl).MaximumLength(2000);
-        RuleFor(command => command.VideoUrl).MaximumLength(2000);
+
+        RuleFor(command => command.EndsAt)
+            .GreaterThan(command => command.StartsAt)
+            .WithMessage("EndsAt must be after StartsAt.");
+
         RuleFor(command => command.BookingEndsAt)
             .GreaterThan(command => command.OnSaleAt)
             .When(command => command.OnSaleAt is not null && command.BookingEndsAt is not null)
             .WithMessage("BookingEndsAt must be after OnSaleAt.");
+
+        RuleFor(command => command.LocationName).NotEmpty().MaximumLength(200);
+        RuleFor(command => command.AddressLine1).NotEmpty().MaximumLength(200);
+        RuleFor(command => command.AddressLine2).MaximumLength(200);
+        RuleFor(command => command.City).NotEmpty().MaximumLength(100);
+        RuleFor(command => command.Region).MaximumLength(100);
+        RuleFor(command => command.PostalCode).MaximumLength(20);
+        RuleFor(command => command.Country).NotEmpty().Length(2);
+        RuleFor(command => command.Latitude).InclusiveBetween(-90, 90).When(command => command.Latitude is not null);
+        RuleFor(command => command.Longitude).InclusiveBetween(-180, 180).When(command => command.Longitude is not null);
 
         RuleFor(command => command.MaxTicketsPerBuyer)
             .GreaterThan(0)
@@ -31,18 +41,6 @@ public sealed class UpdateEventDetailsValidator : AbstractValidator<UpdateEventD
             .Must(BeAKnownTimeZone)
             .When(c => !string.IsNullOrWhiteSpace(c.TimeZoneId))
             .WithMessage("'{PropertyName}' must be a known IANA time zone, e.g. 'Asia/Kolkata'.");
-
-        RuleFor(command => command.ContactPhone).MaximumLength(30);
-        RuleFor(command => command.ContactMobile).MaximumLength(30);
-        RuleFor(command => command.ContactEmail).MaximumLength(200).EmailAddress()
-            .When(command => !string.IsNullOrWhiteSpace(command.ContactEmail));
-        RuleFor(command => command.WebsiteUrl).MaximumLength(2000);
-
-        RuleForEach(command => command.SocialLinks).ChildRules(link =>
-        {
-            link.RuleFor(l => l.Platform).NotEmpty().MaximumLength(50);
-            link.RuleFor(l => l.Url).NotEmpty().MaximumLength(2000);
-        });
     }
 
     // Checked here rather than in the domain: resolving an id depends on the host's time-zone

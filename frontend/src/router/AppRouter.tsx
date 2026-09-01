@@ -16,6 +16,7 @@ import { MyOrdersPage } from '../features/buyer/orders/MyOrdersPage';
 import { AdminEventsPage } from '../features/admin/events/AdminEventsPage';
 import { CreateEventPage } from '../features/admin/events/CreateEventPage';
 import { AdminEventDetailPage } from '../features/admin/events/AdminEventDetailPage';
+import { OrganizerPoliciesPage } from '../features/admin/policies/OrganizerPoliciesPage';
 import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
 import { EventGroupsPage } from '../features/admin/eventGroups/EventGroupsPage';
 import { CreateEventGroupPage } from '../features/admin/eventGroups/CreateEventGroupPage';
@@ -104,6 +105,7 @@ export function AppRouter() {
         <Route path="tours/:id" element={<TourDetailPage />} />
         <Route path="orders" element={<AdminOrdersPage />} />
         <Route path="scan" element={<ScanTicketPage />} />
+        <Route path="policies" element={<OrganizerPoliciesPage />} />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

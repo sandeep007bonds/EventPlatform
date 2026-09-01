@@ -16,6 +16,8 @@ export type SocialLinkInput = SocialLinkResponse;
 export interface EventResponse {
   id: string;
   title: string;
+  /** URL-safe public identifier — the `/events/{slug}` a buyer sees instead of a GUID. */
+  slug: string;
   startsAt: string;
   status: EventStatus;
   currency: string;
@@ -56,20 +58,41 @@ export interface EventResponse {
   socialLinks: SocialLinkResponse[];
 }
 
-/** Fields settable via {@link updateEventDetails} — Draft-only. `endsAt` is required. */
+/**
+ * Fields settable via {@link updateEventDetails} — Draft-only (409 otherwise).
+ *
+ * Everything here changes what a ticket holder bought, which is why it locks at publish. Title,
+ * description, imagery and contact details are not here; they go through
+ * {@link updateEventPresentation}, which works at any status.
+ */
 export interface UpdateEventDetailsRequest {
-  description?: string | null;
-  category?: string | null;
+  startsAt: string;
   endsAt: string;
   doorsOpenAt?: string | null;
   onSaleAt?: string | null;
   bookingEndsAt?: string | null;
+  locationName: string;
+  addressLine1: string;
+  addressLine2?: string | null;
+  city: string;
+  region?: string | null;
+  postalCode?: string | null;
+  country: string;
+  latitude?: number | null;
+  longitude?: number | null;
   maxTicketsPerBuyer?: number | null;
   requiresQueue?: boolean;
   taxRatePercent?: number | null;
   taxLabel?: string | null;
   bookingFeePerTicketMinor?: number;
   timeZoneId?: string | null;
+}
+
+/** Fields settable via {@link updateEventPresentation} — editable at any status. */
+export interface UpdateEventPresentationRequest {
+  title: string;
+  description?: string | null;
+  category?: string | null;
   ageRestriction?: string | null;
   bannerImageUrl?: string | null;
   videoUrl?: string | null;
@@ -78,6 +101,21 @@ export interface UpdateEventDetailsRequest {
   contactEmail?: string | null;
   websiteUrl?: string | null;
   socialLinks?: SocialLinkInput[];
+}
+
+/** The kinds of legal document an organizer publishes. */
+export type PolicyKind = 'Terms' | 'Privacy' | 'Refund';
+
+/** One resolved policy document. */
+export interface PolicyDocumentResponse {
+  kind: PolicyKind;
+  /** Sanitised HTML — safe to render, but still the organizer's own words. */
+  bodyHtml: string;
+  /** Revision number in force; captured on an order so a dispute can name what was agreed. */
+  version: number;
+  updatedAt: string;
+  /** True when this event overrides the organizer's tenant-wide default. */
+  isEventOverride: boolean;
 }
 
 /** Read model for a single event group (tour). */
@@ -208,6 +246,8 @@ export interface CreateEventRequest {
   taxLabel?: string | null;
   bookingFeePerTicketMinor?: number;
   timeZoneId?: string | null;
+  /** Optional vanity URL slug; derived from the title when omitted. */
+  slug?: string | null;
 }
 
 /** Creates a new draft event for the caller's tenant. */
@@ -299,12 +339,75 @@ export async function resumeSales(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/resume-sales`);
 }
 
-/** Sets a draft event's descriptive/promotional details (Draft-only; 409 otherwise). */
+/** Sets a draft event's dates, venue and pricing rules (Draft-only; 409 otherwise). */
 export async function updateEventDetails(
   eventId: string,
   request: UpdateEventDetailsRequest,
 ): Promise<void> {
   await httpClient.put(`/api/catalog/v1/events/${eventId}/details`, request);
+}
+
+/** Sets how an event is presented. Accepted at any status, including after publish. */
+export async function updateEventPresentation(
+  eventId: string,
+  request: UpdateEventPresentationRequest,
+): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/events/${eventId}/presentation`, request);
+}
+
+/**
+ * Changes a draft event's public slug. 409 once published — the URL has already been shared — and
+ * 409 if another event holds it.
+ */
+export async function changeEventSlug(eventId: string, slug: string): Promise<void> {
+  await httpClient.put(`/api/catalog/v1/events/${eventId}/slug`, { slug });
+}
+
+/** Fetches an event by its public slug. Same read model and visibility rule as {@link getEvent}. */
+export async function getEventBySlug(slug: string): Promise<EventResponse> {
+  const response = await httpClient.get<EventResponse>(`/api/catalog/v1/events/by-slug/${slug}`);
+  return response.data;
+}
+
+/**
+ * The policy documents in force for one event — the organizer's defaults, with this event's own
+ * overrides substituted in. Anonymous: a buyer reads the refund policy before deciding to buy.
+ */
+export async function getEventPolicies(eventId: string): Promise<PolicyDocumentResponse[]> {
+  const response = await httpClient.get<PolicyDocumentResponse[]>(
+    `/api/catalog/v1/events/${eventId}/policies`,
+  );
+  return response.data;
+}
+
+/** The organizer's own tenant-wide default documents, used wherever an event sets no override. */
+export async function getTenantPolicies(): Promise<PolicyDocumentResponse[]> {
+  const response = await httpClient.get<PolicyDocumentResponse[]>('/api/catalog/v1/policies');
+  return response.data;
+}
+
+/** Writes the organizer's tenant-wide default for one kind of document. */
+export async function setTenantPolicy(
+  kind: PolicyKind,
+  bodyHtml: string,
+): Promise<{ version: number }> {
+  const response = await httpClient.put<{ version: number }>(`/api/catalog/v1/policies/${kind}`, {
+    bodyHtml,
+  });
+  return response.data;
+}
+
+/** Writes one event's override of a document, replacing the tenant default for that event. */
+export async function setEventPolicy(
+  eventId: string,
+  kind: PolicyKind,
+  bodyHtml: string,
+): Promise<{ version: number }> {
+  const response = await httpClient.put<{ version: number }>(
+    `/api/catalog/v1/events/${eventId}/policies/${kind}`,
+    { bodyHtml },
+  );
+  return response.data;
 }
 
 /** Fetches a single event group (tour). 404s if it doesn't exist. Public — no login required. */

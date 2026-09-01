@@ -23,6 +23,9 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>The named, priced ticket types seat-map sections are sold as.</summary>
     public DbSet<TicketType> TicketTypes => Set<TicketType>();
 
+    /// <summary>Organizer terms, privacy and refund documents — tenant defaults and event overrides.</summary>
+    public DbSet<PolicyDocument> PolicyDocuments => Set<PolicyDocument>();
+
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 

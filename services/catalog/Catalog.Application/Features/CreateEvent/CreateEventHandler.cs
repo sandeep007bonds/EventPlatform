@@ -34,6 +34,7 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
         var @event = Event.Create(
             request.TenantId,
             request.Title,
+            await DeriveSlugAsync(request, cancellationToken),
             request.StartsAt,
             request.EndsAt,
             request.Currency,
@@ -58,5 +59,24 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
         await repository.SaveChangesAsync(cancellationToken);
 
         return new CreateEventResult(CreateEventOutcome.Created, @event.Id);
+    }
+
+    /// <summary>
+    /// Picks the event's slug: the organizer's own if they supplied one, otherwise derived from the
+    /// title, with a numeric suffix either way if it collides.
+    /// </summary>
+    /// <remarks>
+    /// The uniqueness check is read-then-write and therefore racy — two events created in the same
+    /// instant with the same title can both see the stem free. That is why the column also carries a
+    /// unique index: the loser gets a constraint violation rather than a duplicate URL. Retrying
+    /// here would trade a rare 500 for a rarer one and is not worth the complexity at this volume.
+    /// </remarks>
+    private async Task<string> DeriveSlugAsync(CreateEventCommand request, CancellationToken cancellationToken)
+    {
+        var basis = string.IsNullOrWhiteSpace(request.Slug) ? request.Title : request.Slug;
+        var stem = EventSlug.Basis(basis);
+        var taken = await repository.ListSlugsForStemAsync(stem, cancellationToken);
+
+        return EventSlug.From(basis, taken);
     }
 }

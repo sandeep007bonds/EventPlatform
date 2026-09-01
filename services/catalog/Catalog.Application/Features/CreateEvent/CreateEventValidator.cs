@@ -24,6 +24,7 @@ public sealed class CreateEventValidator : AbstractValidator<CreateEventCommand>
         RuleFor(command => command.TaxRatePercent).InclusiveBetween(0, 100).When(c => c.TaxRatePercent is not null);
         RuleFor(command => command.TaxLabel).MaximumLength(50);
         RuleFor(command => command.BookingFeePerTicketMinor).GreaterThanOrEqualTo(0);
+        RuleFor(command => command.Slug).MaximumLength(EventSlug.MaxLength);
         RuleFor(command => command.TimeZoneId).MaximumLength(100);
         RuleFor(command => command.TimeZoneId)
             .Must(BeAKnownTimeZone)

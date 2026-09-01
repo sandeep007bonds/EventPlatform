@@ -137,6 +137,7 @@ public sealed class CreateEventLegRulesTests
         Event.Create(
             Organizer,
             "Sibling leg",
+            $"sibling-leg-{Guid.CreateVersion7():N}",
             startsAt,
             endsAt,
             "INR",
@@ -184,6 +185,12 @@ public sealed class CreateEventLegRulesTests
         DateTimeOffset? startsAt = null,
         DateTimeOffset? endsAt = null)
     {
+        // Stated rather than left to NSubstitute's auto-substitute: the handler derives a slug from
+        // this, and a test asserting tour rules should not silently depend on what an unconfigured
+        // IReadOnlySet returns.
+        events.ListSlugsForStemAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new HashSet<string>(StringComparer.OrdinalIgnoreCase));
+
         await using var provider = new ServiceCollection()
             .AddCatalogApplication()
             .AddSingleton(events)

@@ -2,6 +2,7 @@ import { ConfigProvider, Layout, Menu, Button, Typography } from 'antd';
 import {
   CalendarOutlined,
   CompassOutlined,
+  FileTextOutlined,
   LogoutOutlined,
   QrcodeOutlined,
   ShoppingOutlined,
@@ -32,7 +33,9 @@ export function AdminLayout() {
       ? 'tours'
       : location.pathname.startsWith('/admin/scan')
         ? 'scan'
-        : 'events';
+        : location.pathname.startsWith('/admin/policies')
+          ? 'policies'
+          : 'events';
 
   return (
     <ConfigProvider theme={adminTheme}>
@@ -102,6 +105,11 @@ export function AdminLayout() {
                 key: 'scan',
                 icon: <QrcodeOutlined />,
                 label: <Link to="/admin/scan">{t('nav.scan')}</Link>,
+              },
+              {
+                key: 'policies',
+                icon: <FileTextOutlined />,
+                label: <Link to="/admin/policies">{t('nav.policies')}</Link>,
               },
             ]}
           />

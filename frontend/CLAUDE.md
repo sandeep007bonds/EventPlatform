@@ -199,6 +199,32 @@ src/
   formula-leading fields (`=`, `+`, `-`, `@`) with a quote so a malicious event
   title cannot execute in the recipient's Excel; bare numbers are exempt from
   that guard so a negative amount still sums.
+- **The admin event page is tabbed, and each tab saves on its own.** `AdminEventDetailPage` is a
+  header plus `Tabs`; the sections live in their own components (`EventPresentationForm`,
+  `EventScheduleForm`, `EventSeatMapPanel`, `EventSlugCard`, `TicketTypesPanel`, `PromoCodesPanel`,
+  `PolicyDocumentsPanel`, `SeatBlockPanel`, `QueueSettingsPanel`). One Save per tab rather than one
+  for the page, because the halves have different rules: **Event page** (title, description,
+  imagery, contact, social) posts to `PUT /presentation` and works at any status, while
+  **Schedule & venue** posts to `PUT /details` and is refused after publish (ADR-0037). A single
+  Save spanning both would have to fail as a whole when only one half is still allowed. After
+  publish the schedule form renders read-only with an explanation rather than disappearing — an
+  organizer still needs to see the booking cutoff they set, and hiding it makes the setting look
+  gone rather than fixed. The active tab lives in a `?tab=` query param so a reload or a shared link
+  lands in the right place.
+- **Buyer event URLs are slugs; the id still works.** `/events/:id` accepts either an event GUID or
+  its slug — `EventDetailPage` picks `getEvent` or `getEventBySlug` by testing the param's shape
+  (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app *issues*
+  use `event.slug`; the id route stays because links issued before slugs existed are still out
+  there. Everything keyed on the event id waits for that first call to return, so the seat map and
+  inventory fetches are sequenced after it rather than run alongside.
+- **Policy HTML is sanitised by the server, and rendered as markup here.**
+  `PolicyDocumentsPanel` (organizer, on the event's Policies tab or at `/admin/policies` for the
+  tenant defaults) is a textarea plus a live preview, **not** a WYSIWYG — Ant Design ships no
+  rich-text editor and the rule below forbids adding one without discussion. The stored format is
+  HTML, so swapping in TipTap later is a component change, not a data migration. The preview
+  renders the *unsaved draft*, which nothing has sanitised: safe only because it is the organizer's
+  own keystrokes in their own browser. What buyers see (`EventPoliciesSection`) is re-read from the
+  server, which strips scripts, event handlers and non-`http(s)`/`mailto` links on write.
 - **Event times render in the venue's zone, not the reader's.** `utils/eventTime.ts`
   (`formatEventDateTime`/`formatEventDate`/`formatEventTime`/`eventZoneAbbreviation`)
   wraps `Intl.DateTimeFormat` with the event's `timeZoneId`; the browser's own

@@ -12,6 +12,33 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         dbContext.Events.Include(e => e.SocialLinks).FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
     /// <inheritdoc />
+    public Task<Event?> GetBySlugAsync(string slug, CancellationToken cancellationToken) =>
+        dbContext.Events
+            .AsNoTracking()
+            .Include(e => e.SocialLinks)
+            .FirstOrDefaultAsync(e => e.Slug == slug, cancellationToken);
+
+    /// <inheritdoc />
+    public async Task<IReadOnlySet<string>> ListSlugsForStemAsync(string stem, CancellationToken cancellationToken)
+    {
+        // `EF.Functions.Like` with an escaped stem rather than `StartsWith`: a stem is generated
+        // from `EventSlug.Basis`, so it can only contain [a-z0-9-] and needs no escaping today —
+        // but a stem arriving from anywhere else with a `%` in it would otherwise match the whole
+        // table and hand back a set that makes every candidate look taken.
+        var pattern = stem.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal);
+
+        var slugs = await dbContext.Events
+            .AsNoTracking()
+            .Where(e => e.Slug == stem || EF.Functions.Like(e.Slug, pattern + "-%", "\\"))
+            .Select(e => e.Slug)
+            .ToListAsync(cancellationToken);
+
+        return slugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <inheritdoc />
     public async Task<(IReadOnlyList<Event> Items, int TotalCount)> ListAsync(
         Guid? callerTenantId,
         EventStatus? status,

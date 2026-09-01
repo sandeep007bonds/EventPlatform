@@ -3,6 +3,7 @@
     "events": "Events",
     "orders": "Orders",
     "tours": "Tours",
-    "scan": "Scan tickets"
+    "scan": "Scan tickets",
+    "policies": "Policies"
   }
 }

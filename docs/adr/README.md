@@ -48,6 +48,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0034](0034-discounts-and-tax.md) | Promo codes and per-event tax: one money model, computed in Ordering | Accepted |
 | [0035](0035-authorization-deny-by-default.md) | Authorization: role policies at the route, deny-by-default last | Accepted |
 | [0036](0036-audit-trail.md) | Audit trail: append-only, written in the same transaction, shipped to one store | Proposed |
+| [0037](0037-post-publish-editing-slugs-and-policy-documents.md) | Editing split by consequence, not by status; event slugs; versioned policy documents | Accepted |
 
 ## Format
 

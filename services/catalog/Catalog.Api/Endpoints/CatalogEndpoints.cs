@@ -19,6 +19,10 @@ public static class CatalogEndpoints
         group.MapGet("/{id:guid}", GetEventAsync).WithName("GetEvent").AllowAnonymous();
         group.MapGet("/{id:guid}/seatmap", GetSeatMapAsync).WithName("GetSeatMap").AllowAnonymous();
 
+        // Routed under /by-slug/ rather than as a bare /{slug}, which would shadow every sibling
+        // route on this group the moment one of them stopped being a :guid.
+        group.MapGet("/by-slug/{slug}", GetEventBySlugAsync).WithName("GetEventBySlug").AllowAnonymous();
+
         // Organizer writes. The policy establishes only that the caller is an organizer at all —
         // each handler still checks that this event belongs to their tenant, and answers a
         // mismatch with an opaque 404.
@@ -31,6 +35,13 @@ public static class CatalogEndpoints
         group.MapPut("/{id:guid}/seatmap/sections", UpdateSeatMapSectionAsync).WithName("UpdateSeatMapSection").RequireOrganizer();
         group.MapDelete("/{id:guid}/seatmap/sections/{sectionName}", RemoveSeatMapSectionAsync).WithName("RemoveSeatMapSection").RequireOrganizer();
         group.MapPut("/{id:guid}/details", UpdateEventDetailsAsync).WithName("UpdateEventDetails").RequireOrganizer();
+
+        // Split from /details deliberately, and mapped as its own route rather than a mode flag on
+        // that one: /details is Draft-only because it changes what a ticket holder bought, and this
+        // is editable for the life of the event because it does not. Two routes make that visible
+        // in the route table instead of buried in a handler.
+        group.MapPut("/{id:guid}/presentation", UpdateEventPresentationAsync).WithName("UpdateEventPresentation").RequireOrganizer();
+        group.MapPut("/{id:guid}/slug", ChangeEventSlugAsync).WithName("ChangeEventSlug").RequireOrganizer();
 
         return app;
     }
@@ -67,7 +78,8 @@ public static class CatalogEndpoints
             request.TaxRatePercent,
             request.TaxLabel,
             request.BookingFeePerTicketMinor,
-            request.TimeZoneId);
+            request.TimeZoneId,
+            request.Slug);
 
         var result = await sender.Send(command, cancellationToken);
         return result.Outcome switch
@@ -109,6 +121,16 @@ public static class CatalogEndpoints
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetEventQuery(id, tenant.TenantId), cancellationToken);
+        return result is null ? Results.NotFound() : Results.Ok(result);
+    }
+
+    private static async Task<IResult> GetEventBySlugAsync(
+        string slug,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetEventBySlugQuery(slug, tenant.TenantId), cancellationToken);
         return result is null ? Results.NotFound() : Results.Ok(result);
     }
 
@@ -346,18 +368,66 @@ public static class CatalogEndpoints
         var command = new UpdateEventDetailsCommand(
             id,
             tenant.TenantId.Value,
-            request.Description,
-            request.Category,
+            request.StartsAt,
             request.EndsAt,
             request.DoorsOpenAt,
             request.OnSaleAt,
             request.BookingEndsAt,
+            request.LocationName,
+            request.AddressLine1,
+            request.AddressLine2,
+            request.City,
+            request.Region,
+            request.PostalCode,
+            request.Country,
+            request.Latitude,
+            request.Longitude,
             request.MaxTicketsPerBuyer,
             request.RequiresQueue,
             request.TaxRatePercent,
             request.TaxLabel,
             request.BookingFeePerTicketMinor,
-            request.TimeZoneId,
+            request.TimeZoneId);
+
+        var outcome = await sender.Send(command, cancellationToken);
+        return outcome switch
+        {
+            UpdateEventDetailsOutcome.Updated => Results.NoContent(),
+            UpdateEventDetailsOutcome.NotFound => Results.NotFound(),
+            UpdateEventDetailsOutcome.NotDraft =>
+                Results.Conflict(new
+                {
+                    message = "A published event's dates, venue and pricing can no longer be changed. "
+                        + "Its title, description, images and contact details still can.",
+                }),
+            UpdateEventDetailsOutcome.BookingCutoffAfterStart =>
+                Results.Conflict(new { message = "The booking cutoff must not be later than the event's start time." }),
+            UpdateEventDetailsOutcome.OutsideEventGroupRange =>
+                Results.Conflict(new { message = "The event's dates fall outside the tour's advertised date range." }),
+            UpdateEventDetailsOutcome.OverlapsExistingLeg =>
+                Results.Conflict(new { message = "The event's dates overlap another leg of the same tour." }),
+            _ => Results.Problem("Unexpected update-details outcome."),
+        };
+    }
+
+    private static async Task<IResult> UpdateEventPresentationAsync(
+        Guid id,
+        UpdateEventPresentationRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var command = new UpdateEventPresentationCommand(
+            id,
+            tenant.TenantId.Value,
+            request.Title,
+            request.Description,
+            request.Category,
             request.AgeRestriction,
             request.BannerImageUrl,
             request.VideoUrl,
@@ -370,17 +440,34 @@ public static class CatalogEndpoints
         var outcome = await sender.Send(command, cancellationToken);
         return outcome switch
         {
-            UpdateEventDetailsOutcome.Updated => Results.NoContent(),
-            UpdateEventDetailsOutcome.NotFound => Results.NotFound(),
-            UpdateEventDetailsOutcome.NotDraft =>
-                Results.Conflict(new { message = "Only a draft event's details can be changed." }),
-            UpdateEventDetailsOutcome.BookingCutoffAfterStart =>
-                Results.Conflict(new { message = "The booking cutoff must not be later than the event's start time." }),
-            UpdateEventDetailsOutcome.OutsideEventGroupRange =>
-                Results.Conflict(new { message = "The event's dates fall outside the tour's advertised date range." }),
-            UpdateEventDetailsOutcome.OverlapsExistingLeg =>
-                Results.Conflict(new { message = "The event's dates overlap another leg of the same tour." }),
-            _ => Results.Problem("Unexpected update-details outcome."),
+            UpdateEventPresentationOutcome.Updated => Results.NoContent(),
+            UpdateEventPresentationOutcome.NotFound => Results.NotFound(),
+            _ => Results.Problem("Unexpected update-presentation outcome."),
+        };
+    }
+
+    private static async Task<IResult> ChangeEventSlugAsync(
+        Guid id,
+        ChangeEventSlugRequest request,
+        ITenantContext tenant,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        if (tenant.TenantId is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        var outcome = await sender.Send(new ChangeEventSlugCommand(id, tenant.TenantId.Value, request.Slug), cancellationToken);
+        return outcome switch
+        {
+            ChangeEventSlugOutcome.Changed => Results.NoContent(),
+            ChangeEventSlugOutcome.NotFound => Results.NotFound(),
+            ChangeEventSlugOutcome.NotDraft =>
+                Results.Conflict(new { message = "A published event's URL cannot be changed — it has already been shared." }),
+            ChangeEventSlugOutcome.SlugTaken =>
+                Results.Conflict(new { message = "Another event already uses that URL." }),
+            _ => Results.Problem("Unexpected change-slug outcome."),
         };
     }
 }

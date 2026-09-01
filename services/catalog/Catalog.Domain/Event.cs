@@ -17,6 +17,7 @@ public sealed class Event
         Guid id,
         Guid tenantId,
         string title,
+        string slug,
         DateTimeOffset startsAt,
         DateTimeOffset endsAt,
         string currency,
@@ -40,6 +41,7 @@ public sealed class Event
         Id = id;
         TenantId = tenantId;
         Title = title;
+        Slug = slug;
         StartsAt = startsAt;
         EndsAt = endsAt;
         Currency = currency;
@@ -76,6 +78,22 @@ public sealed class Event
 
     /// <summary>Event title.</summary>
     public string Title { get; private set; } = default!;
+
+    /// <summary>
+    /// URL-safe identifier for this event, unique across the platform — the <c>/events/{slug}</c>
+    /// a buyer sees instead of a GUID.
+    /// </summary>
+    /// <remarks>
+    /// Derived from the title at creation and editable only while the event is a
+    /// <see cref="EventStatus.Draft"/>. Once published the URL has been advertised, and a slug that
+    /// moves is a link that breaks — including links this platform did not issue. Renaming a
+    /// published event therefore changes <see cref="Title"/> and leaves this alone, which is a
+    /// little untidy and much better than a dead poster.
+    /// <para>
+    /// Uniqueness is enforced by a unique index, not here: an aggregate cannot see its siblings.
+    /// </para>
+    /// </remarks>
+    public string Slug { get; private set; } = default!;
 
     /// <summary>Scheduled start time (UTC).</summary>
     public DateTimeOffset StartsAt { get; private set; }
@@ -239,6 +257,7 @@ public sealed class Event
     /// <summary>Creates a new draft event for the given tenant, at a specific place and time.</summary>
     /// <param name="tenantId">Owning tenant (organizer).</param>
     /// <param name="title">Event title.</param>
+    /// <param name="slug">URL-safe slug, unique platform-wide. See <see cref="Slug"/>.</param>
     /// <param name="startsAt">Scheduled start (UTC).</param>
     /// <param name="endsAt">Scheduled end (UTC) — must be after <paramref name="startsAt"/>.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
@@ -264,6 +283,9 @@ public sealed class Event
     /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units. See <see cref="BookingFeePerTicketMinor"/>.</param>
     /// <param name="timeZoneId">The venue's IANA time zone. See <see cref="TimeZoneId"/>.</param>
     /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
+    /// <exception cref="ArgumentException">
+    /// <paramref name="slug"/> is malformed or reserved — see <see cref="EventSlug"/>.
+    /// </exception>
     /// <exception cref="ArgumentOutOfRangeException">
     /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>,
     /// <paramref name="taxRatePercent"/> is outside [0, 100], or
@@ -272,6 +294,7 @@ public sealed class Event
     public static Event Create(
         Guid tenantId,
         string title,
+        string slug,
         DateTimeOffset startsAt,
         DateTimeOffset endsAt,
         string currency,
@@ -294,6 +317,12 @@ public sealed class Event
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+
+        if (!EventSlug.IsValid(slug))
+        {
+            throw new ArgumentException("The slug is not a valid or permitted event slug.", nameof(slug));
+        }
+
         ArgumentException.ThrowIfNullOrWhiteSpace(locationName);
         ArgumentException.ThrowIfNullOrWhiteSpace(addressLine1);
         ArgumentException.ThrowIfNullOrWhiteSpace(city);
@@ -324,6 +353,7 @@ public sealed class Event
             Guid.CreateVersion7(),
             tenantId,
             title,
+            slug,
             startsAt,
             endsAt,
             currency,
@@ -399,64 +429,58 @@ public sealed class Event
     }
 
     /// <summary>
-    /// Sets the event's descriptive/promotional details, dates, and contact/social info. Only
-    /// permitted while the event is still a <see cref="EventStatus.Draft"/> — editing details
-    /// after publish would need to re-notify buyers of material changes, which this pass does not
-    /// implement (this includes <paramref name="bookingEndsAt"/> — it cannot be changed once
-    /// published in this pass).
+    /// Sets the things a ticket holder bought — dates, venue, tax, fees and ticketing rules. Only
+    /// permitted while the event is still a <see cref="EventStatus.Draft"/>.
     /// </summary>
-    /// <param name="description">Marketing description.</param>
-    /// <param name="category">Free-text category.</param>
-    /// <param name="endsAt">Scheduled end time (UTC) — must be after <see cref="StartsAt"/>.</param>
-    /// <param name="doorsOpenAt">Doors-open time (UTC), if different from <see cref="StartsAt"/>.</param>
-    /// <param name="onSaleAt">Display-only sales-window start (UTC).</param>
+    /// <remarks>
+    /// The draft-only rule is narrower than it used to be, and now means what it says. It applies
+    /// to *material* facts: change a start time, a venue or a tax rate after publish and you have
+    /// changed what someone already paid for, which needs buyer notification and possibly a refund
+    /// right. Presentation — title, description, images, contact details — moved to
+    /// <see cref="UpdatePresentation"/> and stays editable for the life of the event, because none
+    /// of it alters the sale.
+    /// <para>
+    /// Postponing or relocating a published event is a real requirement and deliberately not this
+    /// method. It is not an edit; it is an event of its own, with buyers to tell.
+    /// </para>
+    /// </remarks>
+    /// <param name="startsAt">Scheduled start time (UTC).</param>
+    /// <param name="endsAt">Scheduled end time (UTC) — must be after <paramref name="startsAt"/>.</param>
+    /// <param name="doorsOpenAt">Doors-open time (UTC), if different from the start.</param>
+    /// <param name="onSaleAt">Enforced sales-window start (UTC).</param>
     /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
+    /// <param name="location">Where the event happens.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
-    /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
+    /// <param name="requiresQueue">Whether to gate holds behind the waiting room. See <see cref="RequiresQueue"/>.</param>
     /// <param name="taxRatePercent">Sales-tax rate as a percentage — see <see cref="TaxRatePercent"/>.</param>
     /// <param name="taxLabel">Display name for the tax on a receipt — see <see cref="TaxLabel"/>.</param>
-    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units — see <see cref="BookingFeePerTicketMinor"/>.</param>
+    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units.</param>
     /// <param name="timeZoneId">The venue's IANA time zone — see <see cref="TimeZoneId"/>.</param>
-    /// <param name="ageRestriction">Free-text age restriction.</param>
-    /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
-    /// <param name="videoUrl">Video embed URL.</param>
-    /// <param name="contactPhone">Contact phone for this leg, overriding the tour default.</param>
-    /// <param name="contactMobile">Contact mobile number for this leg, overriding the tour default.</param>
-    /// <param name="contactEmail">Contact email for this leg, overriding the tour default.</param>
-    /// <param name="websiteUrl">Website URL for this leg, overriding the tour default.</param>
-    /// <param name="socialLinks">
-    /// This leg's own social links (platform, URL pairs); replaces the existing list. An empty
-    /// list means "no override" — the tour's default social links apply instead.
-    /// </param>
     /// <exception cref="InvalidOperationException">The event is not a draft.</exception>
-    public void UpdateDetails(
-        string? description,
-        string? category,
+    /// <exception cref="ArgumentOutOfRangeException">A date, rate or fee is out of range.</exception>
+    public void UpdateSchedule(
+        DateTimeOffset startsAt,
         DateTimeOffset endsAt,
         DateTimeOffset? doorsOpenAt,
         DateTimeOffset? onSaleAt,
         DateTimeOffset? bookingEndsAt,
+        EventLocation location,
         int? maxTicketsPerBuyer,
         bool requiresQueue,
         decimal? taxRatePercent,
         string? taxLabel,
         long bookingFeePerTicketMinor,
-        string? timeZoneId,
-        string? ageRestriction,
-        string? bannerImageUrl,
-        string? videoUrl,
-        string? contactPhone,
-        string? contactMobile,
-        string? contactEmail,
-        string? websiteUrl,
-        IEnumerable<(string Platform, string Url)> socialLinks)
+        string? timeZoneId)
     {
+        ArgumentNullException.ThrowIfNull(location);
+
         if (Status != EventStatus.Draft)
         {
-            throw new InvalidOperationException("Only a draft event's details can be changed.");
+            throw new InvalidOperationException(
+                "An event's dates, venue and pricing rules can only be changed while it is a draft.");
         }
 
-        if (endsAt <= StartsAt)
+        if (endsAt <= startsAt)
         {
             throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
         }
@@ -466,7 +490,7 @@ public sealed class Event
             throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must be after the on-sale time.");
         }
 
-        if (bookingEndsAt is not null && bookingEndsAt > StartsAt)
+        if (bookingEndsAt is not null && bookingEndsAt > startsAt)
         {
             throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must not be later than the event's start time.");
         }
@@ -487,18 +511,72 @@ public sealed class Event
                 "The booking fee cannot be negative.");
         }
 
-        Description = description;
-        Category = category;
+        StartsAt = startsAt;
         EndsAt = endsAt;
         DoorsOpenAt = doorsOpenAt;
         OnSaleAt = onSaleAt;
         BookingEndsAt = bookingEndsAt;
+        LocationName = location.Name;
+        AddressLine1 = location.AddressLine1;
+        AddressLine2 = location.AddressLine2;
+        City = location.City;
+        Region = location.Region;
+        PostalCode = location.PostalCode;
+        Country = location.Country;
+        Latitude = location.Latitude;
+        Longitude = location.Longitude;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         RequiresQueue = requiresQueue;
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
         BookingFeePerTicketMinor = bookingFeePerTicketMinor;
         TimeZoneId = timeZoneId;
+    }
+
+    /// <summary>
+    /// Sets how the event is presented — title, description, imagery, contact and social links.
+    /// Permitted at <b>any</b> status.
+    /// </summary>
+    /// <remarks>
+    /// None of this changes what a ticket holder bought, so locking it after publish only stopped
+    /// organizers fixing their own mistakes. <see cref="Title"/> is included deliberately: renaming
+    /// a live event is mildly disruptive, and being permanently unable to correct a typo in it is
+    /// worse. Who changed what is recorded by the audit fields (ADR-0036).
+    /// </remarks>
+    /// <param name="title">Event title.</param>
+    /// <param name="description">Marketing description.</param>
+    /// <param name="category">Free-text category.</param>
+    /// <param name="ageRestriction">Free-text age restriction.</param>
+    /// <param name="bannerImageUrl">Banner image URL (from the Media service's upload endpoint).</param>
+    /// <param name="videoUrl">Video embed URL.</param>
+    /// <param name="contactPhone">Contact phone for this leg, overriding the tour default.</param>
+    /// <param name="contactMobile">Contact mobile number for this leg, overriding the tour default.</param>
+    /// <param name="contactEmail">Contact email for this leg, overriding the tour default.</param>
+    /// <param name="websiteUrl">Website URL for this leg, overriding the tour default.</param>
+    /// <param name="socialLinks">
+    /// This leg's own social links (platform, URL pairs); replaces the existing list. An empty
+    /// list means "no override" — the tour's default social links apply instead.
+    /// </param>
+    /// <exception cref="ArgumentException"><paramref name="title"/> is null or blank.</exception>
+    public void UpdatePresentation(
+        string title,
+        string? description,
+        string? category,
+        string? ageRestriction,
+        string? bannerImageUrl,
+        string? videoUrl,
+        string? contactPhone,
+        string? contactMobile,
+        string? contactEmail,
+        string? websiteUrl,
+        IEnumerable<(string Platform, string Url)> socialLinks)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
+        ArgumentNullException.ThrowIfNull(socialLinks);
+
+        Title = title.Trim();
+        Description = description;
+        Category = category;
         AgeRestriction = ageRestriction;
         BannerImageUrl = bannerImageUrl;
         VideoUrl = videoUrl;
@@ -509,6 +587,29 @@ public sealed class Event
 
         _socialLinks.Clear();
         _socialLinks.AddRange(socialLinks.Select(link => new EventSocialLink(Guid.CreateVersion7(), Id, link.Platform, link.Url)));
+    }
+
+    /// <summary>
+    /// Changes the event's public slug. Only permitted while the event is a
+    /// <see cref="EventStatus.Draft"/> — see <see cref="Slug"/> for why.
+    /// </summary>
+    /// <param name="slug">The new slug; must be well-formed and not reserved.</param>
+    /// <exception cref="InvalidOperationException">The event is not a draft.</exception>
+    /// <exception cref="ArgumentException">The slug is malformed or reserved.</exception>
+    public void ChangeSlug(string slug)
+    {
+        if (Status != EventStatus.Draft)
+        {
+            throw new InvalidOperationException(
+                "An event's URL can only be changed while it is a draft — it has already been advertised.");
+        }
+
+        if (!EventSlug.IsValid(slug))
+        {
+            throw new ArgumentException("The slug is not a valid or permitted event slug.", nameof(slug));
+        }
+
+        Slug = slug;
     }
 
     /// <summary>

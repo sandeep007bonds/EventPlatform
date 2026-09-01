@@ -24,6 +24,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="TaxLabel">Display name for the tax on a receipt (e.g. "GST 18%").</param>
 /// <param name="BookingFeePerTicketMinor">Booking fee per ticket in minor currency units (e.g. 3000 for ₹30); 0 means no fee.</param>
 /// <param name="TimeZoneId">The venue's IANA time zone (e.g. "Asia/Kolkata"); null when not set.</param>
+/// <param name="Slug">Optional vanity URL slug; derived from <see cref="Title"/> when omitted.</param>
 public sealed record CreateEventRequest(
     string Title,
     DateTimeOffset StartsAt,
@@ -44,4 +45,5 @@ public sealed record CreateEventRequest(
     decimal? TaxRatePercent = null,
     string? TaxLabel = null,
     long BookingFeePerTicketMinor = 0,
-    string? TimeZoneId = null);
+    string? TimeZoneId = null,
+    string? Slug = null);

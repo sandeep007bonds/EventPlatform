@@ -28,6 +28,8 @@ public static class DependencyInjection
         services.AddScoped<IEntryGateRepository, EntryGateRepository>();
         services.AddScoped<IPromoCodeRepository, PromoCodeRepository>();
         services.AddScoped<ITicketTypeRepository, TicketTypeRepository>();
+        services.AddScoped<IPolicyDocumentRepository, PolicyDocumentRepository>();
+        services.AddSingleton<IHtmlSanitizer, PolicyHtmlSanitizer>();
         services.AddOutbox<CatalogDbContext>();
 
         return services;

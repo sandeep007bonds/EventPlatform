@@ -21,6 +21,7 @@ public static class EventResponseMapper
         return new EventResponse(
             @event.Id,
             @event.Title,
+            @event.Slug,
             @event.StartsAt,
             @event.Status.ToString(),
             @event.Currency,

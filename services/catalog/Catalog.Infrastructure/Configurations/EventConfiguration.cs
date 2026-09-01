@@ -11,6 +11,7 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.HasKey(e => e.Id);
 
         builder.Property(e => e.Title).HasMaxLength(200).IsRequired();
+        builder.Property(e => e.Slug).HasMaxLength(EventSlug.MaxLength).IsRequired();
         builder.Property(e => e.Currency).HasMaxLength(3).IsRequired();
         builder.Property(e => e.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
         builder.Property(e => e.TenantId).IsRequired();
@@ -45,6 +46,11 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.Metadata
             .FindNavigation(nameof(Event.SocialLinks))!
             .SetPropertyAccessMode(PropertyAccessMode.Field);
+
+        // Unique platform-wide, not per tenant: the slug is the whole of a public URL, and two
+        // tenants cannot both own /events/coldplay-mumbai. This index is also the real guard
+        // against the create-time race in CreateEventHandler, which checks and then writes.
+        builder.HasIndex(e => e.Slug).IsUnique();
 
         builder.HasIndex(e => new { e.TenantId, e.Id });
         builder.HasIndex(e => e.EventGroupId);

@@ -17,6 +17,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- Sanitises organizer-authored policy HTML on write; see PolicyHtmlSanitizer. -->
+    <PackageReference Include="HtmlSanitizer" />
     <!-- Migrations live here (tracker T8). PrivateAssets=all keeps the Design tooling tree out of
          the API host and any downstream consumer; on .NET 10 its framework transitives are pruned. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />

@@ -8,6 +8,17 @@ public sealed class EventTests
     private static readonly DateTimeOffset Starts = new(2027, 3, 1, 19, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Ends = Starts.AddHours(4);
 
+    private static readonly EventLocation Location = new(
+        "DY Patil Stadium",
+        "Sector 7",
+        null,
+        "Navi Mumbai",
+        "Maharashtra",
+        "400706",
+        "IN",
+        null,
+        null);
+
     [Fact]
     public void ANewEvent_StartsAsADraft()
     {
@@ -25,15 +36,63 @@ public sealed class EventTests
     public void AnEventThatEndsExactlyWhenItStarts_CannotBeCreated() =>
         Should.Throw<ArgumentOutOfRangeException>(() => CreateEvent(endsAt: Starts));
 
-    // Draft is the only editable state. Once published, buyers may already be holding seats against
-    // the dates and limits as they stand, so changing them is a different problem than editing.
+    // Draft is the only editable state for the *schedule*. Once published, buyers may already be
+    // holding seats against the dates and limits as they stand, so changing them is a different
+    // problem than editing.
     [Fact]
-    public void APublishedEventsDetails_CannotBeChanged()
+    public void APublishedEventsSchedule_CannotBeChanged()
     {
         var @event = CreateEvent();
         @event.Publish();
 
         Should.Throw<InvalidOperationException>(() => UpdateDetails(@event));
+    }
+
+    // The counterpart to the rule above, and the reason the two were split: none of this changes
+    // what a ticket holder bought, so locking it after publish only stopped organizers fixing their
+    // own mistakes.
+    [Fact]
+    public void APublishedEventsPresentation_CanStillBeChanged()
+    {
+        var @event = CreateEvent();
+        @event.Publish();
+
+        UpdatePresentation(@event, title: "Coldplay — Mumbai (rescheduled venue entrance)");
+
+        @event.Title.ShouldBe("Coldplay — Mumbai (rescheduled venue entrance)");
+        @event.Description.ShouldBe("Music of the Spheres.");
+    }
+
+    [Fact]
+    public void APresentationUpdate_RequiresATitle()
+    {
+        var @event = CreateEvent();
+
+        Should.Throw<ArgumentException>(() => UpdatePresentation(@event, title: "   "));
+    }
+
+    // The slug is a published URL as soon as the event is. Renaming a live event is allowed above;
+    // moving the link people were given is not.
+    [Fact]
+    public void ASlug_CanBeChangedWhileDraftAndNotAfterPublish()
+    {
+        var @event = CreateEvent();
+
+        @event.ChangeSlug("coldplay-mumbai-night-two");
+        @event.Slug.ShouldBe("coldplay-mumbai-night-two");
+
+        @event.Publish();
+        Should.Throw<InvalidOperationException>(() => @event.ChangeSlug("coldplay-mumbai-night-three"));
+    }
+
+    [Fact]
+    public void AReservedOrMalformedSlug_IsRejected()
+    {
+        var @event = CreateEvent();
+
+        Should.Throw<ArgumentException>(() => @event.ChangeSlug("admin"));
+        Should.Throw<ArgumentException>(() => @event.ChangeSlug("Coldplay Mumbai"));
+        Should.Throw<ArgumentException>(() => @event.ChangeSlug("-leading-hyphen"));
     }
 
     [Fact]
@@ -135,6 +194,7 @@ public sealed class EventTests
         Event.Create(
             tenantId ?? Guid.CreateVersion7(),
             title: "ColdPlay India Tour — Mumbai",
+            slug: "coldplay-india-tour-mumbai",
             startsAt: Starts,
             endsAt: endsAt ?? Ends,
             currency: "INR",
@@ -154,19 +214,25 @@ public sealed class EventTests
         DateTimeOffset? endsAt = null,
         DateTimeOffset? onSaleAt = null,
         DateTimeOffset? bookingEndsAt = null) =>
-        @event.UpdateDetails(
-            description: null,
-            category: null,
+        @event.UpdateSchedule(
+            startsAt: Starts,
             endsAt: endsAt ?? Ends,
             doorsOpenAt: null,
             onSaleAt: onSaleAt,
             bookingEndsAt: bookingEndsAt,
+            location: Location,
             maxTicketsPerBuyer: null,
             requiresQueue: false,
             taxRatePercent: null,
             taxLabel: null,
             bookingFeePerTicketMinor: 0,
-            timeZoneId: null,
+            timeZoneId: null);
+
+    private static void UpdatePresentation(Event @event, string title) =>
+        @event.UpdatePresentation(
+            title: title,
+            description: "Music of the Spheres.",
+            category: null,
             ageRestriction: null,
             bannerImageUrl: null,
             videoUrl: null,

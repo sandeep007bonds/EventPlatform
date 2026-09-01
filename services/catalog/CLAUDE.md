@@ -26,7 +26,14 @@ context: **Catalog** (ADR-0008).
   to the legs of a given tour/series, in either mode. `POST /v1/events/{id}/publish`
   and `PUT /v1/events/{id}/details` both require the caller's tenant to own the
   event (404 on a mismatch, same opaque not-found pattern as `DefineSeatMap`);
-  `UpdateEventDetails` is Draft-only (409 otherwise). Location (venue name,
+  editing is **split by consequence** (ADR-0037): `PUT /v1/events/{id}/details`
+  (`UpdateEventDetails`) is Draft-only (409 otherwise) and carries dates, venue, tax, fees and
+  ticketing rules — everything that changes what a ticket holder bought; `PUT /v1/events/{id}/presentation`
+  (`UpdateEventPresentation`) works at **any** status and carries title, description, category, age
+  restriction, imagery, contact details and social links. Two routes rather than one with a mode
+  flag, so the 409 is visible in the route table rather than buried in a handler. `Title`,
+  `StartsAt` and the whole venue block are editable for the first time — they were in neither
+  update method before, so a misspelled title was permanent. Location (venue name,
   address, city, geo) is set inline on `Event` at creation — there is no
   separate Venue entity/directory. `EventGroup` ("tour") is a thin, optional
   parent clustering multiple independently-sellable `Event`s: tenant-owned,
@@ -130,6 +137,29 @@ context: **Catalog** (ADR-0008).
   an event across a DST boundary would drift. Validated in the *validator*, not the aggregate:
   resolving an id depends on the host's tz database, and an invariant that varies by machine is not
   an invariant.
+- **`Event.Slug` (ADR-0037).** Lowercase `[a-z0-9-]`, **globally unique** (not per tenant — a slug
+  is the whole of a public URL and two tenants cannot both own `/events/coldplay-mumbai`), derived
+  from the title at creation, editable while Draft via `PUT /v1/events/{id}/slug`
+  (`ChangeEventSlug`), and **locked after publish** because the link has already been advertised.
+  Reserved words (`admin`, `api`, `login`, `checkout`, `events`, …) refused. `EventSlug` (domain,
+  pure) does the string work: `Basis` gives the stem a caller queries the database for,
+  `From(title, taken)` appends a numeric suffix, `IsValid` is what `Event` enforces.
+  `GET /v1/events/by-slug/{slug}` resolves it, anonymous, same visibility rule as `GET /{id}`.
+  The uniqueness check in `CreateEventHandler` is read-then-write and therefore racy — **the unique
+  index is the guard**, and a losing race gets a constraint violation rather than a duplicate URL.
+- **`PolicyDocument` — terms, privacy and refund, versioned (ADR-0037).** `TenantId` · `EventId?` ·
+  `Kind` (`Terms`/`Privacy`/`Refund`) · `BodyHtml` · `Version` · `UpdatedAt`. `EventId = null` is
+  the organizer's tenant-wide default; a row with an `EventId` overrides it for that event — the
+  same defaults-and-override shape `EventGroup` uses for tour contact details. `Version` increments
+  on every revision so Ordering can capture what a buyer actually agreed to; **saving an unchanged
+  body is a no-op**, so opening the editor and pressing Save does not invalidate the version
+  existing orders point at. Managed via `/v1/policies` (`GET`/`PUT {kind}`, tenant defaults) and
+  `/v1/events/{eventId}/policies` (`GET` anonymous — a buyer reads the refund policy before
+  deciding to buy, still subject to `Event.IsVisibleTo`; `PUT {kind}` organizer-only).
+  **HTML is sanitised on write, not on render** (`IHtmlSanitizer` → `PolicyHtmlSanitizer`, over
+  Ganss.Xss): narrowed to structure, emphasis and `http`/`https`/`mailto` links — no images,
+  iframes or inline styles, so a policy page cannot become a tracking beacon. A body that sanitises
+  to nothing is a 400, not an empty document.
 - **`TicketType` — what a section is sold as (stage 1 of 3).** A named, priced aggregate per event:
   `Name` (unique per event, case-insensitively), `PriceMinor`, `Description`, `SalesStartsAt`/
   `SalesEndsAt`, `MaxPerBuyer`, `SortOrder`, `IsActive`. `Seat` and `GeneralAdmissionSection` now
@@ -161,6 +191,20 @@ rule), `SeatMap`'s seat generation/capacity/name-uniqueness across Reserved and
 General-Admission sections, and the three cross-aggregate tour rules in
 `CreateEventHandler` — exercised through MediatR, since the handler is internal
 and the validation pipeline is part of what the endpoint actually invokes.
+
+## Migrations
+
+`events.Slug` is `NOT NULL UNIQUE` on a table that already has rows, so the generated migration
+will not apply as written. Backfill between the `AddColumn` and the `CreateIndex`:
+
+```sql
+UPDATE catalog.events SET "Slug" = 'e-' || replace("Id"::text, '-', '') WHERE "Slug" = '';
+```
+
+That is a valid slug by construction (lowercase hex, one hyphen, never reserved) and unique because
+the id is. Organizers can then change it on any event still in Draft; published events keep the
+generated one, which is the correct outcome — their URL was already a GUID and nothing that has
+been shared moves.
 
 ## Local run
 

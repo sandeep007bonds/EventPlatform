@@ -125,7 +125,7 @@ export function EventsListPage() {
         <Row gutter={[20, 20]}>
           {visibleEvents.map((event) => (
             <Col key={event.id} xs={24} sm={12} lg={8}>
-              <Link to={`/events/${event.id}`} style={{ display: 'block', height: '100%' }}>
+              <Link to={`/events/${event.slug}`} style={{ display: 'block', height: '100%' }}>
                 <Card
                   hoverable
                   styles={{ body: { padding: 18 } }}

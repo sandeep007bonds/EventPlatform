@@ -17,6 +17,24 @@ public interface IEventRepository
     Task<Event?> GetByIdAsync(Guid id, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Gets an event by its public slug, or <see langword="null"/> if no event has that slug.
+    /// </summary>
+    /// <param name="slug">The slug, compared case-insensitively.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The event, or <see langword="null"/>.</returns>
+    Task<Event?> GetBySlugAsync(string slug, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Lists the slugs that would collide with a stem: the stem itself and anything of the form
+    /// <c>{stem}-…</c>. Feeds <see cref="EventSlug.From"/>, which needs the taken set to pick a
+    /// suffix.
+    /// </summary>
+    /// <param name="stem">The slug stem, from <see cref="EventSlug.Basis"/>.</param>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns>The matching slugs, which may be empty.</returns>
+    Task<IReadOnlySet<string>> ListSlugsForStemAsync(string stem, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Lists events visible to the given caller: everyone sees non-draft events; a caller with a
     /// tenant id additionally sees that tenant's drafts. See <see cref="Event.IsVisibleTo"/>.
     /// </summary>
