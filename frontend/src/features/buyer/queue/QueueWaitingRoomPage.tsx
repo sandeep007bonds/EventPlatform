@@ -101,12 +101,12 @@ export function QueueWaitingRoomPage() {
       />
       <Card style={{ textAlign: 'center', padding: '32px 16px' }}>
         <Spin size="large" />
-        {position !== null && (
+        {position != null && (
           <Typography.Title level={3} style={{ marginTop: 24 }}>
             Position {position + 1}
           </Typography.Title>
         )}
-        {estimatedWaitSeconds !== null && (
+        {estimatedWaitSeconds != null && (
           <Typography.Text type="secondary">
             Estimated wait: about {Math.max(1, Math.ceil(estimatedWaitSeconds / 60))} minute
             {estimatedWaitSeconds > 60 ? 's' : ''}

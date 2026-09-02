@@ -172,9 +172,8 @@ export function EventDetailPage() {
     event.contactEmail ??
     event.websiteUrl ??
     event.socialLinks.length > 0;
-  const bookingClosed =
-    event.bookingEndsAt !== null && dayjs(event.bookingEndsAt).isBefore(dayjs());
-  const notOnSaleYet = event.onSaleAt !== null && dayjs(event.onSaleAt).isAfter(dayjs());
+  const bookingClosed = event.bookingEndsAt != null && dayjs(event.bookingEndsAt).isBefore(dayjs());
+  const notOnSaleYet = event.onSaleAt != null && dayjs(event.onSaleAt).isAfter(dayjs());
 
   // Named only when the event has a zone; without one the times are already in the reader's own.
   const zoneLabel = eventZoneAbbreviation(event.startsAt, event.timeZoneId);
@@ -265,7 +264,7 @@ export function EventDetailPage() {
                   </Typography.Text>
                 </Space>
               )}
-              {event.maxTicketsPerBuyer !== null && (
+              {event.maxTicketsPerBuyer != null && (
                 <Typography.Text type="secondary">
                   Limit: {event.maxTicketsPerBuyer} per person
                 </Typography.Text>

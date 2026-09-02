@@ -114,14 +114,14 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         setCheckedInSeatIds(
           new Set(
             tickets
-              .filter((ticket) => ticket.status === 'CheckedIn' && ticket.seatId !== null)
+              .filter((ticket) => ticket.status === 'CheckedIn' && ticket.seatId != null)
               .map((ticket) => ticket.seatId as string),
           ),
         );
 
         const gaCounts = new Map<string, number>();
         for (const ticket of tickets) {
-          if (ticket.status === 'CheckedIn' && ticket.generalAdmissionAllocationId !== null) {
+          if (ticket.status === 'CheckedIn' && ticket.generalAdmissionAllocationId != null) {
             const allocationId = ticket.generalAdmissionAllocationId;
             gaCounts.set(allocationId, (gaCounts.get(allocationId) ?? 0) + 1);
           }

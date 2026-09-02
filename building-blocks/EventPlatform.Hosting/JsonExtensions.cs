@@ -2,8 +2,24 @@ namespace EventPlatform.Hosting;
 
 /// <summary>
 /// Standard System.Text.Json settings shared across all services so every service
-/// serializes identically: camelCase, string enums, skip nulls, case-insensitive reads.
+/// serializes identically: camelCase, string enums, case-insensitive reads.
 /// </summary>
+/// <remarks>
+/// HTTP responses write nulls explicitly; the outbox does not. That difference is deliberate.
+/// <para>
+/// A client cannot tell "the field is null" from "the field does not exist", and every hand-written
+/// TypeScript type in the SPA declares these fields as <c>| null</c>. Omitting them made the wire
+/// disagree with the contract the client was written against: a missing <c>maxPerBuyer</c> arrived
+/// as <c>undefined</c>, so a <c>=== null</c> test for "no cap" failed and rendered "undefined per
+/// buyer" — and the same mismatch made checkout mount an empty payment form instead of skipping
+/// payment. Reading is unaffected either way, since a missing property and an explicit null both
+/// deserialize to null.
+/// </para>
+/// <para>
+/// The outbox keeps <see cref="JsonIgnoreCondition.WhenWritingNull"/>: those payloads are persisted
+/// and replayed, only ever read back by C#, and there is no client to mislead.
+/// </para>
+/// </remarks>
 public static class JsonExtensions
 {
     /// <summary>
@@ -22,7 +38,6 @@ public static class JsonExtensions
         {
             options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
             options.SerializerOptions.PropertyNameCaseInsensitive = true;
-            options.SerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
         });
 

@@ -199,6 +199,28 @@ src/
   formula-leading fields (`=`, `+`, `-`, `@`) with a quote so a malicious event
   title cannot execute in the recipient's Excel; bare numbers are exempt from
   that guard so a negative amount still sums.
+- **The organizer console is a fixed-height app shell; the window never scrolls.**
+  `AdminLayout` is `height: 100vh` with `overflow: hidden`, and its `Content` is a bare flex column —
+  it supplies neither padding nor a width constraint any more. Each admin route gets those from
+  `PageShell`, applied **in `AppRouter` at the route level** rather than inside each page, so a
+  page's early returns (skeleton, 404, error) are covered without editing eight files.
+  `ScrollRegion` is the one scrolling element; its `minHeight: 0` is load-bearing, because a flex
+  child defaults to `min-height: auto` and will not shrink below its content, leaving you with no
+  inner scrollbar at all. `AdminEventDetailPage` opts out of the default shell and builds its own:
+  header and summary pinned, `Tabs` inside a `ScrollRegion`, and the tab row pinned through
+  `renderTabBar` wrapping `DefaultTabBar` in a sticky div — that seam avoids having to measure the
+  header's height. **`StickyActionBar` is sticky, never fixed**: it needs no knowledge of the sider's
+  width, and it stops sticking on its own once the form fits, so a short tab gets no bar hovering
+  over empty space. `BuyerLayout` is deliberately untouched — the storefront still scrolls as a
+  document, and checkout's pay button pins with plain `position: sticky`.
+- **The API writes nulls; it does not omit them — and never test an API field with `=== null`.**
+  HTTP responses dropped `JsonIgnoreCondition.WhenWritingNull`, so a null field now arrives as
+  `null`, matching what every type in `services/*/**Api.ts` already declares. Before that, absent
+  fields arrived as `undefined` and `=== null` tests silently failed: `maxPerBuyer === null`
+  rendered "undefined per buyer", and `clientSecret === null` made checkout mount an empty Stripe
+  form instead of skipping payment. Use `== null` for anything read off a response — it catches both
+  and stays correct whichever way the serializer is configured. Strict `=== null` is still right for
+  local state you initialise yourself.
 - **The admin event page is tabbed, and each tab saves on its own.** `AdminEventDetailPage` is a
   header plus `Tabs`; the sections live in their own components (`EventPresentationForm`,
   `EventScheduleForm`, `EventSeatMapPanel`, `EventSlugCard`, `TicketTypesPanel`, `PromoCodesPanel`,
@@ -213,7 +235,7 @@ src/
   lands in the right place.
 - **Buyer event URLs are slugs; the id still works.** `/events/:id` accepts either an event GUID or
   its slug — `EventDetailPage` picks `getEvent` or `getEventBySlug` by testing the param's shape
-  (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app *issues*
+  (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app _issues_
   use `event.slug`; the id route stays because links issued before slugs existed are still out
   there. Everything keyed on the event id waits for that first call to return, so the seat map and
   inventory fetches are sequenced after it rather than run alongside.
@@ -222,7 +244,7 @@ src/
   tenant defaults) is a textarea plus a live preview, **not** a WYSIWYG — Ant Design ships no
   rich-text editor and the rule below forbids adding one without discussion. The stored format is
   HTML, so swapping in TipTap later is a component change, not a data migration. The preview
-  renders the *unsaved draft*, which nothing has sanitised: safe only because it is the organizer's
+  renders the _unsaved draft_, which nothing has sanitised: safe only because it is the organizer's
   own keystrokes in their own browser. What buyers see (`EventPoliciesSection`) is re-read from the
   server, which strips scripts, event handlers and non-`http(s)`/`mailto` links on write.
 - **Event times render in the venue's zone, not the reader's.** `utils/eventTime.ts`

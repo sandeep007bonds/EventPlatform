@@ -11,12 +11,12 @@ import {
   InputNumber,
   Row,
   Select,
-  Space,
   Typography,
 } from 'antd';
 import dayjs, { type Dayjs } from 'dayjs';
 import { updateEventDetails, type EventResponse } from '../../../services/catalog/catalogApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { StickyActionBar } from '../../../components/common/layout/StickyActionBar';
 import { toMajor, toMinor } from '../../../utils/money';
 
 interface EventScheduleFormProps {
@@ -391,15 +391,14 @@ export function EventScheduleForm({ event, onSaved }: EventScheduleFormProps) {
         </Col>
       </Row>
 
+      {/* No bar at all when locked, rather than a disabled one: after publish there is nothing
+          here to save, and a greyed-out button invites a click that can only ever be refused. */}
       {!locked && (
-        <>
-          <Divider />
-          <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button type="primary" htmlType="submit" loading={saving}>
-              Save schedule and venue
-            </Button>
-          </Space>
-        </>
+        <StickyActionBar bleed={28}>
+          <Button type="primary" htmlType="submit" loading={saving}>
+            Save schedule and venue
+          </Button>
+        </StickyActionBar>
       )}
     </Form>
   );

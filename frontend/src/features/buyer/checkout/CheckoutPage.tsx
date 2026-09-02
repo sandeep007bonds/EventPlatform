@@ -191,7 +191,10 @@ export function CheckoutPage() {
     setSubmitting(true);
     try {
       const result = await checkout(holdId, idempotencyKey.current, buyerEmail, appliedCode);
-      if (result.clientSecret === null) {
+      // Loose == null on purpose: it catches both null and undefined. The API omits null
+      // fields entirely (JsonIgnoreCondition.WhenWritingNull), so a strict === null let the
+      // no-Stripe path fall through and mount an empty payment form.
+      if (result.clientSecret == null) {
         void navigate(`/orders/${result.orderId}`);
         return;
       }
@@ -427,16 +430,28 @@ export function CheckoutPage() {
             />
           )
         ) : (
-          <Button
-            type="primary"
-            size="large"
-            block
-            disabled={expired || !EMAIL_PATTERN.test(buyerEmail)}
-            loading={submitting}
-            onClick={() => void handleStartCheckout()}
+          /* Sticky rather than inline: on a phone the summary, promo box and email field push
+             this below the fold, and the one action the page exists for should never need
+             hunting for. It un-sticks by itself once the card fits the screen. */
+          <div
+            style={{
+              position: 'sticky',
+              bottom: 0,
+              paddingTop: 12,
+              background: 'inherit',
+            }}
           >
-            {expired ? 'Hold expired' : 'Continue to payment'}
-          </Button>
+            <Button
+              type="primary"
+              size="large"
+              block
+              disabled={expired || !EMAIL_PATTERN.test(buyerEmail)}
+              loading={submitting}
+              onClick={() => void handleStartCheckout()}
+            >
+              {expired ? 'Hold expired' : 'Continue to payment'}
+            </Button>
+          </div>
         )}
       </Card>
     </div>

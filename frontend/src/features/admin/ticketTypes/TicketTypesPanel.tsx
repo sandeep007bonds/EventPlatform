@@ -226,7 +226,7 @@ export function TicketTypesPanel({ eventId, currency, isDraft }: TicketTypesPane
               title: 'Limit',
               dataIndex: 'maxPerBuyer',
               render: (maxPerBuyer: number | null) =>
-                maxPerBuyer === null ? 'No cap' : `${maxPerBuyer} per buyer`,
+                maxPerBuyer == null ? 'No cap' : `${maxPerBuyer} per buyer`,
             },
             {
               title: '',

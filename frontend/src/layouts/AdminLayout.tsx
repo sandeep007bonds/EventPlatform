@@ -11,7 +11,6 @@ import { useTranslation } from 'react-i18next';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { adminTheme } from '../theme/adminTheme';
 import { useAuth } from '../contexts/useAuth';
-import { PageContainer } from '../components/common/layout/PageContainer';
 
 const { Header, Sider, Content } = Layout;
 
@@ -39,8 +38,11 @@ export function AdminLayout() {
 
   return (
     <ConfigProvider theme={adminTheme}>
-      <Layout style={{ minHeight: '100vh' }}>
-        <Sider breakpoint="lg" collapsedWidth="0" width={220}>
+      {/* Height-constrained, not minHeight: the window itself never scrolls, so a page can pin its
+          header and tab row and give the form its own scrollbar. `overflow: hidden` here is what
+          stops the outer document growing when a page's content is taller than the viewport. */}
+      <Layout style={{ height: '100vh', overflow: 'hidden' }}>
+        <Sider breakpoint="lg" collapsedWidth="0" width={220} style={{ overflowY: 'auto' }}>
           <div
             style={{
               color: '#fff',
@@ -117,6 +119,7 @@ export function AdminLayout() {
         <Layout>
           <Header
             style={{
+              flex: '0 0 auto',
               display: 'flex',
               justifyContent: 'flex-end',
               alignItems: 'center',
@@ -127,10 +130,11 @@ export function AdminLayout() {
               {t('common:actions.logOut')}
             </Button>
           </Header>
-          <Content style={{ padding: '28px 32px 56px' }}>
-            <PageContainer maxWidth={1360}>
-              <Outlet />
-            </PageContainer>
+          {/* No padding and no scrolling of its own — the route's PageShell owns both, so a
+              pinned action bar can sit flush against the bottom edge. minHeight: 0 lets this flex
+              child shrink below its content, without which the inner scroll never engages. */}
+          <Content style={{ display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+            <Outlet />
           </Content>
         </Layout>
       </Layout>

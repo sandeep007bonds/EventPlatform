@@ -189,7 +189,7 @@ export function SeatSelectionPage() {
       }
 
       // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
-      if (maxTicketsPerBuyer !== null) {
+      if (maxTicketsPerBuyer != null) {
         const gaCount = [...gaQuantities.values()].reduce((a, b) => a + b, 0);
         if (next.size + 1 + gaCount > maxTicketsPerBuyer) {
           toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
@@ -229,7 +229,7 @@ export function SeatSelectionPage() {
 
       // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
       if (
-        maxTicketsPerBuyer !== null &&
+        maxTicketsPerBuyer != null &&
         selected.size + otherSectionsTotal + quantity > maxTicketsPerBuyer
       ) {
         toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
@@ -313,7 +313,7 @@ export function SeatSelectionPage() {
 
   // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
   // enforce the on-sale window here too. The server rejects the hold either way (OnSaleNotStarted).
-  if (onSaleAt !== null && dayjs(onSaleAt).isAfter(dayjs())) {
+  if (onSaleAt != null && dayjs(onSaleAt).isAfter(dayjs())) {
     return (
       <Typography.Text type="secondary">
         Tickets go on sale {dayjs(onSaleAt).format('MMMM D, YYYY · h:mm A')}.

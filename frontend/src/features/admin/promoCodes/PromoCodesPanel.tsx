@@ -178,10 +178,10 @@ export function PromoCodesPanel({ eventId, currency, priceTiers }: PromoCodesPan
               title: 'Limit',
               render: (_, record) => {
                 const parts: string[] = [];
-                if (record.maxRedemptions !== null) {
+                if (record.maxRedemptions != null) {
                   parts.push(`${record.maxRedemptions} total`);
                 }
-                if (record.maxRedemptionsPerBuyer !== null) {
+                if (record.maxRedemptionsPerBuyer != null) {
                   parts.push(`${record.maxRedemptionsPerBuyer} per buyer`);
                 }
                 return parts.length > 0 ? parts.join(', ') : 'Unlimited';

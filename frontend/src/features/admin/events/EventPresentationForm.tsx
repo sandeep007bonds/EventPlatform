@@ -8,6 +8,7 @@ import {
 } from '../../../services/catalog/catalogApi';
 import { uploadImage } from '../../../services/media/mediaApi';
 import { toast } from '../../../components/common/feedback/toast';
+import { StickyActionBar } from '../../../components/common/layout/StickyActionBar';
 import { SocialLinksEditor } from '../../../components/common/forms/SocialLinksEditor';
 
 interface EventPresentationFormProps {
@@ -222,12 +223,11 @@ export function EventPresentationForm({ event, onSaved }: EventPresentationFormP
       </Typography.Title>
       <SocialLinksEditor />
 
-      <Divider />
-      <Space style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <StickyActionBar bleed={28}>
         <Button type="primary" htmlType="submit" loading={saving}>
           Save event page
         </Button>
-      </Space>
+      </StickyActionBar>
     </Form>
   );
 }

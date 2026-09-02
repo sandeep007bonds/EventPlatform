@@ -16,6 +16,7 @@ import { MyOrdersPage } from '../features/buyer/orders/MyOrdersPage';
 import { AdminEventsPage } from '../features/admin/events/AdminEventsPage';
 import { CreateEventPage } from '../features/admin/events/CreateEventPage';
 import { AdminEventDetailPage } from '../features/admin/events/AdminEventDetailPage';
+import { PageShell } from '../components/common/layout/PageShell';
 import { OrganizerPoliciesPage } from '../features/admin/policies/OrganizerPoliciesPage';
 import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
 import { EventGroupsPage } from '../features/admin/eventGroups/EventGroupsPage';
@@ -97,15 +98,71 @@ export function AppRouter() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<AdminEventsPage />} />
-        <Route path="events/new" element={<CreateEventPage />} />
+        <Route
+          index
+          element={
+            <PageShell>
+              <AdminEventsPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="events/new"
+          element={
+            <PageShell>
+              <CreateEventPage />
+            </PageShell>
+          }
+        />
         <Route path="events/:id" element={<AdminEventDetailPage />} />
-        <Route path="tours" element={<EventGroupsPage />} />
-        <Route path="tours/new" element={<CreateEventGroupPage />} />
-        <Route path="tours/:id" element={<TourDetailPage />} />
-        <Route path="orders" element={<AdminOrdersPage />} />
-        <Route path="scan" element={<ScanTicketPage />} />
-        <Route path="policies" element={<OrganizerPoliciesPage />} />
+        <Route
+          path="tours"
+          element={
+            <PageShell>
+              <EventGroupsPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="tours/new"
+          element={
+            <PageShell>
+              <CreateEventGroupPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="tours/:id"
+          element={
+            <PageShell>
+              <TourDetailPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="orders"
+          element={
+            <PageShell>
+              <AdminOrdersPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="scan"
+          element={
+            <PageShell>
+              <ScanTicketPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="policies"
+          element={
+            <PageShell>
+              <OrganizerPoliciesPage />
+            </PageShell>
+          }
+        />
       </Route>
 
       <Route path="*" element={<NotFoundPage />} />

@@ -15,7 +15,9 @@ cd "$repo_root" || exit 1
 status=0
 
 staged_cs=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cs|csproj)$' || true)
-staged_fe=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.(ts|tsx)$' || true)
+# Every type Prettier owns, not just source: a formatting miss in frontend/CLAUDE.md reached main
+# because an earlier check was scoped to src/**/*.tsx and markdown fell outside it.
+staged_fe=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^frontend/.*\.(ts|tsx|js|jsx|json|css|md)$' || true)
 
 if [ -n "$staged_cs" ]; then
   echo "==> C# style"
