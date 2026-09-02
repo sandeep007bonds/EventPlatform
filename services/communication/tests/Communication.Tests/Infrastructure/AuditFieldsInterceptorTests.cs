@@ -13,7 +13,14 @@ public sealed class AuditFieldsInterceptorTests : IAsyncLifetime
     private const string UserActor = "6f9619ff-8b86-d011-b42d-00c04fc964ff";
     private const string ServiceActor = "service:communication";
 
-    private readonly PostgreSqlContainer container = new PostgreSqlBuilder().Build();
+    // Pinned to the image docker-compose runs, not the Testcontainers module default. Two reasons,
+    // and the second is why this file changed: the default is an older Postgres than production
+    // uses, so the tests were proving the wrong version; and the default is an image nothing else
+    // pulls, so it is never in the local cache and every run depends on a registry fetch that can
+    // rate-limit or fail. Keep this in step with docker-compose.yml.
+    private readonly PostgreSqlContainer container = new PostgreSqlBuilder()
+        .WithImage("postgres:17-alpine")
+        .Build();
 
     public async Task InitializeAsync()
     {

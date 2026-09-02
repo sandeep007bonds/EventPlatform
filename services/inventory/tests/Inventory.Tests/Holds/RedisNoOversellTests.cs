@@ -13,7 +13,14 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
 {
     private const int Contenders = 25;
 
-    private readonly RedisContainer redis = new RedisBuilder().Build();
+    // Pinned to the image docker-compose runs, not the Testcontainers module default. Two reasons,
+    // and the second is why this file changed: the default is a different Redis build than production
+    // uses, so the tests were proving the wrong version; and the default is an image nothing else
+    // pulls, so it is never in the local cache and every run depends on a registry fetch that can
+    // rate-limit or fail. Keep this in step with docker-compose.yml.
+    private readonly RedisContainer redis = new RedisBuilder()
+        .WithImage("redis:7-alpine")
+        .Build();
     private ServiceProvider provider = default!;
     private IHoldStore holdStore = default!;
 
