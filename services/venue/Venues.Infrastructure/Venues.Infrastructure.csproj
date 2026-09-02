@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Infrastructure: EF Core (PostgreSQL) persistence and adapters. Implements the
+       Application's abstractions and owns the transactional outbox. -->
+
+  <PropertyGroup>
+    <RootNamespace>Venues.Infrastructure</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Venues.Domain/Venues.Domain.csproj" />
+    <ProjectReference Include="../Venues.Application/Venues.Application.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Messaging/EventPlatform.Messaging.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Persistence/EventPlatform.Persistence.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
+    <!-- Migrations live here. PrivateAssets=all keeps the Design tooling tree out of the API host
+         and any downstream consumer; on .NET 10 its framework transitives are pruned. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

@@ -5,7 +5,7 @@ Run the **whole platform** on your machine and drive a full purchase:
 (pay) → order confirmed → ticket issued.**
 
 No Azure, no Kubernetes. One command starts everything: Docker (Postgres,
-Redis, Jaeger) plus all nine services and the gateway.
+Redis, Jaeger) plus all ten services and the gateway.
 
 **What "no oversell" means:** the platform's core promise is that the same seat
 is never sold to two people. In a flash sale, thousands of buyers can hit "buy"

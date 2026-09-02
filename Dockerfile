@@ -23,6 +23,7 @@
 #   services/media/Media.Api/Media.Api.csproj                   -> Media.Api
 #   services/identity/Identity.Api/Identity.Api.csproj           -> Identity.Api
 #   services/queue/Queue.Api/Queue.Api.csproj                    -> Queue.Api
+#   services/venue/Venues.Api/Venues.Api.csproj                  -> Venues.Api
 #   gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj -> EventPlatform.Gateway
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build

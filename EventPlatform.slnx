@@ -75,4 +75,11 @@
     <Project Path="services/queue/Queue.Api/Queue.Api.csproj" />
     <Project Path="services/queue/tests/Queue.Tests/Queue.Tests.csproj" />
   </Folder>
+  <Folder Name="/services/venue/">
+    <Project Path="services/venue/Venues.Domain/Venues.Domain.csproj" />
+    <Project Path="services/venue/Venues.Application/Venues.Application.csproj" />
+    <Project Path="services/venue/Venues.Infrastructure/Venues.Infrastructure.csproj" />
+    <Project Path="services/venue/Venues.Api/Venues.Api.csproj" />
+    <Project Path="services/venue/tests/Venues.Tests/Venues.Tests.csproj" />
+  </Folder>
 </Solution>

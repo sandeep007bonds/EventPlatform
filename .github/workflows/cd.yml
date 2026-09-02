@@ -64,6 +64,7 @@ jobs:
             [media]="services/media"
             [identity]="services/identity"
             [queue]="services/queue"
+            [venue]="services/venue"
             [gateway]="gateways/EventPlatform.Gateway"
             [frontend]="frontend"
           )
@@ -77,6 +78,7 @@ jobs:
             [media]="services/media/Media.Api/Media.Api.csproj"
             [identity]="services/identity/Identity.Api/Identity.Api.csproj"
             [queue]="services/queue/Queue.Api/Queue.Api.csproj"
+            [venue]="services/venue/Venues.Api/Venues.Api.csproj"
             [gateway]="gateways/EventPlatform.Gateway/EventPlatform.Gateway.csproj"
             # Empty on purpose: the frontend is not a .NET project. The build step treats an empty
             # project_path as "this one has its own Dockerfile" rather than adding a parallel
@@ -93,12 +95,13 @@ jobs:
             [media]="Media.Api"
             [identity]="Identity.Api"
             [queue]="Queue.Api"
+            [venue]="Venues.Api"
             [gateway]="EventPlatform.Gateway"
             [frontend]=""
           )
 
           entries="[]"
-          for svc in catalog inventory ordering payments ticketing communication media identity queue gateway frontend; do
+          for svc in catalog inventory ordering payments ticketing communication media identity queue venue gateway frontend; do
             include=false
             if [ "${shared_changed}" = true ]; then
               include=true

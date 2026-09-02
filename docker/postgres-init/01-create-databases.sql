@@ -10,7 +10,7 @@
 -- database is not the application's job — in a deployed environment Terraform does it, and the
 -- service is only ever handed a connection string to one that already exists.
 --
--- POSTGRES_DB (eventplatform) is still created by the image itself and left unused; these eight are
+-- POSTGRES_DB (eventplatform) is still created by the image itself and left unused; these nine are
 -- what the services actually connect to.
 
 CREATE DATABASE catalog;
@@ -21,3 +21,4 @@ CREATE DATABASE ordering;
 CREATE DATABASE payments;
 CREATE DATABASE queue;
 CREATE DATABASE ticketing;
+CREATE DATABASE venue;

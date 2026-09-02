@@ -46,7 +46,7 @@ wait_for redis "docker compose exec -T redis redis-cli ping | grep -q PONG"
 # then creates each database itself as a side effect of migrating — provisioning a database is the
 # environment's job, not the application's.
 echo "==> Ensuring per-service databases exist..."
-for db in catalog communication identity inventory ordering payments queue ticketing; do
+for db in catalog communication identity inventory ordering payments queue ticketing venue; do
   if ! docker compose exec -T postgres psql -U eventplatform -d postgres -tAc \
        "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
     echo "    creating $db"
@@ -239,5 +239,7 @@ sleep 3
 start_service identity 5087 "$repo_root/services/identity/Identity.Api"
 sleep 3
 start_service queue 5088 "$repo_root/services/queue/Queue.Api"
+sleep 3
+start_service venue 5089 "$repo_root/services/venue/Venues.Api"
 
 wait

@@ -75,6 +75,7 @@ tables — only its HTTP API (sync) or its published events (async).
 | **ticketing** | Issues tickets, generates QR codes, scans people in at the gate. |
 | **identity** | Who you are. Buyer phone+OTP, organizer email+password, RS256 token issuer. |
 | **queue** | Virtual waiting room for high-demand on-sales. Opt-in per event. |
+| **venue** | Places: venues, gates, facilities, and versioned seat maps. The source of truth for *where it happens and which seats exist* — never for price or availability (ADR-0038). |
 | **communication** | Every outbound email/SMS/WhatsApp. One audit trail, one vendor integration. |
 | **media** | Image upload to blob storage. Deliberately tiny and flat. |
 
@@ -319,6 +320,7 @@ reconciles anything the TTL let lapse.
 | **ticketing** | `Ticket`, scan cache (`EventScanContext`, gate assignments) | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}[/qrcode]` · `GET /v1/events/{id}/tickets` · `POST /v1/tickets/scan` · *internal:* `.../tickets/void` | `TicketIssued`, `OrderTicketsIssued` | `OrderConfirmed`, `EventPublished` |
 | **identity** | `PhoneVerification`, `BuyerAccount`, `Tenant`, `OrganizerAccount`, `SigningKey` | `POST /v1/otp/request`,`/verify` · `POST /v1/organizers/register`,`/login` · `/.well-known/openid-configuration`, `/jwks.json` | — | — |
 | **queue** | `QueueSettings` (+ Redis waiting room) | `POST .../queue/join` · `GET .../queue/status` · `GET/PUT .../queue/settings` | — | `EventPublished` |
+| **venue** | `Venue`, `VenueGate`, `VenueFacility`, `SeatMap`, `SeatMapVersion`, `VenueSection`, `SeatRow`, `Seat`, `AdmissionArea`, `SeatMapElement` | `POST/GET/PUT /v1/venues[/{id}]` · `POST .../activate`,`.../archive`,`.../gates`,`.../facilities` · `POST/GET .../seat-maps` · `GET /v1/seat-maps/{id}[?version=]` · `POST .../versions` · `PUT .../draft/layout` · `POST .../publish` | `VenueCreated`, `SeatMapPublished` | — |
 | **communication** | `DeliveryLogEntry`, `ProcessedNotificationEvent` | *internal:* `POST /v1/notifications/send` | — *(the only service with no outbox)* | `OrderConfirmed`, `TicketIssued`, `OrderTicketsIssued` |
 | **media** | *no database* — Azure Blob Storage | `POST /v1/media/images` | — | — |
 

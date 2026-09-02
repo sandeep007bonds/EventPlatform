@@ -286,6 +286,28 @@ def check_param_tags(path, raw, code, findings):
         findings.append((path, start + 1, 'CS1573/SA1611/SA1612', detail))
 
 
+SHARED_SCOPE = 'building-blocks'
+
+
+def compilation_scope(path):
+    """Which set of projects a file can see types from.
+
+    Two services may both declare a `GetSeatMapQuery` with different arities and both
+    compile: they are separate assemblies with no reference between them. Matching
+    record names across the whole tree makes the second one a false CS7036 against
+    every caller of the first, which is exactly the cry-wolf failure this checker is
+    supposed to avoid. Everything can see `building-blocks/`; nothing else crosses.
+    """
+    parts = pathlib.PurePath(path).parts
+    if not parts:
+        return SHARED_SCOPE
+    if parts[0] == 'building-blocks':
+        return SHARED_SCOPE
+    if parts[0] in ('services', 'gateways') and len(parts) > 1:
+        return f'{parts[0]}/{parts[1]}'
+    return parts[0]
+
+
 def check_record_arity(sources, findings):
     """CS7036 / CS1729 — a positional record gained a parameter, a caller did not."""
     declared = {}
@@ -297,12 +319,17 @@ def check_record_arity(sources, findings):
                 continue
             params = [p for p in split_top_level(body) if p.strip()]
             required = sum(1 for p in params if '=' not in p)
-            declared[match.group(1)] = (required, len(params), path)
+            key = (compilation_scope(path), match.group(1))
+            declared.setdefault(key, []).append((required, len(params), path))
 
     for path, code in sources.items():
+        scope = compilation_scope(path)
         for match in re.finditer(r'\bnew\s+(\w+)\s*\(', code):
             name = match.group(1)
-            if name not in declared:
+            candidates = declared.get((scope, name), []) + declared.get((SHARED_SCOPE, name), [])
+            # More than one arity in view means the name alone does not identify the type —
+            # say nothing rather than pick one and be confidently wrong.
+            if len({(low, high) for low, high, _ in candidates}) != 1:
                 continue
             body = bracket_body(code, match.end() - 1)
             if body is None:
@@ -310,7 +337,7 @@ def check_record_arity(sources, findings):
             args = [a for a in split_top_level(body) if a.strip()]
             if any(re.match(r'^\s*\w+\s*:(?!:)', a) for a in args):
                 continue  # named arguments — positional counting says nothing
-            low, high, where = declared[name]
+            low, high, where = candidates[0]
             if not low <= len(args) <= high:
                 findings.append((path, code[:match.start()].count('\n') + 1, 'CS7036',
                                  f'new {name}(...) passes {len(args)}, declaration takes '

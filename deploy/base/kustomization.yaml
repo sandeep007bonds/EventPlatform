@@ -14,5 +14,6 @@ resources:
   - media
   - identity
   - queue
+  - venue
   - gateway
   - frontend

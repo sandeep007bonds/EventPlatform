@@ -24,7 +24,7 @@ attempt and the wrong version looked plausible.
 | **SA1506** | A blank line between a `</remarks>` and the property it documents | Doc block followed by blank line(s) then a member |
 | **SA1516** | Expanding a one-line field into a chained initializer left the next field flush against `.Build();` | Element following a **multi-line** element with no blank line. StyleCop allows consecutive single-line fields, so the naive reading reports 72 violations on a passing tree |
 | **CS1573 / SA1611 / SA1612** | `amountMinor` added to `RefundAsync` without a `<param>`; `QueueStatusResponse` documented its parameters out of order | `<param>` names and order compared against the signature |
-| **CS7036 / CS1729** | `EventPricing` gained `BookingFeePerTicketMinor`; three construction sites were not updated | `new X(...)` argument count against the positional record declaration |
+| **CS7036 / CS1729** | `EventPricing` gained `BookingFeePerTicketMinor`; three construction sites were not updated | `new X(...)` argument count against the positional record declaration, **scoped to one compilation** — see below |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
@@ -32,6 +32,16 @@ Two parser details these rules depend on, both learned by getting them wrong: **
 literals must be blanked before any structural parsing** (prose like `(attaching a method — card,
 UPI, etc.)` otherwise parses as an argument list), and **the `>` of a lambda arrow is not a closing
 bracket** (it silently miscounts every argument list containing a lambda).
+
+A third, learned when the Venue service landed: **a type name only identifies a type within one
+compilation**. The arity rule keyed declarations by bare name across the whole tree, so the moment
+a second service declared its own `GetSeatMapQuery`/`SeatResponse`/`SeatMapResponse`, three
+correct call sites in Catalog were reported as CS7036 against Venue's unrelated records. Two
+services are separate assemblies with no reference between them and both compile fine. The rule now
+scopes lookups to `services/<name>` or `gateways/<name>` plus `building-blocks/` (which everything
+references), and stays silent when a name resolves to more than one arity in view rather than
+picking one. Verified both ways: zero findings on the passing tree, and still catches a genuine
+three-argument call to a six-parameter record in the same project.
 
 ## Not detectable without semantic analysis
 

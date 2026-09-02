@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure domain: entities, value objects, invariants. No framework or infrastructure deps. -->
+
+  <PropertyGroup>
+    <RootNamespace>Venues.Domain</RootNamespace>
+  </PropertyGroup>
+
+</Project>

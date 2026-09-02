@@ -1,0 +1,70 @@
+# Applies Venue's EF Core migrations and exits. Argo CD runs this as a Sync hook at a negative
+# wave, so the schema is in place before any new pod of the Deployment rolls — services never
+# migrate themselves (ADR-0029). Same image as the Deployment, told to migrate by an argument.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: venue-migrate
+  labels:
+    app.kubernetes.io/name: venue-migrate
+    app.kubernetes.io/part-of: eventplatform
+  annotations:
+    # A Sync hook at a negative wave, NOT PreSync. PreSync runs before every normal resource in
+    # the Application, including the SecretProviderClass this Job mounts to get its connection
+    # string - which deadlocks: the hook waits for a volume whose SecretProviderClass the main
+    # sync has not created yet, and the main sync never starts because the hook never finishes.
+    # Staying in the Sync phase lets sync-waves order it after the class (wave -10) and still
+    # before every Deployment (wave 0), which is all "migrate before any new pod rolls" needs.
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-5"
+    # Delete the previous run only when creating the next one. A failed migration's Job and pod
+    # logs then survive the sync that failed, which is the whole point of migrating in a job
+    # rather than on startup.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  # Applying migrations is idempotent (EF skips what the history table already records), so a
+  # retry after a transient database error is safe. Two is enough to ride out a restart; a real
+  # bad migration should fail the sync, not be retried into the ground.
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: venue-migrate
+      # Deliberately NO dapr.io/* annotations, unlike the Deployment. A Dapr sidecar never exits
+      # on its own, so the pod would stay Running forever and the Job would never complete.
+      # A migration needs nothing from Dapr anyway.
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          image: venue-placeholder
+          # Picked up by MigrationRunner.IsMigrationRun — the process applies migrations, logs
+          # what it applied, and exits without serving traffic or binding a port.
+          args: ["--migrate"]
+          envFrom:
+            - configMapRef:
+                name: eventplatform-config
+          env:
+            - name: ConnectionStrings__venue
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: venue-connection-string
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eventplatform-keyvault

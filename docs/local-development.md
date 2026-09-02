@@ -11,7 +11,7 @@ runs locally and in the cloud — only the Dapr component config differs.
 ./scripts/dev-up.sh
 ```
 
-Starts Postgres, Redis, Jaeger, and all nine services — eight with a Dapr
+Starts Postgres, Redis, Jaeger, and all ten services — nine with a Dapr
 sidecar, plus Media.Api and the gateway, which run without one. Ctrl+C stops
 everything. See
 **[local-e2e-walkthrough.md](local-e2e-walkthrough.md)** for the full runbook —
@@ -49,7 +49,7 @@ Stop with `./scripts/dev-down.sh` (add `-v` to also wipe the Postgres volume).
 ## Database schema — EF Core migrations
 
 Each service has its own Postgres **database** (`catalog`, `inventory`,
-`ordering`, `payments`, `ticketing`, `communication`, `identity`, `queue` — true
+`ordering`, `payments`, `ticketing`, `communication`, `identity`, `queue`, `venue` — true
 database-per-service) and its own migration history.
 
 `dev-up.sh` applies migrations for you before starting anything, so day to day
@@ -121,7 +121,7 @@ All three need the EF tool once: `dotnet tool install --global dotnet-ef`.
 
 `scripts/dev-up.sh` runs `dapr run -f platform/dapr/dapr.yaml` — a
 [Dapr multi-app run](https://docs.dapr.io/developing-applications/local-development/multi-app-dapr-run/)
-template that starts eight of the nine services with their sidecars in one
+template that starts nine of the ten services with their sidecars in one
 process tree. Media.Api is deliberately not in it — it has no database and no
 pub/sub, so it never runs with a sidecar (see `services/media/CLAUDE.md`);
 `dev-up.sh` starts it, and the gateway, as plain processes alongside. It's equivalent to running, for each service, its own:

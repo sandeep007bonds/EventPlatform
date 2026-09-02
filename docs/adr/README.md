@@ -49,6 +49,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0035](0035-authorization-deny-by-default.md) | Authorization: role policies at the route, deny-by-default last | Accepted |
 | [0036](0036-audit-trail.md) | Audit trail: append-only, written in the same transaction, shipped to one store | Proposed |
 | [0037](0037-post-publish-editing-slugs-and-policy-documents.md) | Editing split by consequence, not by status; event slugs; versioned policy documents | Accepted |
+| [0038](0038-venue-service-and-versioned-seat-maps.md) | A Venue service; seat maps become versioned assets with logical identity separate from graphical layout | Accepted |
 
 ## Format
 

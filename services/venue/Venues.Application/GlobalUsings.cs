@@ -1,0 +1,10 @@
+global using System.Reflection;
+global using EventPlatform.Contracts;
+global using EventPlatform.Contracts.Venues;
+global using FluentValidation;
+global using MediatR;
+global using Microsoft.Extensions.DependencyInjection;
+global using Venues.Application.Abstractions;
+global using Venues.Application.Behaviors;
+global using Venues.Application.Mapping;
+global using Venues.Domain;

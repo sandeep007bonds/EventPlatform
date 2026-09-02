@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: venue
+  labels:
+    app.kubernetes.io/name: venue
+    app.kubernetes.io/part-of: eventplatform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: venue
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: venue
+      annotations:
+        dapr.io/enabled: "true"
+        dapr.io/app-id: "venue"
+        dapr.io/app-port: "8080"
+        dapr.io/app-protocol: "http"
+        # Sends the sidecar's own spans to the collector — see deploy/base/observability.
+        dapr.io/config: "tracing"
+    spec:
+      containers:
+        - name: venue
+          image: venue-placeholder
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: eventplatform-config
+          env:
+            - name: ConnectionStrings__venue
+              valueFrom:
+                secretKeyRef:
+                  name: eventplatform-secrets
+                  key: venue-connection-string
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+          volumeMounts:
+            - name: secrets-store
+              mountPath: "/mnt/secrets-store"
+              readOnly: true
+      volumes:
+        - name: secrets-store
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: eventplatform-keyvault

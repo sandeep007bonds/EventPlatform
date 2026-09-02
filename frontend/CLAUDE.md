@@ -308,7 +308,7 @@ npm install
 npm run dev
 ```
 
-Needs the gateway (and ideally all nine backend services) running — see
+Needs the gateway (and ideally all ten backend services) running — see
 `docs/local-e2e-walkthrough.md`.
 
 ```bash

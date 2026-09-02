@@ -33,16 +33,17 @@ no capability from the v9 documents is dropped by a numbering disagreement.
 PRICE 11 · PROMO 13 · INV 13 · QUEUE 11 · ORDER 13 · PAY 7 · REF 5 · TKT 10 · COM 12 · GATE 10 ·
 SEARCH 10 · REPORT 13.
 
-**Status roll-up (at the commit that introduced this file).**
+**Status roll-up.**
 
 | | ✅ | ◐ | ✗ | ⊘ |
 | --- | --- | --- | --- | --- |
-| Tickets | 71 | 52 | 90 | 3 |
+| At first audit | 71 | 52 | 90 | 3 |
+| Now | 85 | 48 | 80 | 3 |
 
-Read that honestly: **71 of 216 fully done**, and the 52 partials are mostly real work with a
-named gap rather than stubs. It is also lower than the "~110 already satisfied" estimate I gave
-before doing this row by row — the estimate counted families that *exist* rather than tickets that
-*pass*, which is exactly the error an itemised audit is for.
+Read the first row honestly: **71 of 216** when this ledger was written, and lower than the
+"~110 already satisfied" estimate given before going row by row — that estimate counted families
+that *exist* rather than tickets that *pass*, which is exactly the error an itemised audit is for.
+The second row is after the Venue service (ADR-0038) closed VEN in full and most of MAP.
 
 ---
 
@@ -118,43 +119,46 @@ record. Building it first would record a weaker fact permanently.*
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
-| VEN-001 | `Venue` aggregate, tenant-owned, reusable across events | ✗ | **No venue entity anywhere.** `Catalog.Domain/EventLocation.cs` inlines name + address + geo onto each `Event`, so two events at the same stadium share nothing and the stadium's map is retyped every time. This is the repository's largest structural debt. |
-| VEN-002 | `VenueAddress` | ◐ | The fields exist, on `EventLocation`, on the wrong aggregate. |
-| VEN-003 | Venue CRUD API (`POST/GET/PATCH /v1/venues`) | ✗ | — |
-| VEN-004 | `VenueGate` — physical gate configuration | ◐ | `Catalog.Domain/EntryGate.cs` is per-**event**, not per-venue, and has no update or delete. v9 puts physical gates on the venue and event-specific authorization in Access/Gate. |
-| VEN-005 | `VenueZone` | ✗ | — |
-| VEN-006 | `VenueFacility` | ✗ | — |
-| VEN-007 | Venue types | ✗ | — |
-| VEN-008 | `VenueCreated` event → Search, Audit, Reporting | ✗ | — |
+| VEN-001 | `Venue` aggregate, tenant-owned, reusable across events | ✅ | `services/venue` — `Venues.Domain/Venue.cs`; ADR-0038. Catalog's `EventLocation` stays as the legacy path until events move onto venue-owned maps (entangled with EVENT-005). |
+| VEN-002 | `VenueAddress` | ✅ | Owned value on `Venue`; columns on `venues`. |
+| VEN-003 | Venue CRUD API (`POST/GET/PATCH /v1/venues`) | ✅ | `VenueEndpoints.cs` — create, list, get, update, activate, archive. Organizer-only, including the reads. |
+| VEN-004 | `VenueGate` — physical gate configuration | ✅ | `VenueGate.cs` — per **venue**, code unique within it, rename and deactivate rather than delete. Event-time gate *authorization* stays with the scanning side. |
+| VEN-005 | `VenueZone` | ✅ | Modelled as `AdmissionArea` — unreserved capacity with no seat identity. |
+| VEN-006 | `VenueFacility` | ✅ | `VenueFacility.cs`; free text on purpose — the set differs by venue kind. |
+| VEN-007 | Venue types | ✅ | `Venue.VenueType`, free text for the same reason. |
+| VEN-008 | `VenueCreated` event → Search, Audit, Reporting | ✅ | `EventPlatform.Contracts/Venues/VenueCreated.cs`, published through the outbox. No consumers yet — those services do not exist. |
 
 ## MAP — Seat map (17)
 
 v9's logical model is `Venue → SeatMap → SeatMapVersion → Section → Row → Seat`, with graphical
-layout held separately. Ours is `Event → SeatMap → Seat`, with section as a **string on each seat**.
+layout held separately. **We now have exactly that** (ADR-0038). What remains open in this family is
+the *editor*, not the model: Catalog's legacy `Event → SeatMap → Seat` (section as a string on each
+seat) still serves existing events until they move onto venue-owned maps.
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
 | MAP-001 | Graphical editor: create/edit elements | ✗ | The organizer types rows and seats-per-row into a form (`SeatMapSectionsFields.tsx`). No canvas. |
-| MAP-002 | Logical identity separate from coordinates | ✗ | `Seat.cs` has no coordinates at all — there is nothing to separate yet, which is the same gap seen from the other side. |
+| MAP-002 | Logical identity separate from coordinates | ✅ | `SeatMapElement.cs` holds every coordinate; `Seat`/`SeatRow`/`VenueSection` hold none. Moving a block cannot change what a ticket names. ADR-0038. |
 | MAP-003 | Zoom / pan | ✗ | — |
 | MAP-004 | Drag / drop placement | ✗ | — |
-| MAP-005 | Section / row / seat creation as first-class entities | ◐ | Sections and rows are generated (rows × seats-per-row) but not modelled: `Section` is a string, `SeatRow` does not exist. `SeatMap.AddReservedSection` enforces name uniqueness, which is the invariant a real entity would own. |
-| MAP-006 | Automatic seat numbering | ✅ | Generated at `DefineSeatMap` time. |
-| MAP-007 | Bulk operations | ◐ | Whole-section add/replace/remove (`POST`/`PUT`/`DELETE /seatmap/sections`), Draft-only. Not bulk edit of arbitrary selections. |
-| MAP-008 | Stage / screen / facility elements | ✗ | — |
-| MAP-009 | GA zones | ✅ | `GeneralAdmissionSection.cs`; capacity-only pools sit alongside reserved sections in one map. |
+| MAP-005 | Section / row / seat creation as first-class entities | ✅ | `VenueSection` → `SeatRow` → `Seat`, each an entity with its own identity, order and constraints. Section carries a stable `Code` that survives a rename. |
+| MAP-006 | Automatic seat numbering | ✅ | Catalog generates them; Venue accepts them per seat, as **strings** — real venues number seats `12A`, and an integer column makes that unrepresentable. |
+| MAP-007 | Bulk operations | ◐ | Whole-layout replacement (`PUT /draft/layout`) is the bulk primitive, and Catalog still has whole-section add/replace/remove. Not bulk edit of an arbitrary selection in an editor. |
+| MAP-008 | Stage / screen / facility elements | ✅ | `SeatMapElementKind`: `Stage`, `Entrance`, `Facility`, `Obstruction`, `Label`, plus section/area shapes. |
+| MAP-009 | GA zones | ✅ | `AdmissionArea.cs` — capacity with no seat identity, alongside reserved sections in one version. (Catalog's `GeneralAdmissionSection` is the legacy equivalent.) |
 | MAP-010 | VIP / VVIP zones | ◐ | Expressible as a ticket type + section name; not a modelled zone kind. |
-| MAP-011 | Accessible seats | ✗ | No seat attribute for accessibility. |
-| MAP-012 | Blocked / non-sellable areas | ◐ | Blocking exists in **Inventory** post-publish (`SeatBlockPanel`, `SeatBlocked`/`SeatUnblocked`), not as a map-design concept. |
-| MAP-013 | Gates on the map | ✅ | `Seat.EntryGateId` / `GeneralAdmissionSection.EntryGateId`, immutable once set; Ticketing resolves eligibility at scan time (ADR-0024). |
+| MAP-011 | Accessible seats | ✅ | `SeatAttributes` flags — `Accessible`, `Companion`, `RestrictedView`, `Aisle`. Flags because they genuinely combine. |
+| MAP-012 | Blocked / non-sellable areas | ✅ | `Seat.IsSellable` for permanently dead space (a camera position, no view at all) — a property of the building. Per-show hold-back stays Inventory's reversible blocking. |
+| MAP-013 | Gates on the map | ✅ | `VenueSection.GateId` / `AdmissionArea.GateId`, validated against the venue at save **and** publish. (Catalog's per-seat `EntryGateId` is the legacy equivalent.) |
 | MAP-014 | Pricing-zone visualization | ◐ | Price is resolved per seat from the joined `TicketType`; nothing renders it as a zone. |
 | MAP-015 | Import / export | ✗ | — |
-| MAP-016 | Draft / version | ✗ | **No `SeatMapVersion`.** A map is Draft-editable and then frozen by publish. v9 wants structural changes to create a new version validated against sold inventory. |
-| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ◐ | Publish validates that a map exists and that section names are unique. It cannot validate hierarchy (there is none) or compatibility with linked sessions (there are none). |
+| MAP-016 | Draft / version | ✅ | `SeatMapVersion` — one open draft at a time, a new draft pre-filled from the published layout with fresh ids, published versions immutable, superseded ones kept because tickets still resolve against them. |
+| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ◐ | `Validate()` returns **every** problem: duplicate codes, duplicate row labels, duplicate seat numbers, empty sections/rows/areas, missing geometry, a half-drawn map. Still missing v9's "compatibility with linked event sessions" — there are no sessions yet (EVENT-005). |
 
 *Progressive loading (venue overview → section geometry → selected-section seats) is v9's answer to
-large-stadium rendering. We transfer every seat on load, which is fine at hall scale and is not at
-stadium scale — it is a consequence of MAP-002 being missing, and closes with it.*
+large-stadium rendering, and is still not implemented: `GET /v1/seat-maps/{id}` returns the whole
+version. The model no longer stands in the way — `SeatMapElement` is exactly the overview layer — so
+it is a read-endpoint change when stadium scale demands it, not a remodelling.*
 
 ## EVENT — Event & Tour (16)
 
@@ -359,7 +363,7 @@ below is missing; they are listed individually so the family is not collapsed in
 | SEARCH-003 | Venue document schema | ✗ | — |
 | SEARCH-004 | **Projection**: only eligible published events indexed; tenant/public visibility enforced; lag observable; rebuildable from events | ✗ | The visibility rule itself exists and is tested (`Event.IsVisibleTo`); nothing projects it. |
 | SEARCH-005 | Event search API (`GET /v1/search/events`) | ◐ | `GET /v1/events` with filters serves the storefront today — honest for the current catalogue size, not a search index. |
-| SEARCH-006 | Venue search API | ✗ | Needs VEN-001. |
+| SEARCH-006 | Venue search API | ✗ | `VenueCreated` is published and nothing consumes it. |
 | SEARCH-007 | Faceting / filters | ◐ | Category and date filters on the Catalog list. |
 | SEARCH-008 | Availability projection | ✗ | — |
 | SEARCH-009 | Index version + rebuild | ✗ | — |
@@ -374,7 +378,7 @@ given (`DataGrid` + `csv.ts`), which is the honest client-side behaviour and not
 | --- | --- | --- | --- |
 | REPORT-001 | **Sales report** from analytical data, mandatory tenant filter, event/session/date filters, freshness shown | ✗ | — |
 | REPORT-002 | Separate analytical store | ✗ | Reports would read the transactional databases, which the service boundary forbids. |
-| REPORT-003 | Dimensional model (`DimTenant/Event/Session/Venue/TicketProduct/CustomerSegment/Date/Gate`) | ✗ | `DimSession` needs EVENT-005; `DimVenue` needs VEN-001. **Reporting cannot be built before those two without baking the wrong grain in.** |
+| REPORT-003 | Dimensional model (`DimTenant/Event/Session/Venue/TicketProduct/CustomerSegment/Date/Gate`) | ✗ | `DimVenue` is now available (VEN-001); `DimSession` still needs EVENT-005. **Reporting cannot be built before that without baking the wrong grain in.** |
 | REPORT-004 | `FactOrder` / `FactOrderItem` | ✗ | — |
 | REPORT-005 | Revenue report, reconciling to transactional sources | ✗ | — |
 | REPORT-006 | Inventory report | ✗ | — |
@@ -390,10 +394,12 @@ given (`DataGrid` + `csv.ts`), which is the honest client-side behaviour and not
 
 ## What the audit says
 
-Three gaps are structural, and everything else queues behind them:
+Three gaps were structural, and everything else queued behind them. **The first is now closed.**
 
-1. **Venue (VEN-001)** — location is inlined on the event, so a venue's seat map is retyped per
-   event and MAP-001..017 have nowhere to live.
+1. ~~**Venue (VEN-001)**~~ — done. `services/venue` owns venues, gates, facilities and versioned
+   seat maps with logical identity separated from graphical layout (ADR-0038). Catalog's inline
+   `EventLocation` and per-event `SeatMap` remain as the legacy path; migrating events onto
+   venue-owned maps is entangled with `EventSession` below and is one change, not two.
 2. **`EventSession` (EVENT-005)** — inventory, tickets, scans and every report hang off the event.
    Reporting built on this grain would be wrong in a way that is expensive to unwind, which is why
    REPORT sits behind it.

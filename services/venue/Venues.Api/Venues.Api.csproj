@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <RootNamespace>Venues.Api</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Venues.Application/Venues.Application.csproj" />
+    <ProjectReference Include="../Venues.Infrastructure/Venues.Infrastructure.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Hosting/EventPlatform.Hosting.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

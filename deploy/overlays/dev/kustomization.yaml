@@ -76,6 +76,9 @@ images:
   - name: queue-placeholder
     newName: acreventplatformdev3j13xu.azurecr.io/queue
     newTag: d15e9484e66f04e82564e8950ad4ca0a91f93338
+  - name: venue-placeholder
+    newName: REPLACE_ME.azurecr.io/venue
+    newTag: REPLACE_ME
   - name: gateway-placeholder
     newName: acreventplatformdev3j13xu.azurecr.io/gateway
     newTag: d15e9484e66f04e82564e8950ad4ca0a91f93338

@@ -32,11 +32,12 @@ declare -A projects=(
   [communication]="Communication"
   [identity]="Identity"
   [queue]="Queue"
+  [venue]="Venues"
 )
 
 services=("$@")
 if [ ${#services[@]} -eq 0 ]; then
-  services=(catalog inventory ordering payments ticketing communication identity queue)
+  services=(catalog inventory ordering payments ticketing communication identity queue venue)
 fi
 
 for svc in "${services[@]}"; do
