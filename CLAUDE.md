@@ -32,6 +32,14 @@ hybrid multi-tenancy · payments saga + idempotency + PCI SAQ-A · Phase 1 = sea
 7. **No secrets in code.** Key Vault only.
 8. **Every service** ships: tests (unit + integration), health/readiness
    endpoints, OpenTelemetry, a README, and a `CLAUDE.md`.
+9. **Never hit the same build error twice.** Every analyzer or compiler error
+   that reaches a build gets recorded in
+   [docs/build-error-log.md](docs/build-error-log.md) — the rule, the cause, the
+   fix. If it is mechanically detectable, add it to
+   `scripts/check-csharp-style.py` in the *same* commit as the fix, calibrated to
+   zero findings on the passing tree and verified to catch the real failure. If
+   it is not detectable without semantic analysis, say so in the log rather than
+   approximating it. The log is the record; the checker is the enforcement.
 
 ## Coding conventions (C#) — match these exactly
 

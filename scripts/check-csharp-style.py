@@ -21,6 +21,11 @@ Deliberately NOT checked, because it needs real parsing and a wrong guess would
 rewrite correct code: SA1204/SA1201 member ordering, nullability, and the
 semantic CA/S performance rules. Those stay the compiler's job.
 
+Every rule here has a row in docs/build-error-log.md saying what it cost us and
+how it was calibrated, and so does every error we decided NOT to automate. Golden
+rule 9: when the build fails, add the row, and add the rule in the same commit if
+it can be detected without semantic analysis.
+
 Exit code is 1 if anything is found, so it works as a pre-commit hook:
     git config core.hooksPath .githooks
 """
