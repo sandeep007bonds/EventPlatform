@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Card, Descriptions, Space, Tabs, Tag, Typography } from 'antd';
+import { Button, Card, Descriptions, Space, Tabs, Tag, theme, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { formatEventDateTime } from '../../../utils/eventTime';
@@ -54,6 +54,7 @@ export function AdminEventDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const { token } = theme.useToken();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
@@ -255,7 +256,8 @@ export function AdminEventDetailPage() {
               // Pinning the tab row this way rather than lifting it into the block above: the nav
               // and its panels are one component, and `renderTabBar` is the supported seam for
               // exactly this. Sticky also means no measuring — it needs no knowledge of how tall
-              // the header happens to be today.
+              // the header happens to be today. The background must be a real colour: `inherit`
+              // resolves transparent here, and the form scrolls through the pinned row.
               renderTabBar={(tabBarProps, DefaultTabBar) => (
                 <div
                   style={{
@@ -264,7 +266,7 @@ export function AdminEventDetailPage() {
                     zIndex: 3,
                     margin: '-28px -28px 0',
                     padding: '28px 28px 0',
-                    background: 'inherit',
+                    background: token.colorBgContainer,
                   }}
                 >
                   <DefaultTabBar {...tabBarProps} />
