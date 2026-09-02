@@ -11,6 +11,7 @@ public sealed class ProcessedNotificationEventTests : IAsyncLifetime
     private readonly PostgreSqlContainer container = new PostgreSqlBuilder()
         .WithImage("postgres:17-alpine")
         .Build();
+
     private CommunicationDbContext dbContext = default!;
 
     public async Task InitializeAsync()

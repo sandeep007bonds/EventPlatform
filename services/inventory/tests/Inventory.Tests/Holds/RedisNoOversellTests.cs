@@ -21,6 +21,7 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     private readonly RedisContainer redis = new RedisBuilder()
         .WithImage("redis:7-alpine")
         .Build();
+
     private ServiceProvider provider = default!;
     private IHoldStore holdStore = default!;
 

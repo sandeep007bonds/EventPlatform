@@ -199,6 +199,31 @@ def check_sa1506(path, raw, findings):
                              f'doc header followed by {blanks} blank line(s)'))
 
 
+MEMBER_START = re.compile(
+    r'^    (?:\[|(?:public|private|protected|internal|static|readonly|async|override|sealed'
+    r'|virtual|const|new)\b)')
+
+# A line that closes a *multi-line* element: a brace at member indentation, or a continuation line
+# ending an initializer that was split across lines.
+ENDS_MULTILINE_ELEMENT = re.compile(r'^    \}\s*$|^\s{8,}.*;\s*$')
+
+
+def check_sa1516(path, raw, findings):
+    """SA1516 — elements should be separated by a blank line.
+
+    Narrow on purpose. StyleCop is happy with consecutive *single-line* fields, which is why the
+    obvious reading of this rule ("any two adjacent members need a blank line") reports 72
+    violations on a tree that compiles. What it actually wants is a blank line after an element
+    that spanned multiple lines — which is exactly what breaks when a one-line field is expanded
+    into a chained initializer and the field below it is left flush against the closing call.
+    """
+    lines = raw.split('\n')
+    for index in range(len(lines) - 1):
+        if ENDS_MULTILINE_ELEMENT.match(lines[index]) and MEMBER_START.match(lines[index + 1]):
+            findings.append((path, index + 2, 'SA1516',
+                             'element follows a multi-line element with no blank line between'))
+
+
 def check_param_tags(path, raw, code, findings):
     """CS1573 / SA1611 / SA1612 — <param> tags must cover the signature, in order."""
     raw_lines, code_lines = raw.split('\n'), code.split('\n')
@@ -344,6 +369,7 @@ def main():
         check_sa1117(normalized, code, findings)
         check_s125(normalized, raw, findings)
         check_sa1506(normalized, raw, findings)
+        check_sa1516(normalized, raw, findings)
         check_param_tags(normalized, raw, code, findings)
         check_local_usings(normalized, code, findings)
 
