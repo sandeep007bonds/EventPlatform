@@ -1,12 +1,22 @@
 namespace Catalog.Domain;
 
 /// <summary>
-/// The Catalog aggregate root: a sellable event at a specific place and time. Enforces its own
-/// lifecycle invariants (a draft becomes published, etc.).
+/// The Catalog aggregate root: a sellable event, and the one or more performances it runs as.
 /// </summary>
+/// <remarks>
+/// The event owns <b>what is being sold and how it is marketed</b> — title, page, currency, tax,
+/// fees, ticket types, promo codes, policies. Each <see cref="EventSession"/> owns <b>one
+/// performance</b>: its night, its venue, its seat map, its inventory.
+/// <para>
+/// That split is the point. Everything downstream — inventory, orders, tickets, scans, reports —
+/// hangs off a session, so a three-night run is one event with three performances rather than three
+/// unrelated events that happen to share a name.
+/// </para>
+/// </remarks>
 public sealed class Event
 {
     private readonly List<EventSocialLink> _socialLinks = new();
+    private readonly List<EventSession> _sessions = new();
 
     // Parameterless ctor for EF Core materialization.
     private Event()
@@ -18,49 +28,27 @@ public sealed class Event
         Guid tenantId,
         string title,
         string slug,
-        DateTimeOffset startsAt,
-        DateTimeOffset endsAt,
         string currency,
-        string locationName,
-        string addressLine1,
-        string? addressLine2,
-        string city,
-        string? region,
-        string? postalCode,
-        string country,
-        double? latitude,
-        double? longitude,
         Guid? eventGroupId,
         int? maxTicketsPerBuyer,
         bool requiresQueue,
+        DateTimeOffset? onSaleAt,
         decimal? taxRatePercent,
         string? taxLabel,
-        long bookingFeePerTicketMinor,
-        string? timeZoneId)
+        long bookingFeePerTicketMinor)
     {
         Id = id;
         TenantId = tenantId;
         Title = title;
         Slug = slug;
-        StartsAt = startsAt;
-        EndsAt = endsAt;
         Currency = currency;
-        LocationName = locationName;
-        AddressLine1 = addressLine1;
-        AddressLine2 = addressLine2;
-        City = city;
-        Region = region;
-        PostalCode = postalCode;
-        Country = country;
-        Latitude = latitude;
-        Longitude = longitude;
         EventGroupId = eventGroupId;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         RequiresQueue = requiresQueue;
+        OnSaleAt = onSaleAt;
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
         BookingFeePerTicketMinor = bookingFeePerTicketMinor;
-        TimeZoneId = timeZoneId;
         Status = EventStatus.Draft;
     }
 
@@ -95,25 +83,28 @@ public sealed class Event
     /// </remarks>
     public string Slug { get; private set; } = default!;
 
-    /// <summary>Scheduled start time (UTC).</summary>
-    public DateTimeOffset StartsAt { get; private set; }
-
-    /// <summary>Scheduled end time (UTC) — this leg's run at its location ends at this time.</summary>
-    public DateTimeOffset EndsAt { get; private set; }
-
     /// <summary>Pricing currency (ISO 4217, e.g. <c>USD</c>).</summary>
     public string Currency { get; private set; } = default!;
 
     /// <summary>Current lifecycle status.</summary>
     public EventStatus Status { get; private set; }
 
+    /// <summary>The performances this event runs as. Always at least one.</summary>
+    public IReadOnlyCollection<EventSession> Sessions => _sessions;
+
     /// <summary>
-    /// Whether an organizer has manually paused sales for this published event (e.g. during a
-    /// technical issue), independent of the <see cref="OnSaleAt"/>/<see cref="BookingEndsAt"/>
-    /// enforced time window. Inventory rejects new holds while this is <see langword="true"/>,
-    /// the same way it does for those bounds. See <see cref="PauseSales"/>/<see cref="ResumeSales"/>.
+    /// When the first performance starts, denormalised from <see cref="Sessions"/>.
     /// </summary>
-    public bool SalesPaused { get; private set; }
+    /// <remarks>
+    /// A stored column rather than a computed property, and maintained by this aggregate whenever a
+    /// session is added, moved or removed. The storefront lists events ordered by date and filtered
+    /// to what is still upcoming; computing this in memory would turn that indexed scan into
+    /// loading every session of every event. Never set from outside — see <see cref="RefreshRange"/>.
+    /// </remarks>
+    public DateTimeOffset? FirstSessionStartsAt { get; private set; }
+
+    /// <summary>When the last performance ends, denormalised from <see cref="Sessions"/>.</summary>
+    public DateTimeOffset? LastSessionEndsAt { get; private set; }
 
     /// <summary>Marketing description shown on the public event page.</summary>
     public string? Description { get; private set; }
@@ -121,36 +112,38 @@ public sealed class Event
     /// <summary>Free-text category (e.g. "Concert", "Comedy") — not a taxonomy table in this pass.</summary>
     public string? Category { get; private set; }
 
-    /// <summary>Doors-open time (UTC), if different from <see cref="StartsAt"/>.</summary>
-    public DateTimeOffset? DoorsOpenAt { get; private set; }
-
     /// <summary>
-    /// Sales-window start (UTC) — before this time, Inventory rejects new holds for this event.
-    /// Catalog publishes it on <see cref="Publish"/> (via <c>EventPublished</c>) so Inventory can
-    /// check it at hold-placement time, the same way as <see cref="BookingEndsAt"/>.
+    /// Sales-window start (UTC) — before this time, Inventory rejects new holds for any of this
+    /// event's performances.
     /// </summary>
+    /// <remarks>
+    /// On the <b>event</b>, not the session: a run goes on sale once, at one advertised moment, for
+    /// every night at the same time. The booking <i>cutoff</i> is the opposite and lives on the
+    /// session, because "book until two hours before the show" is a different instant every night.
+    /// </remarks>
     public DateTimeOffset? OnSaleAt { get; private set; }
 
     /// <summary>
-    /// Booking cutoff (UTC) — after this time, Inventory rejects new holds for this event. Catalog
-    /// publishes it on <see cref="Publish"/> so Inventory can check it at hold-placement time, the
-    /// same way as <see cref="OnSaleAt"/>.
-    /// </summary>
-    public DateTimeOffset? BookingEndsAt { get; private set; }
-
-    /// <summary>
     /// The maximum number of tickets a single buyer may hold for this event, summed across their
-    /// active and converted holds. <see langword="null"/> means no limit. Enforced by Inventory at
-    /// hold-placement time, propagated the same way as <see cref="BookingEndsAt"/>.
+    /// active and converted holds. <see langword="null"/> means no limit.
     /// </summary>
+    /// <remarks>
+    /// Per event rather than per performance, and deliberately: a limit that reset every night
+    /// would let one buyer take the cap three times over on a three-night run, which is exactly the
+    /// behaviour it exists to prevent. Inventory keeps the event id alongside the session id so it
+    /// can count across the whole run.
+    /// </remarks>
     public int? MaxTicketsPerBuyer { get; private set; }
 
     /// <summary>
-    /// Whether a buyer must pass through the Queue service's virtual waiting room before placing
-    /// a hold for this event. <see langword="false"/> (the default) means holds behave exactly as
-    /// they do today — no queue detour. Propagated to Inventory and Queue via <c>EventPublished</c>;
-    /// cannot change after publish in this pass, same lifecycle as <see cref="BookingEndsAt"/>.
+    /// Whether a buyer must pass through the Queue service's virtual waiting room before placing a
+    /// hold.
     /// </summary>
+    /// <remarks>
+    /// On the event, like <see cref="OnSaleAt"/> and for the same reason: the waiting room gates the
+    /// on-sale, and an on-sale covers the whole run. One admission token admits a buyer to the
+    /// event, not to one night of it.
+    /// </remarks>
     public bool RequiresQueue { get; private set; }
 
     /// <summary>
@@ -165,25 +158,6 @@ public sealed class Event
     /// the arithmetic uses <see cref="TaxRatePercent"/> alone.
     /// </summary>
     public string? TaxLabel { get; private set; }
-
-    /// <summary>
-    /// The venue's IANA time zone (e.g. <c>"Asia/Kolkata"</c>), or <see langword="null"/> when not
-    /// set.
-    /// </summary>
-    /// <remarks>
-    /// Every date on this aggregate is a <see cref="DateTimeOffset"/> and therefore already
-    /// unambiguous as an instant — this changes nothing about when anything happens. What it fixes
-    /// is display: without it a client can only render a start time in the *reader's* zone, so a
-    /// buyer abroad sees a 7pm Delhi show at 1:30pm and a door time that looks wrong. Stored as an
-    /// IANA identifier rather than a fixed offset because offsets change twice a year in much of
-    /// the world, and an event scheduled across a DST boundary would otherwise drift.
-    /// <para>
-    /// Nullable, because events created before this existed have no answer and guessing one would
-    /// be worse than admitting it — a client with no zone falls back to the reader's own, which is
-    /// exactly today's behaviour.
-    /// </para>
-    /// </remarks>
-    public string? TimeZoneId { get; private set; }
 
     /// <summary>
     /// Booking fee charged per ticket, in minor currency units (e.g. <c>3000</c> for ₹30 a ticket).
@@ -209,33 +183,6 @@ public sealed class Event
     /// <summary>Video embed URL (e.g. YouTube/Vimeo link) — not a hosted/uploaded video file.</summary>
     public string? VideoUrl { get; private set; }
 
-    /// <summary>Location/venue name (e.g. "Wankhede Stadium").</summary>
-    public string LocationName { get; private set; } = default!;
-
-    /// <summary>Street address, line 1.</summary>
-    public string AddressLine1 { get; private set; } = default!;
-
-    /// <summary>Street address, line 2 (suite/unit/etc.), if any.</summary>
-    public string? AddressLine2 { get; private set; }
-
-    /// <summary>City.</summary>
-    public string City { get; private set; } = default!;
-
-    /// <summary>State/province/region, if applicable.</summary>
-    public string? Region { get; private set; }
-
-    /// <summary>Postal/ZIP code, if applicable.</summary>
-    public string? PostalCode { get; private set; }
-
-    /// <summary>ISO 3166-1 alpha-2 country code (e.g. <c>US</c>).</summary>
-    public string Country { get; private set; } = default!;
-
-    /// <summary>Latitude, for a map pin — not full geocoding integration.</summary>
-    public double? Latitude { get; private set; }
-
-    /// <summary>Longitude, for a map pin.</summary>
-    public double? Longitude { get; private set; }
-
     /// <summary>Contact phone for this leg. <see langword="null"/> falls back to the owning <see cref="EventGroup"/>'s default.</summary>
     public string? ContactPhone { get; private set; }
 
@@ -254,66 +201,49 @@ public sealed class Event
     /// </summary>
     public IReadOnlyCollection<EventSocialLink> SocialLinks => _socialLinks;
 
-    /// <summary>Creates a new draft event for the given tenant, at a specific place and time.</summary>
+    /// <summary>Creates a new draft event with its first performance.</summary>
+    /// <remarks>
+    /// An event is created <b>with</b> a performance rather than gaining one later, because an event
+    /// with no session sells nothing, has no date to list it by, and cannot be checked against its
+    /// tour's range. The single-performance case — the overwhelming majority — then needs no extra
+    /// step at all.
+    /// </remarks>
     /// <param name="tenantId">Owning tenant (organizer).</param>
     /// <param name="title">Event title.</param>
     /// <param name="slug">URL-safe slug, unique platform-wide. See <see cref="Slug"/>.</param>
-    /// <param name="startsAt">Scheduled start (UTC).</param>
-    /// <param name="endsAt">Scheduled end (UTC) — must be after <paramref name="startsAt"/>.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
-    /// <param name="locationName">Location/venue name.</param>
-    /// <param name="addressLine1">Street address, line 1.</param>
-    /// <param name="addressLine2">Street address, line 2, if any.</param>
-    /// <param name="city">City.</param>
-    /// <param name="region">State/province/region, if applicable.</param>
-    /// <param name="postalCode">Postal/ZIP code, if applicable.</param>
-    /// <param name="country">ISO 3166-1 alpha-2 country code.</param>
-    /// <param name="latitude">Latitude, if known.</param>
-    /// <param name="longitude">Longitude, if known.</param>
-    /// <param name="eventGroupId">
-    /// The tour/series this event is one leg of, if any (see <see cref="EventGroup"/>).
-    /// </param>
-    /// <param name="maxTicketsPerBuyer">
-    /// The maximum number of tickets a single buyer may hold for this event, if limited.
-    /// See <see cref="MaxTicketsPerBuyer"/>.
-    /// </param>
-    /// <param name="requiresQueue">Whether to gate holds behind the Queue service's waiting room. See <see cref="RequiresQueue"/>.</param>
-    /// <param name="taxRatePercent">Sales-tax rate as a percentage, if this event is taxed. See <see cref="TaxRatePercent"/>.</param>
-    /// <param name="taxLabel">Display name for the tax on a receipt. See <see cref="TaxLabel"/>.</param>
-    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units. See <see cref="BookingFeePerTicketMinor"/>.</param>
-    /// <param name="timeZoneId">The venue's IANA time zone. See <see cref="TimeZoneId"/>.</param>
-    /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>.</returns>
+    /// <param name="startsAt">The first performance's start (UTC).</param>
+    /// <param name="endsAt">The first performance's end (UTC) — must be after <paramref name="startsAt"/>.</param>
+    /// <param name="doorsOpenAt">The first performance's doors-open time (UTC), if different.</param>
+    /// <param name="bookingEndsAt">The first performance's booking cutoff (UTC), if any.</param>
+    /// <param name="eventGroupId">The tour/series this event is one leg of, if any.</param>
+    /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
+    /// <param name="requiresQueue">Whether to gate holds behind the waiting room. See <see cref="RequiresQueue"/>.</param>
+    /// <param name="onSaleAt">Enforced sales-window start (UTC) — see <see cref="OnSaleAt"/>.</param>
+    /// <param name="taxRatePercent">Sales-tax rate as a percentage, if this event is taxed.</param>
+    /// <param name="taxLabel">Display name for the tax on a receipt.</param>
+    /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units.</param>
+    /// <returns>A new <see cref="Event"/> in <see cref="EventStatus.Draft"/>, with one draft session.</returns>
     /// <exception cref="ArgumentException">
     /// <paramref name="slug"/> is malformed or reserved — see <see cref="EventSlug"/>.
     /// </exception>
-    /// <exception cref="ArgumentOutOfRangeException">
-    /// <paramref name="endsAt"/> is not after <paramref name="startsAt"/>,
-    /// <paramref name="taxRatePercent"/> is outside [0, 100], or
-    /// <paramref name="bookingFeePerTicketMinor"/> is negative.
-    /// </exception>
+    /// <exception cref="ArgumentOutOfRangeException">A date, rate or fee is out of range.</exception>
     public static Event Create(
         Guid tenantId,
         string title,
         string slug,
+        string currency,
         DateTimeOffset startsAt,
         DateTimeOffset endsAt,
-        string currency,
-        string locationName,
-        string addressLine1,
-        string? addressLine2,
-        string city,
-        string? region,
-        string? postalCode,
-        string country,
-        double? latitude,
-        double? longitude,
-        Guid? eventGroupId,
+        DateTimeOffset? doorsOpenAt = null,
+        DateTimeOffset? bookingEndsAt = null,
+        Guid? eventGroupId = null,
         int? maxTicketsPerBuyer = null,
         bool requiresQueue = false,
+        DateTimeOffset? onSaleAt = null,
         decimal? taxRatePercent = null,
         string? taxLabel = null,
-        long bookingFeePerTicketMinor = 0,
-        string? timeZoneId = null)
+        long bookingFeePerTicketMinor = 0)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(currency);
@@ -323,214 +253,242 @@ public sealed class Event
             throw new ArgumentException("The slug is not a valid or permitted event slug.", nameof(slug));
         }
 
-        ArgumentException.ThrowIfNullOrWhiteSpace(locationName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(addressLine1);
-        ArgumentException.ThrowIfNullOrWhiteSpace(city);
-        ArgumentException.ThrowIfNullOrWhiteSpace(country);
+        ValidateCommercials(taxRatePercent, bookingFeePerTicketMinor, onSaleAt, bookingEndsAt);
 
-        if (endsAt <= startsAt)
-        {
-            throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
-        }
-
-        if (taxRatePercent is < 0m or > 100m)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(taxRatePercent),
-                taxRatePercent,
-                "The tax rate must be between 0 and 100 percent.");
-        }
-
-        if (bookingFeePerTicketMinor < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(bookingFeePerTicketMinor),
-                bookingFeePerTicketMinor,
-                "The booking fee cannot be negative.");
-        }
-
-        return new Event(
+        var @event = new Event(
             Guid.CreateVersion7(),
             tenantId,
             title,
             slug,
-            startsAt,
-            endsAt,
             currency,
-            locationName,
-            addressLine1,
-            addressLine2,
-            city,
-            region,
-            postalCode,
-            country,
-            latitude,
-            longitude,
             eventGroupId,
             maxTicketsPerBuyer,
             requiresQueue,
+            onSaleAt,
             taxRatePercent,
             taxLabel,
-            bookingFeePerTicketMinor,
-            timeZoneId);
+            bookingFeePerTicketMinor);
+
+        @event.AddSession(null, startsAt, endsAt, doorsOpenAt, bookingEndsAt);
+
+        return @event;
+    }
+
+    /// <summary>Adds a performance.</summary>
+    /// <remarks>
+    /// Allowed after publish. Adding a late show to a run that is already selling is ordinary work,
+    /// and it is additive — the new performance is a draft until its own seat map and pricing are
+    /// set, so nothing about the event's existing sales changes when it appears.
+    /// </remarks>
+    /// <param name="name">What to call it when there is more than one, e.g. <c>Matinee</c>.</param>
+    /// <param name="startsAt">Scheduled start (UTC).</param>
+    /// <param name="endsAt">Scheduled end (UTC) — must be after <paramref name="startsAt"/>.</param>
+    /// <param name="doorsOpenAt">Doors-open time (UTC), if different from the start.</param>
+    /// <param name="bookingEndsAt">Booking cutoff (UTC), if any.</param>
+    /// <returns>The new performance.</returns>
+    /// <exception cref="InvalidOperationException">It overlaps a performance this event already has.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A date is out of range.</exception>
+    public EventSession AddSession(
+        string? name,
+        DateTimeOffset startsAt,
+        DateTimeOffset endsAt,
+        DateTimeOffset? doorsOpenAt,
+        DateTimeOffset? bookingEndsAt)
+    {
+        EventSession.ValidateTimes(startsAt, endsAt, doorsOpenAt, bookingEndsAt);
+        EnsureNoOverlap(startsAt, endsAt, exceptSessionId: null);
+        EnsureCutoffAfterOnSale(bookingEndsAt);
+
+        var session = new EventSession(
+            Guid.CreateVersion7(),
+            Id,
+            TenantId,
+            string.IsNullOrWhiteSpace(name) ? null : name.Trim(),
+            startsAt,
+            endsAt,
+            doorsOpenAt,
+            bookingEndsAt);
+
+        _sessions.Add(session);
+        RefreshRange();
+
+        return session;
+    }
+
+    /// <summary>Moves a performance in time, keeping the event's cached date range correct.</summary>
+    /// <param name="sessionId">The performance to move.</param>
+    /// <param name="startsAt">Scheduled start (UTC).</param>
+    /// <param name="endsAt">Scheduled end (UTC).</param>
+    /// <param name="doorsOpenAt">Doors-open time (UTC), if different from the start.</param>
+    /// <param name="bookingEndsAt">Booking cutoff (UTC), if any.</param>
+    /// <exception cref="InvalidOperationException">
+    /// No such performance, it is not a draft, or the new times overlap another performance.
+    /// </exception>
+    public void RescheduleSession(
+        Guid sessionId,
+        DateTimeOffset startsAt,
+        DateTimeOffset endsAt,
+        DateTimeOffset? doorsOpenAt,
+        DateTimeOffset? bookingEndsAt)
+    {
+        var session = RequireSession(sessionId);
+
+        EventSession.ValidateTimes(startsAt, endsAt, doorsOpenAt, bookingEndsAt);
+        EnsureNoOverlap(startsAt, endsAt, exceptSessionId: sessionId);
+        EnsureCutoffAfterOnSale(bookingEndsAt);
+
+        session.Reschedule(startsAt, endsAt, doorsOpenAt, bookingEndsAt);
+        RefreshRange();
     }
 
     /// <summary>
-    /// Publishes the event, making it sellable. Only a <see cref="EventStatus.Draft"/> may be published.
+    /// Removes a performance that never went on sale. The last one cannot be removed — an event with
+    /// no performance sells nothing and has no date.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The event is not a draft.</exception>
-    public void Publish()
+    /// <param name="sessionId">The performance to remove.</param>
+    /// <exception cref="InvalidOperationException">
+    /// No such performance, it has been published (cancel it instead), or it is the only one.
+    /// </exception>
+    public void RemoveSession(Guid sessionId)
+    {
+        var session = RequireSession(sessionId);
+
+        if (session.Status != EventSessionStatus.Draft)
+        {
+            throw new InvalidOperationException(
+                "A performance that has been on sale cannot be removed. Cancel it instead, so tickets sold for it still resolve.");
+        }
+
+        if (_sessions.Count == 1)
+        {
+            throw new InvalidOperationException("An event must keep at least one performance.");
+        }
+
+        _sessions.Remove(session);
+        RefreshRange();
+    }
+
+    /// <summary>Gets one of this event's performances, or <see langword="null"/>.</summary>
+    /// <param name="sessionId">The performance id.</param>
+    /// <returns>The performance, or <see langword="null"/> if this event has no such one.</returns>
+    public EventSession? FindSession(Guid sessionId) => _sessions.FirstOrDefault(s => s.Id == sessionId);
+
+    /// <summary>
+    /// Publishes the event and every performance that is ready, making it sellable.
+    /// </summary>
+    /// <remarks>
+    /// Returns the sessions that went live so the caller can announce one integration event each —
+    /// inventory is provisioned per performance, so one message per event would not say enough.
+    /// </remarks>
+    /// <returns>The performances that were published by this call.</returns>
+    /// <exception cref="InvalidOperationException">
+    /// The event is not a draft, or no performance is ready to sell.
+    /// </exception>
+    public IReadOnlyList<EventSession> Publish()
     {
         if (Status != EventStatus.Draft)
         {
             throw new InvalidOperationException("Only a draft event can be published.");
         }
 
+        var ready = _sessions
+            .Where(s => s.Status == EventSessionStatus.Draft && s.IsSellable)
+            .ToList();
+
+        if (ready.Count == 0)
+        {
+            throw new InvalidOperationException(
+                "No performance is ready to sell. Each one needs a published seat map and at least one allocated block.");
+        }
+
+        foreach (var session in ready)
+        {
+            session.Publish();
+        }
+
         Status = EventStatus.Published;
+
+        return ready;
     }
 
     /// <summary>
-    /// Pauses sales for a published event, without affecting already-placed holds/tickets. Only a
-    /// <see cref="EventStatus.Published"/> event that isn't already paused may be paused.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The event is not published, or sales are already paused.</exception>
-    public void PauseSales()
-    {
-        if (Status != EventStatus.Published)
-        {
-            throw new InvalidOperationException("Only a published event's sales can be paused.");
-        }
-
-        if (SalesPaused)
-        {
-            throw new InvalidOperationException("Sales are already paused for this event.");
-        }
-
-        SalesPaused = true;
-    }
-
-    /// <summary>
-    /// Resumes sales for a published event previously paused via <see cref="PauseSales"/>.
-    /// </summary>
-    /// <exception cref="InvalidOperationException">The event is not published, or sales are not paused.</exception>
-    public void ResumeSales()
-    {
-        if (Status != EventStatus.Published)
-        {
-            throw new InvalidOperationException("Only a published event's sales can be resumed.");
-        }
-
-        if (!SalesPaused)
-        {
-            throw new InvalidOperationException("Sales are not paused for this event.");
-        }
-
-        SalesPaused = false;
-    }
-
-    /// <summary>
-    /// Sets the things a ticket holder bought — dates, venue, tax, fees and ticketing rules. Only
-    /// permitted while the event is still a <see cref="EventStatus.Draft"/>.
+    /// Pauses sales across every performance, without affecting already-placed holds or tickets.
     /// </summary>
     /// <remarks>
-    /// The draft-only rule is narrower than it used to be, and now means what it says. It applies
-    /// to *material* facts: change a start time, a venue or a tax rate after publish and you have
-    /// changed what someone already paid for, which needs buyer notification and possibly a refund
-    /// right. Presentation — title, description, images, contact details — moved to
-    /// <see cref="UpdatePresentation"/> and stays editable for the life of the event, because none
-    /// of it alters the sale.
-    /// <para>
-    /// Postponing or relocating a published event is a real requirement and deliberately not this
-    /// method. It is not an edit; it is an event of its own, with buyers to tell.
-    /// </para>
+    /// The event-wide switch. Pulling a single night is
+    /// <see cref="EventSession.PauseSales"/> on that session instead.
     /// </remarks>
-    /// <param name="startsAt">Scheduled start time (UTC).</param>
-    /// <param name="endsAt">Scheduled end time (UTC) — must be after <paramref name="startsAt"/>.</param>
-    /// <param name="doorsOpenAt">Doors-open time (UTC), if different from the start.</param>
-    /// <param name="onSaleAt">Enforced sales-window start (UTC).</param>
-    /// <param name="bookingEndsAt">Enforced booking cutoff (UTC) — see <see cref="BookingEndsAt"/>.</param>
-    /// <param name="location">Where the event happens.</param>
+    /// <exception cref="InvalidOperationException">The event is not published.</exception>
+    public void PauseSales()
+    {
+        EnsurePublished();
+
+        foreach (var session in _sessions)
+        {
+            session.SetSalesPaused(true);
+        }
+    }
+
+    /// <summary>Resumes sales across every performance.</summary>
+    /// <exception cref="InvalidOperationException">The event is not published.</exception>
+    public void ResumeSales()
+    {
+        EnsurePublished();
+
+        foreach (var session in _sessions)
+        {
+            session.SetSalesPaused(false);
+        }
+    }
+
+    /// <summary>Whether sales are paused on every one of this event's performances.</summary>
+    /// <returns><see langword="true"/> when nothing is currently selling.</returns>
+    public bool AllSalesPaused() => _sessions.Count > 0 && _sessions.TrueForAll(s => s.SalesPaused);
+
+    /// <summary>
+    /// Sets the commercial terms a ticket holder bought under — currency rules, tax, fees, the
+    /// on-sale time and the per-buyer limit. Only while the event is still a
+    /// <see cref="EventStatus.Draft"/>.
+    /// </summary>
+    /// <remarks>
+    /// Much smaller than it used to be: the dates and the venue moved to
+    /// <see cref="EventSession"/>, where they belong, and are edited per performance. What is left
+    /// here is the money and the selling rules, which really are one decision for the whole run.
+    /// </remarks>
+    /// <param name="onSaleAt">Enforced sales-window start (UTC) — see <see cref="OnSaleAt"/>.</param>
     /// <param name="maxTicketsPerBuyer">Per-buyer ticket limit — see <see cref="MaxTicketsPerBuyer"/>.</param>
-    /// <param name="requiresQueue">Whether to gate holds behind the waiting room. See <see cref="RequiresQueue"/>.</param>
+    /// <param name="requiresQueue">Whether to gate holds behind the waiting room.</param>
     /// <param name="taxRatePercent">Sales-tax rate as a percentage — see <see cref="TaxRatePercent"/>.</param>
-    /// <param name="taxLabel">Display name for the tax on a receipt — see <see cref="TaxLabel"/>.</param>
+    /// <param name="taxLabel">Display name for the tax on a receipt.</param>
     /// <param name="bookingFeePerTicketMinor">Per-ticket booking fee in minor units.</param>
-    /// <param name="timeZoneId">The venue's IANA time zone — see <see cref="TimeZoneId"/>.</param>
     /// <exception cref="InvalidOperationException">The event is not a draft.</exception>
-    /// <exception cref="ArgumentOutOfRangeException">A date, rate or fee is out of range.</exception>
-    public void UpdateSchedule(
-        DateTimeOffset startsAt,
-        DateTimeOffset endsAt,
-        DateTimeOffset? doorsOpenAt,
+    /// <exception cref="ArgumentOutOfRangeException">A rate, fee or date is out of range.</exception>
+    public void UpdateSellingRules(
         DateTimeOffset? onSaleAt,
-        DateTimeOffset? bookingEndsAt,
-        EventLocation location,
         int? maxTicketsPerBuyer,
         bool requiresQueue,
         decimal? taxRatePercent,
         string? taxLabel,
-        long bookingFeePerTicketMinor,
-        string? timeZoneId)
+        long bookingFeePerTicketMinor)
     {
-        ArgumentNullException.ThrowIfNull(location);
-
         if (Status != EventStatus.Draft)
         {
             throw new InvalidOperationException(
-                "An event's dates, venue and pricing rules can only be changed while it is a draft.");
+                "An event's selling rules can only be changed while it is a draft.");
         }
 
-        if (endsAt <= startsAt)
-        {
-            throw new ArgumentOutOfRangeException(nameof(endsAt), "The end time must be after the start time.");
-        }
+        // Min over a nullable selector yields null for an empty sequence, which is exactly the
+        // "no performance has a cutoff" case.
+        var earliestCutoff = _sessions.Min(s => s.BookingEndsAt);
 
-        if (onSaleAt is not null && bookingEndsAt is not null && bookingEndsAt <= onSaleAt)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must be after the on-sale time.");
-        }
+        ValidateCommercials(taxRatePercent, bookingFeePerTicketMinor, onSaleAt, earliestCutoff);
 
-        if (bookingEndsAt is not null && bookingEndsAt > startsAt)
-        {
-            throw new ArgumentOutOfRangeException(nameof(bookingEndsAt), "The booking cutoff must not be later than the event's start time.");
-        }
-
-        if (taxRatePercent is < 0m or > 100m)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(taxRatePercent),
-                taxRatePercent,
-                "The tax rate must be between 0 and 100 percent.");
-        }
-
-        if (bookingFeePerTicketMinor < 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(bookingFeePerTicketMinor),
-                bookingFeePerTicketMinor,
-                "The booking fee cannot be negative.");
-        }
-
-        StartsAt = startsAt;
-        EndsAt = endsAt;
-        DoorsOpenAt = doorsOpenAt;
         OnSaleAt = onSaleAt;
-        BookingEndsAt = bookingEndsAt;
-        LocationName = location.Name;
-        AddressLine1 = location.AddressLine1;
-        AddressLine2 = location.AddressLine2;
-        City = location.City;
-        Region = location.Region;
-        PostalCode = location.PostalCode;
-        Country = location.Country;
-        Latitude = location.Latitude;
-        Longitude = location.Longitude;
         MaxTicketsPerBuyer = maxTicketsPerBuyer;
         RequiresQueue = requiresQueue;
         TaxRatePercent = taxRatePercent;
         TaxLabel = taxLabel;
         BookingFeePerTicketMinor = bookingFeePerTicketMinor;
-        TimeZoneId = timeZoneId;
     }
 
     /// <summary>
@@ -621,4 +579,73 @@ public sealed class Event
     /// <returns><see langword="true"/> if the caller may see this event.</returns>
     public bool IsVisibleTo(Guid? callerTenantId) =>
         Status != EventStatus.Draft || (callerTenantId is not null && callerTenantId == TenantId);
+
+    private static void ValidateCommercials(
+        decimal? taxRatePercent,
+        long bookingFeePerTicketMinor,
+        DateTimeOffset? onSaleAt,
+        DateTimeOffset? earliestBookingEndsAt)
+    {
+        if (taxRatePercent is < 0m or > 100m)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(taxRatePercent),
+                taxRatePercent,
+                "The tax rate must be between 0 and 100 percent.");
+        }
+
+        if (bookingFeePerTicketMinor < 0)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bookingFeePerTicketMinor),
+                bookingFeePerTicketMinor,
+                "The booking fee cannot be negative.");
+        }
+
+        if (onSaleAt is not null && earliestBookingEndsAt is not null && earliestBookingEndsAt <= onSaleAt)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(onSaleAt),
+                "Sales would close before they opened: a performance's booking cutoff is at or before the on-sale time.");
+        }
+    }
+
+    private void RefreshRange()
+    {
+        FirstSessionStartsAt = _sessions.Count == 0 ? null : _sessions.Min(s => s.StartsAt);
+        LastSessionEndsAt = _sessions.Count == 0 ? null : _sessions.Max(s => s.EndsAt);
+    }
+
+    private void EnsureNoOverlap(DateTimeOffset startsAt, DateTimeOffset endsAt, Guid? exceptSessionId)
+    {
+        var clash = _sessions.Any(s => s.Id != exceptSessionId && s.Overlaps(startsAt, endsAt));
+
+        if (clash)
+        {
+            throw new InvalidOperationException(
+                "This event already has a performance running at that time. Two performances of the same event cannot overlap.");
+        }
+    }
+
+    private void EnsureCutoffAfterOnSale(DateTimeOffset? bookingEndsAt)
+    {
+        if (OnSaleAt is not null && bookingEndsAt is not null && bookingEndsAt <= OnSaleAt)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(bookingEndsAt),
+                "The booking cutoff must be after the event goes on sale.");
+        }
+    }
+
+    private void EnsurePublished()
+    {
+        if (Status != EventStatus.Published)
+        {
+            throw new InvalidOperationException("Only a published event's sales can be paused or resumed.");
+        }
+    }
+
+    private EventSession RequireSession(Guid sessionId) =>
+        FindSession(sessionId)
+        ?? throw new InvalidOperationException("This event has no such performance.");
 }

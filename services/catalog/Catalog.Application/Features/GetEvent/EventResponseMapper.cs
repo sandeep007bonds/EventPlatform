@@ -13,6 +13,8 @@ public static class EventResponseMapper
     /// <returns>The mapped <see cref="EventResponse"/>.</returns>
     public static EventResponse Map(Event @event, EventGroup? group)
     {
+        ArgumentNullException.ThrowIfNull(@event);
+
         var socialLinks = @event.SocialLinks.Count > 0
             ? @event.SocialLinks.Select(l => new SocialLinkResponse(l.Platform, l.Url)).ToList()
             : group?.SocialLinks.Select(l => new SocialLinkResponse(l.Platform, l.Url)).ToList()
@@ -22,39 +24,28 @@ public static class EventResponseMapper
             @event.Id,
             @event.Title,
             @event.Slug,
-            @event.StartsAt,
             @event.Status.ToString(),
             @event.Currency,
             @event.EventGroupId,
             @event.Description,
             @event.Category,
-            @event.EndsAt,
-            @event.DoorsOpenAt,
+            @event.FirstSessionStartsAt,
+            @event.LastSessionEndsAt,
             @event.OnSaleAt,
-            @event.BookingEndsAt,
             @event.MaxTicketsPerBuyer,
             @event.RequiresQueue,
             @event.TaxRatePercent,
             @event.TaxLabel,
             @event.BookingFeePerTicketMinor,
-            @event.TimeZoneId,
-            @event.SalesPaused,
+            @event.AllSalesPaused(),
             @event.AgeRestriction,
             @event.BannerImageUrl,
             @event.VideoUrl,
-            @event.LocationName,
-            @event.AddressLine1,
-            @event.AddressLine2,
-            @event.City,
-            @event.Region,
-            @event.PostalCode,
-            @event.Country,
-            @event.Latitude,
-            @event.Longitude,
             @event.ContactPhone ?? group?.ContactPhone,
             @event.ContactMobile ?? group?.ContactMobile,
             @event.ContactEmail ?? group?.ContactEmail,
             @event.WebsiteUrl ?? group?.WebsiteUrl,
-            socialLinks);
+            socialLinks,
+            @event.Sessions.ToResponses());
     }
 }

@@ -8,19 +8,16 @@ public sealed class CatalogDbContext(DbContextOptions<CatalogDbContext> options)
     /// <summary>The events table.</summary>
     public DbSet<Event> Events => Set<Event>();
 
-    /// <summary>The seat maps table.</summary>
-    public DbSet<SeatMap> SeatMaps => Set<SeatMap>();
+    /// <summary>The performances table — the grain every downstream service keys on.</summary>
+    public DbSet<EventSession> EventSessions => Set<EventSession>();
 
     /// <summary>The event groups (tours) table.</summary>
     public DbSet<EventGroup> EventGroups => Set<EventGroup>();
 
-    /// <summary>The entry gates table.</summary>
-    public DbSet<EntryGate> EntryGates => Set<EntryGate>();
-
     /// <summary>Organizer-created discount codes.</summary>
     public DbSet<PromoCode> PromoCodes => Set<PromoCode>();
 
-    /// <summary>The named, priced ticket types seat-map sections are sold as.</summary>
+    /// <summary>The named, priced ticket types a performance's blocks are sold as.</summary>
     public DbSet<TicketType> TicketTypes => Set<TicketType>();
 
     /// <summary>Organizer terms, privacy and refund documents — tenant defaults and event overrides.</summary>

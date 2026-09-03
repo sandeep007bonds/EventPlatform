@@ -1,40 +1,30 @@
 namespace EventPlatform.Contracts.Catalog;
 
 /// <summary>
-/// Published by the Catalog service when an event is published and its seat
-/// inventory has been generated. Consumed by Search, Reporting, etc., and by
-/// Inventory to provision seat/general-admission inventory and learn the booking cutoff, and by
-/// Ticketing to learn the event's check-in window without a live call back to Catalog at scan time.
+/// Published by the Catalog service when an event goes live.
 /// </summary>
+/// <remarks>
+/// Event-level facts only. Everything a performance owns — its dates, its seat map, its capacity,
+/// its inventory — travels on <see cref="EventSessionPublished"/> instead, one message per
+/// performance, because that is the grain Inventory, Ticketing and Ordering work at.
+/// <para>
+/// What is left here is what genuinely belongs to the whole run, and today that means the waiting
+/// room: Queue provisions one room per event, gating one on-sale, so it consumes this and nothing
+/// else.
+/// </para>
+/// </remarks>
 /// <param name="EventId">Unique id of this event instance.</param>
 /// <param name="OccurredAt">UTC instant at which the event occurred.</param>
 /// <param name="TenantId">The tenant (organizer) the catalog event belongs to.</param>
 /// <param name="CatalogEventId">The id of the published catalog event.</param>
 /// <param name="Title">The event title.</param>
-/// <param name="SeatCount">Total sellable capacity generated for the event (reserved seats plus general-admission capacity).</param>
-/// <param name="BookingEndsAt">
-/// Enforced booking cutoff (UTC), if set — Inventory rejects new holds for this event after this
-/// time. Cannot change after publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
-/// </param>
-/// <param name="StartsAt">Scheduled start time (UTC) — see <see cref="DoorsOpenAt"/>.</param>
-/// <param name="EndsAt">Scheduled end time (UTC) — Ticketing rejects check-in after this time.</param>
-/// <param name="MaxTicketsPerBuyer">
-/// Maximum tickets a single buyer may hold for this event, if limited — Inventory enforces this
-/// at hold-placement time, summing the buyer's active and converted holds.
+/// <param name="RequiresQueue">
+/// Whether this event gates seat holds behind the Queue service's virtual waiting room. Queue reads
+/// it to provision its per-event settings as enabled or as an immediate-admit no-op.
 /// </param>
 /// <param name="OnSaleAt">
-/// Enforced on-sale start (UTC), if set — Inventory rejects new holds for this event until this
-/// time. Cannot change after publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
-/// </param>
-/// <param name="DoorsOpenAt">
-/// Doors-open time (UTC), if set — Ticketing's check-in window opens here, falling back to
-/// <see cref="StartsAt"/> when absent.
-/// </param>
-/// <param name="RequiresQueue">
-/// Whether this event gates seat holds behind the Queue service's virtual waiting room. Consumed
-/// by both Inventory (to require a valid admission token at hold-placement time) and Queue (to
-/// provision its per-event settings as enabled or an immediate-admit no-op). Cannot change after
-/// publish in this pass (<c>UpdateEventDetails</c> is Draft-only).
+/// Enforced on-sale start (UTC), if set. On the event rather than the performance because a run
+/// goes on sale once, at one advertised moment, for every night at the same time.
 /// </param>
 public sealed record EventPublished(
     Guid EventId,
@@ -42,11 +32,5 @@ public sealed record EventPublished(
     Guid TenantId,
     Guid CatalogEventId,
     string Title,
-    int SeatCount,
-    DateTimeOffset? BookingEndsAt,
-    DateTimeOffset StartsAt,
-    DateTimeOffset EndsAt,
-    int? MaxTicketsPerBuyer = null,
-    DateTimeOffset? OnSaleAt = null,
-    DateTimeOffset? DoorsOpenAt = null,
-    bool RequiresQueue = false) : IntegrationEvent(EventId, OccurredAt, TenantId);
+    bool RequiresQueue = false,
+    DateTimeOffset? OnSaleAt = null) : IntegrationEvent(EventId, OccurredAt, TenantId);

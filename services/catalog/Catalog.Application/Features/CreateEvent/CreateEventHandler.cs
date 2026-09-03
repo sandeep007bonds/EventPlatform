@@ -1,6 +1,6 @@
 namespace Catalog.Application.Features.CreateEvent;
 
-/// <summary>Handles <see cref="CreateEventCommand"/> by creating and persisting a draft event.</summary>
+/// <summary>Handles <see cref="CreateEventCommand"/> by creating a draft event with its first performance.</summary>
 /// <param name="repository">The event repository.</param>
 /// <param name="eventGroupRepository">The event-group repository, for tour-range/ownership validation.</param>
 internal sealed class CreateEventHandler(IEventRepository repository, IEventGroupRepository eventGroupRepository)
@@ -23,8 +23,12 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
                 return new CreateEventResult(CreateEventOutcome.OutsideEventGroupRange, null);
             }
 
+            // Legs are compared on their whole run — first performance to last — because that is
+            // what the tour advertises. Two legs of one tour cannot be playing at the same time,
+            // however many nights each of them lasts.
             var siblingLegs = await repository.ListLegsForEventGroupAsync(eventGroupId, cancellationToken);
-            var overlaps = siblingLegs.Any(leg => leg.StartsAt < request.EndsAt && request.StartsAt < leg.EndsAt);
+            var overlaps = siblingLegs.Any(leg =>
+                leg.FirstSessionStartsAt < request.EndsAt && request.StartsAt < leg.LastSessionEndsAt);
             if (overlaps)
             {
                 return new CreateEventResult(CreateEventOutcome.OverlapsExistingLeg, null);
@@ -35,25 +39,18 @@ internal sealed class CreateEventHandler(IEventRepository repository, IEventGrou
             request.TenantId,
             request.Title,
             await DeriveSlugAsync(request, cancellationToken),
+            request.Currency,
             request.StartsAt,
             request.EndsAt,
-            request.Currency,
-            request.LocationName,
-            request.AddressLine1,
-            request.AddressLine2,
-            request.City,
-            request.Region,
-            request.PostalCode,
-            request.Country,
-            request.Latitude,
-            request.Longitude,
+            request.DoorsOpenAt,
+            request.BookingEndsAt,
             request.EventGroupId,
             request.MaxTicketsPerBuyer,
             request.RequiresQueue,
+            request.OnSaleAt,
             request.TaxRatePercent,
             request.TaxLabel,
-            request.BookingFeePerTicketMinor,
-            request.TimeZoneId);
+            request.BookingFeePerTicketMinor);
 
         repository.Add(@event);
         await repository.SaveChangesAsync(cancellationToken);

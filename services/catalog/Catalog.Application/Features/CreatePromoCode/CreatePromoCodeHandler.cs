@@ -15,7 +15,7 @@ internal sealed class CreatePromoCodeHandler(
         if (@event is null || @event.TenantId != request.TenantId)
         {
             // Opaque not-found on a tenant mismatch — never reveal that another tenant's event
-            // exists. Same pattern as DefineSeatMap/PublishEvent.
+            // exists. Same pattern as PublishEvent.
             return new CreatePromoCodeResult(CreatePromoCodeOutcome.EventNotFound, null);
         }
 

@@ -38,12 +38,14 @@ SEARCH 10 · REPORT 13.
 | | ✅ | ◐ | ✗ | ⊘ |
 | --- | --- | --- | --- | --- |
 | At first audit | 71 | 52 | 90 | 3 |
-| Now | 85 | 48 | 80 | 3 |
+| After the Venue service (ADR-0038) | 85 | 48 | 80 | 3 |
+| Now | 86 | 51 | 76 | 3 |
 
 Read the first row honestly: **71 of 216** when this ledger was written, and lower than the
 "~110 already satisfied" estimate given before going row by row — that estimate counted families
 that *exist* rather than tickets that *pass*, which is exactly the error an itemised audit is for.
-The second row is after the Venue service (ADR-0038) closed VEN in full and most of MAP.
+The rows below it are the Venue service, then event sessions (ADR-0039) — which move fewer tickets
+to ✅ than to ◐, because the grain change lands in Catalog first and the other services follow.
 
 ---
 
@@ -119,7 +121,7 @@ record. Building it first would record a weaker fact permanently.*
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
-| VEN-001 | `Venue` aggregate, tenant-owned, reusable across events | ✅ | `services/venue` — `Venues.Domain/Venue.cs`; ADR-0038. Catalog's `EventLocation` stays as the legacy path until events move onto venue-owned maps (entangled with EVENT-005). |
+| VEN-001 | `Venue` aggregate, tenant-owned, reusable across events | ✅ | `services/venue` — `Venues.Domain/Venue.cs`; ADR-0038. Catalog's `EventLocation` and its whole seat-map aggregate are **deleted**: a performance names a Venue seat-map version instead (ADR-0039). |
 | VEN-002 | `VenueAddress` | ✅ | Owned value on `Venue`; columns on `venues`. |
 | VEN-003 | Venue CRUD API (`POST/GET/PATCH /v1/venues`) | ✅ | `VenueEndpoints.cs` — create, list, get, update, activate, archive. Organizer-only, including the reads. |
 | VEN-004 | `VenueGate` — physical gate configuration | ✅ | `VenueGate.cs` — per **venue**, code unique within it, rename and deactivate rather than delete. Event-time gate *authorization* stays with the scanning side. |
@@ -153,7 +155,7 @@ seat) still serves existing events until they move onto venue-owned maps.
 | MAP-014 | Pricing-zone visualization | ◐ | Price is resolved per seat from the joined `TicketType`; nothing renders it as a zone. |
 | MAP-015 | Import / export | ✗ | — |
 | MAP-016 | Draft / version | ✅ | `SeatMapVersion` — one open draft at a time, a new draft pre-filled from the published layout with fresh ids, published versions immutable, superseded ones kept because tickets still resolve against them. |
-| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ◐ | `Validate()` returns **every** problem: duplicate codes, duplicate row labels, duplicate seat numbers, empty sections/rows/areas, missing geometry, a half-drawn map. Still missing v9's "compatibility with linked event sessions" — there are no sessions yet (EVENT-005). |
+| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ✅ | `Validate()` returns **every** problem: duplicate codes, duplicate row labels, duplicate seat numbers, empty sections/rows/areas, missing geometry, a half-drawn map. Compatibility with the linked performance is checked from the Catalog side by `SessionPublishCheck`, which refuses a publish where any block is unallocated. |
 
 *Progressive loading (venue overview → section geometry → selected-section seats) is v9's answer to
 large-stadium rendering, and is still not implemented: `GET /v1/seat-maps/{id}` returns the whole
@@ -168,18 +170,18 @@ it is a read-endpoint change when stadium scale demands it, not a remodelling.*
 | EVENT-002 | Event slug, unique, locked after publish | ✅ | `EventSlug.cs`, `Event.ChangeSlug`, unique index; ADR-0037. Exceeds v9, which specifies `Event(TenantId, Slug UNIQUE)` — ours is **globally** unique, because a slug is the whole of a public URL. |
 | EVENT-003 | Event page: description, media, category, age rating | ✅ | `Event.UpdatePresentation` + `EventPresentationForm.tsx`; editable at any status. |
 | EVENT-004 | Event media | ◐ | Banner + video URL, uploaded through the Media service. No `EventMedia` collection, no ordering/captions. |
-| EVENT-005 | **`EventSession`** | ✗ | **The single most consequential gap after Venue.** v9 hangs inventory, tickets, scans and every report off a *session*; we hang them off the *event*, so a three-night run is three events with three maps. Before Reporting, or every report is built on the wrong grain. |
+| EVENT-005 | **`EventSession`** | ◐ | `Catalog.Domain/EventSession.cs` — a performance with its own times, venue, pinned Venue seat-map version and `SessionAllocation` map; ADR-0039. Catalog is done; Inventory, Ordering and Ticketing re-key to `EventSessionId` in the landing that follows. |
 | EVENT-006 | Event categories | ◐ | Free-text `Category` string, not an entity. |
 | EVENT-007 | `EventArtist` | ✗ | — |
 | EVENT-008 | `EventTerm` (terms per event) | ✅ | `PolicyDocument.cs` — Terms/Privacy/Refund, versioned, tenant default with per-event override, HTML sanitised on write; ADR-0037. |
-| EVENT-009 | Event lifecycle states | ◐ | We have `Draft → Published` plus a `SalesPaused` flag. v9's machine is `DRAFT → UNDER_REVIEW → APPROVED → SCHEDULED → PUBLISHED → ON_SALE → SOLD_OUT → COMPLETED` with `CANCELLED / POSTPONED / SUSPENDED / ARCHIVED`. No review/approval step, no terminal states. |
+| EVENT-009 | Event lifecycle states | ◐ | Event: `Draft → Published`. Performance: `Draft → Published → Cancelled`, plus a per-session `SalesPaused`. Still missing v9's review/approval step and its terminal states (`SOLD_OUT`, `COMPLETED`, `POSTPONED`, `ARCHIVED`). |
 | EVENT-010 | Publish: validate prerequisites, emit `EventPublished`, audit | ◐ | Publish validates draft + seat map and emits `EventPublished` through the outbox. Not audited as a record; no search projection to notify. |
 | EVENT-011 | Submit for review / approve | ✗ | — |
 | EVENT-012 | `EventVersion` — snapshot, changed-by, reason, approval state | ✗ | No version history. Post-publish edits are stamped by the audit-fields interceptor and otherwise unrecorded. |
 | EVENT-013 | **Published-event change policy A–D** | ◐ | We implement a two-class split — presentation editable at any status, schedule Draft-only (ADR-0037). v9's four classes add: Class B (customer-impacting: elevated permission, reason, communication evaluation) and Class C (commercial/inventory: direct mutation *prohibited*, a controlled workflow with approval and compensating actions). Ours refuses Class C rather than working it. |
 | EVENT-014 | Reschedule workflow | ✗ | No reschedule at all. Class D. |
-| EVENT-015 | Cancel workflow + compensating refunds | ✗ | No event cancellation. Class D. |
-| EVENT-016 | Postpone | ✗ | Class D. |
+| EVENT-015 | Cancel workflow + compensating refunds | ◐ | A performance can be cancelled and announced (`EventSessionCancelled`). No compensating refunds: working out who bought what and refunding them is a saga with approval in it, not a side effect of a status change. |
+| EVENT-016 | Postpone | ◐ | A draft performance can be rescheduled and a published one cancelled (`EventSessionCancelled`). Postponing a *selling* performance — move the date, keep the tickets, tell the buyers — is still the Class D workflow, not an edit. |
 
 ## TOUR (5)
 
@@ -235,7 +237,7 @@ it is a read-endpoint change when stadium scale demands it, not a remodelling.*
 | INV-004 | Hold expiry | ✅ | `HoldStatus` + expiry sweep. |
 | INV-005 | Confirm hold → sold | ✅ | `SeatSold`; `SOLD` is terminal for the allocation. |
 | INV-006 | Block / unblock | ✅ | `SeatBlocked`/`SeatUnblocked` + `SeatBlockPanel`. |
-| INV-007 | Availability read (`GET /sessions/{id}/availability`) | ◐ | Exists per **event**, not per session (EVENT-005). |
+| INV-007 | Availability read (`GET /sessions/{id}/availability`) | ◐ | Catalog now has sessions; Inventory's routes re-key in the landing that follows. |
 | INV-008 | Sales window + pause enforcement | ✅ | `EventInventorySettings` from `EventPublished`; rejects holds before `OnSaleAt`, after `BookingEndsAt`, or while paused (ADR-0026/0027). |
 | INV-009 | Per-buyer limit enforced cumulatively across holds | ✅ | `MaxTicketsPerBuyer` propagated via `EventPublished`; ADR-0021. Event-level only — per-type is PRICE-006. |
 | INV-010 | **Reconciliation**: find orphaned holds and inconsistent counters without overwriting uncertain financial state | ✅ | The drift reconciler between Redis and the Postgres ledger. |
@@ -275,7 +277,7 @@ it is a read-endpoint change when stadium scale demands it, not a remodelling.*
 | ORDER-010 | **Cancellation**: valid transitions, inventory release, communication, audit | ◐ | Cancel exists and releases inventory. No communication trigger, no audit record. |
 | ORDER-011 | Order read API | ✅ | `GET /v1/orders/{id}`, plus `mine=true`/`forTenant=true` lists (the endpoint 400s without one — deliberate). |
 | ORDER-012 | `OrderCreated` / `OrderCancelled` events | ◐ | `OrderConfirmed` is published. `OrderCreated` and `OrderCancelled` are not. |
-| ORDER-013 | Order tied to a session, not an event | ✗ | EVENT-005. |
+| ORDER-013 | Order tied to a session, not an event | ◐ | The session exists (ADR-0039); `Order.EventSessionId` lands with the Ordering re-key. |
 
 ## PAY — Payment (7)
 
@@ -378,7 +380,7 @@ given (`DataGrid` + `csv.ts`), which is the honest client-side behaviour and not
 | --- | --- | --- | --- |
 | REPORT-001 | **Sales report** from analytical data, mandatory tenant filter, event/session/date filters, freshness shown | ✗ | — |
 | REPORT-002 | Separate analytical store | ✗ | Reports would read the transactional databases, which the service boundary forbids. |
-| REPORT-003 | Dimensional model (`DimTenant/Event/Session/Venue/TicketProduct/CustomerSegment/Date/Gate`) | ✗ | `DimVenue` is now available (VEN-001); `DimSession` still needs EVENT-005. **Reporting cannot be built before that without baking the wrong grain in.** |
+| REPORT-003 | Dimensional model (`DimTenant/Event/Session/Venue/TicketProduct/CustomerSegment/Date/Gate`) | ✗ | `DimVenue` and `DimSession` both have a real grain to hang off now (VEN-001, EVENT-005). Nothing projects them yet. |
 | REPORT-004 | `FactOrder` / `FactOrderItem` | ✗ | — |
 | REPORT-005 | Revenue report, reconciling to transactional sources | ✗ | — |
 | REPORT-006 | Inventory report | ✗ | — |

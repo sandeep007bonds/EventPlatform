@@ -4,211 +4,127 @@ Inherits the [root CLAUDE.md](../../CLAUDE.md) and [engineering guidelines](../.
 
 ## Responsibility
 
-Owns events, event groups (tours), seat maps (Reserved and General Admission
-sections), ticket types and pricing. Publishes events and generates their
-inventory. Serves read endpoints for the storefront (cached). Bounded
-context: **Catalog** (ADR-0008).
+Owns **what is being sold**: events, their performances, tours, ticket types, promo codes, tax and
+fees, and the policy documents a buyer agrees to. Bounded context: **Catalog** (ADR-0008).
+
+Two lines to hold:
+
+- **Catalog does not own places.** Venues, gates and seat maps belong to the Venue service
+  (ADR-0038). A performance *names* a Venue seat-map version; it never copies one.
+- **Catalog does not own availability.** Whether a seat is free is Inventory's answer, and it
+  differs per performance while the seat does not.
+
+## The model
+
+```
+Event                         what is being sold, and how it is marketed
+ ├─ title, slug, description, media, contact, social, category
+ ├─ currency, tax, booking fee, MaxTicketsPerBuyer, RequiresQueue, OnSaleAt
+ ├─ TicketType[]  PromoCode[]  PolicyDocument[]
+ └─ EventSession[]             one performance
+      ├─ Name?, StartsAt, EndsAt, DoorsOpenAt?, BookingEndsAt?, Status, SalesPaused
+      ├─ VenueId + SeatMapId + SeatMapVersionId   → the Venue service, pinned by version
+      ├─ VenueSnapshot (name, city, country, tz)  → a display cache, never decided from
+      └─ SessionAllocation[] { Code, TicketTypeId }
+```
+
+**`EventSession` is the grain everything downstream keys on** (ADR-0039). Inventory provisions per
+performance, orders and tickets name one, a scan is validated against one. A three-night run is one
+event with three performances — not three events.
+
+**`SessionAllocation` is where price meets place.** A Venue seat carries no price, so something has
+to say "Lower Tier is Gold", and it has to say it per performance: Friday's Lower Tier can be Gold
+while Saturday's matinee sells the same seats as Premium. It binds a Venue **section or
+admission-area code** to a `TicketTypeId` — one row per block, about twenty for a stadium, not one
+per seat.
+
+**Naming:** the type is `EventSession`; every route, parameter and DTO field says `eventSessionId`,
+never bare `sessionId` — Queue already owns that word for waiting-room sessions. UI copy says
+"performance".
+
+**A tour leg is not a performance.** A leg is a different city, venue and seat map, separately
+advertised — that is `EventGroup`. Sessions are several nights of the *same* event.
+
+### What sits at which level, and why
+
+| | Level | Why |
+|---|---|---|
+| `StartsAt` / `EndsAt` / `DoorsOpenAt` | Session | A performance has a time; an event has a run. |
+| `BookingEndsAt` | Session | "Book until 2h before **this** show" is a different instant every night. |
+| `SalesPaused` | Session | Pull one night without pulling the run. The event-wide switch fans out. |
+| Venue + seat map | Session | Two nights can use different configurations of the hall. |
+| `OnSaleAt` | Event | A run goes on sale once, at one advertised moment. |
+| `RequiresQueue` | Event | One waiting room gates the on-sale, so Queue stays event-keyed. |
+| `MaxTicketsPerBuyer` | Event | A per-night limit would let one buyer take the cap three times over. |
 
 ## Owns
 
-- **Data store:** PostgreSQL `catalog` DB (this service only)
-- **Public API:** REST `/v1/events`, `/v1/events/{id}/seatmap`,
-  `/v1/events/{id}/seatmap/sections` (`POST` add, `PUT` replace-one-by-name),
-  `/v1/events/{id}/seatmap/sections/{sectionName}` (`DELETE`),
-  `/v1/events/{id}/details`, `/v1/event-groups`, `/v1/events/{id}/entry-gates`.
-  `GET /v1/events` (list) and
-  `GET /v1/events/{id}` and `/seatmap` are `.AllowAnonymous()` —
-  anonymous and cross-tenant callers only ever see non-draft events; a caller's
-  own tenant additionally sees its drafts (`Event.IsVisibleTo`). `GET /v1/events?mine=true`
-  bypasses that visibility rule entirely and returns only the caller's own
-  tenant's events at any status (401 without a tenant) — the organizer
-  dashboard view, not public browsing. `GET /v1/events?eventGroupId=` filters
-  to the legs of a given tour/series, in either mode. `POST /v1/events/{id}/publish`
-  and `PUT /v1/events/{id}/details` both require the caller's tenant to own the
-  event (404 on a mismatch, same opaque not-found pattern as `DefineSeatMap`);
-  editing is **split by consequence** (ADR-0037): `PUT /v1/events/{id}/details`
-  (`UpdateEventDetails`) is Draft-only (409 otherwise) and carries dates, venue, tax, fees and
-  ticketing rules — everything that changes what a ticket holder bought; `PUT /v1/events/{id}/presentation`
-  (`UpdateEventPresentation`) works at **any** status and carries title, description, category, age
-  restriction, imagery, contact details and social links. Two routes rather than one with a mode
-  flag, so the 409 is visible in the route table rather than buried in a handler. `Title`,
-  `StartsAt` and the whole venue block are editable for the first time — they were in neither
-  update method before, so a misspelled title was permanent. Location (venue name,
-  address, city, geo) is set inline on `Event` at creation — there is no
-  separate Venue entity/directory. `EventGroup` ("tour") is a thin, optional
-  parent clustering multiple independently-sellable `Event`s: tenant-owned,
-  `POST`/`GET /v1/event-groups` require the caller's tenant; `GET /v1/event-groups/{id}`
-  is `.AllowAnonymous()` — a group by itself, unlinked, reveals nothing
-  sensitive. Each leg is created/published/seat-mapped/sold exactly like any
-  standalone event (see ADR-0019) — Inventory/Ordering/Ticketing have no
-  concept of `EventGroup` at all. `EventGroup` also holds tour-wide date-range
-  and contact/social defaults (`StartsAt`/`EndsAt`, `ContactPhone`/`ContactMobile`/
-  `ContactEmail`/`WebsiteUrl`, an open `SocialLinks` list) that a leg's own
-  values (if any) override entirely (see ADR-0020). `CreateEvent`/
-  `UpdateEventDetails` both reject (409) a leg whose `[StartsAt, EndsAt]`
-  falls outside its tour's own advertised range, or overlaps a sibling leg's
-  dates; `CreateEvent` also rejects (404) an `EventGroupId` that doesn't
-  belong to the caller's tenant (ADR-0024).
-- **`Event.EndsAt` is required** (set at creation, alongside `StartsAt`) — every
-  leg has a real date range, not just a start instant. **`Event.BookingEndsAt`**
-  (renamed from the old, display-only `OffSaleAt`) and **`Event.OnSaleAt`** are
-  both real, **enforced** window bounds: Catalog hands both to Inventory via
-  `EventPublished` so Inventory can reject new holds outside that window
-  (before `OnSaleAt`, after `BookingEndsAt`). Neither can change after publish
-  in this pass (`UpdateEventDetails` is Draft-only, same as every other detail
-  field). `BookingEndsAt` also can never be later than the leg's own
-  `StartsAt` (ADR-0024).
-- **`Event.MaxTicketsPerBuyer`** (nullable — `null` means no limit), settable
-  at `Create`/editable via `UpdateDetails` (Draft-only, same lifecycle as
-  `BookingEndsAt`). Propagated to Inventory via `EventPublished`, which
-  enforces it cumulatively across a buyer's holds at hold-placement time —
-  Catalog itself does not enforce anything (see ADR-0021).
-- **`Event.RequiresQueue`** (bool, default `false`), settable at `Create`/
-  editable via `UpdateDetails` (Draft-only, same lifecycle as
-  `BookingEndsAt`) — the single on/off switch for gating a buyer's hold
-  behind the Queue service's virtual waiting room. Propagated via
-  `EventPublished` to both Inventory (enforcement) and Queue (provisioning);
-  Catalog itself does not enforce anything (see ADR-0026).
-- **Seat maps mix Reserved and General-Admission sections.** `DefineSeatMap`'s
-  section input carries an `AllocationType`: `Reserved` sections generate
-  individual `Seat` rows (rows × seats-per-row) exactly as before;
-  `GeneralAdmission` sections are a capacity-only pool (no individual seats) —
-  a single event can have both kinds side by side. `GetSeatMapResponse`
-  (the hand-off Inventory reads) carries both `Seats` and
-  `GeneralAdmissionSections` lists. `DefineSeatMap` still only ever creates the
-  map (404/`AlreadyDefined` on a second call); `POST /v1/events/{id}/seatmap/sections`
-  (`AddSeatMapSections`) appends more sections to an **existing** Draft-only
-  map — same section-shape/validation/entry-gate rules, same
-  `SeatMap.AddReservedSection`/`AddGeneralAdmissionSection` domain methods
-  (which already enforce name-uniqueness against every section already in the
-  map, not just the ones in the request), just loaded via
-  `ISeatMapRepository.GetTrackedByEventIdAsync` (change-tracked, unlike the
-  `AsNoTracking()` `GetByEventIdAsync` every read path uses) so the new
-  sections are picked up by `SaveChangesAsync`. `PUT .../sections`
-  (`UpdateSeatMapSection`) and `DELETE .../sections/{sectionName}`
-  (`RemoveSeatMapSection`) round out full Draft-only editing —
-  `SeatMap.RemoveSection` deletes every seat/GA-section row matching a name
-  (EF orphan-delete on the tracked collection, no explicit `Remove()` call
-  needed); "edit" is implemented as remove-then-`AddReservedSection`/
-  `AddGeneralAdmissionSection` rather than a true in-place update, since a
-  section's rows/capacity can only be expressed by regenerating its
-  seats/pool anyway — freeing the name first means the existing
-  duplicate-name check needs no special-casing for a same-name (no rename)
-  edit. Safe only pre-publish, since nothing outside Catalog references a
-  seat/section id before Inventory provisions from it.
-- **Entry gates.** `EntryGate` (`Id`, `EventId`, `Name`) — an organizer defines
-  named physical entry points for an event's location, then restricts a
-  seat-map section to one at `DefineSeatMap` time (`Seat.EntryGateId`/
-  `GeneralAdmissionSection.EntryGateId`, set once, immutable after — a
-  section with no gate set may be entered through any gate). No update/delete
-  slice this pass. Ticketing resolves gate eligibility live at scan time via
-  Dapr service invocation against `GET /v1/events/{id}/seatmap` — Catalog
-  does not enforce anything itself (see ADR-0024).
-- **Manual sales pause.** `Event.SalesPaused` (bool, default `false`) lets an organizer pause/resume
-  sales on an already-`Published` event via `POST /v1/events/{id}/pause-sales`/`resume-sales`
-  (`Event.PauseSales`/`ResumeSales`, 409 if not published or already in the requested state) —
-  independent of the `OnSaleAt`/`BookingEndsAt` enforced time window, and without affecting
-  already-placed holds/tickets. Publishes `EventSalesPaused`/`EventSalesResumed` for Inventory to
-  reject/allow new holds accordingly (see ADR-0027).
-- **Promo codes and tax (ADR-0034).** `PromoCode` (with its child `PromoCodeTier`) is a Catalog
-  aggregate — a discount code is part of an event's commercial setup. Percentage or fixed amount,
-  optional validity window, optional tier scoping, optional caps on total and per-buyer
-  redemptions, public or private. Managed via `/v1/events/{eventId}/promo-codes`
-  (`POST` create, `GET` list — both tenant-owned) and `.../{id}/deactivate`; two anonymous reads
-  serve the buyer path: `.../promo-codes/public` (what a buyer may pick from — a deliberately
-  narrower response that never publishes redemption caps) and `.../promo-codes/by-code/{code}`
-  (server-to-server, for Ordering; unrouted at the gateway). **Catalog answers what the rules are;
-  it never decides whether a code may be used** — redemption counting needs the orders, which only
-  Ordering can read. **An empty tier list means every tier**, so an organizer discounting a whole
-  order never enumerates their tiers and a tier added later is covered rather than excluded.
-  There is no edit-after-create (`EntryGate`'s precedent): deactivate and make another.
-  `Event.TaxRatePercent`/`TaxLabel` are one rate per event, Draft-only editable like every other
-  detail field; Ordering charges it on the **post-discount** amount.
-  `Event.BookingFeePerTicketMinor` is the same shape — Draft-only, stored here, computed by
-  Ordering — a flat per-ticket fee in minor units. It is **not** discountable, **is** taxed, and is
-  **not** returned on a cancellation, which is why Ordering rounds tax on the fee separately from
-  tax on the tickets (ADR-0034). Catalog stores the number and enforces only that it is not
-  negative.
-- **`Event.TimeZoneId`** (nullable IANA id, e.g. `Asia/Kolkata`), Draft-only editable like every
-  other detail field. Nothing on the backend reads it: every date is a `DateTimeOffset` and already
-  an unambiguous instant, so this changes *when* nothing. It exists because a client otherwise has
-  to render a start time in the **reader's** zone — a 7pm Delhi show reads as 1:30pm to a buyer in
-  London. Stored as an IANA identifier rather than an offset, since offsets shift twice a year and
-  an event across a DST boundary would drift. Validated in the *validator*, not the aggregate:
-  resolving an id depends on the host's tz database, and an invariant that varies by machine is not
-  an invariant.
-- **`Event.Slug` (ADR-0037).** Lowercase `[a-z0-9-]`, **globally unique** (not per tenant — a slug
-  is the whole of a public URL and two tenants cannot both own `/events/coldplay-mumbai`), derived
-  from the title at creation, editable while Draft via `PUT /v1/events/{id}/slug`
-  (`ChangeEventSlug`), and **locked after publish** because the link has already been advertised.
-  Reserved words (`admin`, `api`, `login`, `checkout`, `events`, …) refused. `EventSlug` (domain,
-  pure) does the string work: `Basis` gives the stem a caller queries the database for,
-  `From(title, taken)` appends a numeric suffix, `IsValid` is what `Event` enforces.
-  `GET /v1/events/by-slug/{slug}` resolves it, anonymous, same visibility rule as `GET /{id}`.
-  The uniqueness check in `CreateEventHandler` is read-then-write and therefore racy — **the unique
-  index is the guard**, and a losing race gets a constraint violation rather than a duplicate URL.
-- **`PolicyDocument` — terms, privacy and refund, versioned (ADR-0037).** `TenantId` · `EventId?` ·
-  `Kind` (`Terms`/`Privacy`/`Refund`) · `BodyHtml` · `Version` · `UpdatedAt`. `EventId = null` is
-  the organizer's tenant-wide default; a row with an `EventId` overrides it for that event — the
-  same defaults-and-override shape `EventGroup` uses for tour contact details. `Version` increments
-  on every revision so Ordering can capture what a buyer actually agreed to; **saving an unchanged
-  body is a no-op**, so opening the editor and pressing Save does not invalidate the version
-  existing orders point at. Managed via `/v1/policies` (`GET`/`PUT {kind}`, tenant defaults) and
-  `/v1/events/{eventId}/policies` (`GET` anonymous — a buyer reads the refund policy before
-  deciding to buy, still subject to `Event.IsVisibleTo`; `PUT {kind}` organizer-only).
-  **HTML is sanitised on write, not on render** (`IHtmlSanitizer` → `PolicyHtmlSanitizer`, over
-  Ganss.Xss): narrowed to structure, emphasis and `http`/`https`/`mailto` links — no images,
-  iframes or inline styles, so a policy page cannot become a tracking beacon. A body that sanitises
-  to nothing is a 400, not an empty document.
-- **`TicketType` — what a section is sold as (stage 1 of 3).** A named, priced aggregate per event:
-  `Name` (unique per event, case-insensitively), `PriceMinor`, `Description`, `SalesStartsAt`/
-  `SalesEndsAt`, `MaxPerBuyer`, `SortOrder`, `IsActive`. `Seat` and `GeneralAdmissionSection` now
-  carry a `TicketTypeId`; their `PriceTier`/`PriceAmount` columns survive the migration window but
-  **nothing reads them** — `GetSeatMapHandler` projects both from the joined type, so a rename or
-  reprice takes effect at once rather than leaving thousands of stale seat rows. Managed via
-  `/v1/events/{eventId}/ticket-types` (`POST`/`GET`/`PUT` + `.../{id}/deactivate`), all
-  `RequireOrganizer()` with the usual opaque-404 tenant check.
-  **Unlike every seat-map endpoint these are not Draft-only** — creating a type on a published event
-  is the point, since an organizer opening a late release should not have to make a second event.
-  The exception is **repricing, refused after publish** (409): Inventory holds its own copy of the
-  price from provisioning time, so changing it here would move the displayed number and not the
-  charged one. Seat-map requests still name a tier and a price; `TicketTypeResolver` finds or
-  creates the type, and **an existing type's price wins** — the validators reject a single request
-  naming one tier at two prices, which is the contradiction an organizer can see and fix.
-  Types created here sell nothing until stage 2 lets capacity be added to a published event.
-- **Events published:** `EventPublished` (now also carries `BookingEndsAt` and
-  `MaxTicketsPerBuyer`), `EventUpdated`, `EventSalesPaused`, `EventSalesResumed`
+- **Data store:** PostgreSQL `catalog` DB (this service only).
+- **Public API:**
+  - `/v1/events` — `GET` list, `POST` create (with its first performance), `GET /{id}`,
+    `GET /by-slug/{slug}`, `POST /{id}/publish`, `POST /{id}/pause-sales`, `POST /{id}/resume-sales`,
+    `PUT /{id}/selling-rules`, `PUT /{id}/presentation`, `PUT /{id}/slug`.
+  - `/v1/events/{eventId}/sessions` — `GET` list (anonymous), `POST` add, `PUT /{eventSessionId}`,
+    `DELETE /{eventSessionId}`, `PUT /{eventSessionId}/seat-map`,
+    `PUT /{eventSessionId}/allocations`, `POST /{eventSessionId}/publish`,
+    `POST /{eventSessionId}/cancel`, `POST /{eventSessionId}/pause-sales`, `.../resume-sales`.
+  - `/v1/event-groups`, `/v1/events/{eventId}/ticket-types`, `/v1/events/{eventId}/promo-codes`,
+    `/v1/policies`, `/v1/events/{eventId}/policies` — unchanged.
+- **Reads are anonymous, writes are `RequireOrganizer()`.** Every write handler still checks the
+  event belongs to the caller's tenant and answers a mismatch with an **opaque 404**, so an id probe
+  cannot confirm what exists.
+- **Events published:** `EventPublished` (event-level facts only — Queue is its one consumer),
+  `EventSessionPublished` (one per performance — Inventory and Ticketing provision from it),
+  `EventSessionCancelled`, `EventSalesPaused`/`EventSalesResumed` (both now per performance),
+  `EventUpdated`.
 - **Events consumed:** —
 
-## Structure
+## Publishing
 
-Layers sit directly under this folder (no `src/`): `Catalog.Api` (host +
-endpoints, uses `EventPlatform.Hosting`), `Catalog.Application` (Features/ slices),
-`Catalog.Domain` (aggregate + invariants), `Catalog.Infrastructure` (EF Core +
-Postgres). `tests/Catalog.Tests` covers `Event`'s date and lifecycle guards
-(including `IsVisibleTo`, which is a security boundary rather than a display
-rule), `SeatMap`'s seat generation/capacity/name-uniqueness across Reserved and
-General-Admission sections, and the three cross-aggregate tour rules in
-`CreateEventHandler` — exercised through MediatR, since the handler is internal
-and the validation pipeline is part of what the endpoint actually invokes.
+`PublishEvent` is **all-or-nothing across performances**. Each one is checked by
+`SessionPublishCheck` (shared with `PublishEventSession`, so the two cannot drift):
+
+1. It names a seat map, and that map still exists in Venue.
+2. The pinned version is **published**, and is still the map's published one.
+3. **Every block in the version has an allocation.** An unallocated section is not spare capacity —
+   it is capacity Inventory never hears about, so the map renders with a hole nobody can distinguish
+   from a sold-out block.
+4. Every allocated ticket type is this event's and still active.
+
+A failure lists **every** problem, not the first: an organizer fixing a three-night run needs all
+three at once. Publishing partially would take an event live with one advertised night silently
+unbuyable, which is worse than not publishing.
+
+A performance added to an event that is already selling publishes on its own
+(`POST .../sessions/{id}/publish`) — that is the late-show path.
+
+## Service-specific rules
+
+- **`IVenueClient` is the only outbound call**, over Dapr to app-id `venue`, and only on two cold
+  paths: attaching a seat map, and validating a publish. Nothing a buyer does reaches it. The
+  venue's *name* is fetched best-effort and degrades to a placeholder — failing an attach because a
+  display string could not be read would block real work over a cosmetic field.
+- **`Event.FirstSessionStartsAt`/`LastSessionEndsAt` are denormalised**, maintained by the aggregate
+  whenever a session is added, moved or removed. The storefront lists by date and filters to
+  upcoming; computing this in memory would turn one indexed scan into loading every session of every
+  event. Never set them from outside the aggregate.
+- **`SessionCommandResult` is shared by all nine session commands.** They answer the same three
+  questions — found it, was it allowed, what does it look like now — and nine near-identical outcome
+  enums would only be nine chances to return the wrong status code.
+- **The event's cached date range and the tour rules go together.** A leg is compared to its
+  siblings on its whole run (first performance to last), because that is what the tour advertises.
+- **Deleted in ADR-0039:** `SeatMap`, `Seat`, `GeneralAdmissionSection`, `EntryGate`,
+  `EventLocation`, `TicketTypeResolver` and every seat-map slice. Do not reintroduce them — a seat
+  map that lives here cannot be shared between events, which is the whole reason Venue exists.
 
 ## Migrations
 
-**On an empty database there is nothing special to do** — generate the migration and apply it. The
-note below is only for a database that already holds events.
+No migration is checked in — the model changed shape completely in ADR-0039 and the old ones
+described tables that no longer exist. Generate a fresh one against an empty database:
 
-`events.Slug` is `NOT NULL UNIQUE`, so against a populated table the generated migration will not
-apply as written: every existing row would get the same empty default and collide on the index.
-Backfill between the `AddColumn` and the `CreateIndex`:
-
-```sql
-UPDATE catalog.events SET "Slug" = 'e-' || replace("Id"::text, '-', '') WHERE "Slug" = '';
+```bash
+./scripts/db-add-migration.sh InitialCreate catalog
 ```
-
-That is a valid slug by construction (lowercase hex, one hyphen, never reserved) and unique because
-the id is. Organizers can then change it on any event still in Draft; published events keep the
-generated one, which is the correct outcome — their URL was already a GUID and nothing that has
-been shared moves.
 
 ## Local run
 
@@ -219,6 +135,8 @@ dotnet run --project services/catalog/Catalog.Api
 
 ## Do not
 
+- Model a venue, a gate or a seat here. That is the Venue service.
+- Put availability here. That is Inventory, per performance.
 - Read another service's database.
 - Add a package version to the `.csproj` (use `Directory.Packages.props`).
 - Deploy by hand — change `deploy/` and let Argo CD reconcile.

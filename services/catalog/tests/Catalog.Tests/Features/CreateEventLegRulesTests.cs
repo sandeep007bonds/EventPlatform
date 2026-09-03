@@ -133,24 +133,18 @@ public sealed class CreateEventLegRulesTests
         result.Outcome.ShouldBe(CreateEventOutcome.EventGroupNotFound);
     }
 
+    // A leg's range is now its performances' range, and Event.Create makes the first performance —
+    // so a one-night leg is created exactly the way a real one is, and FirstSessionStartsAt /
+    // LastSessionEndsAt are populated by the aggregate rather than by the test.
     private static Event CreateLeg(Guid eventGroupId, DateTimeOffset startsAt, DateTimeOffset endsAt) =>
         Event.Create(
             Organizer,
             "Sibling leg",
             $"sibling-leg-{Guid.CreateVersion7():N}",
+            "INR",
             startsAt,
             endsAt,
-            "INR",
-            "Venue",
-            "Address line 1",
-            null,
-            "City",
-            null,
-            null,
-            "IN",
-            null,
-            null,
-            eventGroupId);
+            eventGroupId: eventGroupId);
 
     private EventGroup GivenTour(Guid? ownedBy = null) => GivenTour(ownedBy, TourStarts, TourEnds);
 
@@ -200,19 +194,10 @@ public sealed class CreateEventLegRulesTests
         var command = new CreateEventCommand(
             Organizer,
             "Mumbai",
+            "INR",
             startsAt ?? TourStarts.AddDays(2),
             endsAt ?? TourStarts.AddDays(2).AddHours(4),
-            "INR",
-            "DY Patil Stadium",
-            "Sector 7",
-            null,
-            "Navi Mumbai",
-            "Maharashtra",
-            "400706",
-            "IN",
-            null,
-            null,
-            eventGroupId);
+            EventGroupId: eventGroupId);
 
         return await provider.GetRequiredService<ISender>().Send(command);
     }

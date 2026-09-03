@@ -19,9 +19,6 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly);
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
-        // Shared by the three seat-map handlers, which all turn a section's tier name into a type.
-        services.AddScoped<TicketTypeResolver>();
-
         return services;
     }
 }

@@ -26,7 +26,7 @@ public sealed class PromoCodeTier
     public Guid PromoCodeId { get; private set; }
 
     /// <summary>
-    /// The price-tier name, matching <c>SeatMap</c> section tiers verbatim. A plain string rather
+    /// The price-tier name, matching a <see cref="TicketType"/> name verbatim. A plain string rather
     /// than a foreign key, for the same reason <see cref="Seat.PriceTier"/> is: tiers are named on
     /// sections, not modelled as their own entity.
     /// </summary>

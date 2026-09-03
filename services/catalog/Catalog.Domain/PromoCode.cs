@@ -6,7 +6,8 @@ namespace Catalog.Domain;
 /// Ordering owns the arithmetic and the redemption count, because it owns orders and totals.
 /// </summary>
 /// <remarks>
-/// There is deliberately no edit-after-create — the same choice <see cref="EntryGate"/> makes.
+/// There is deliberately no edit-after-create: an advertised code must not silently change what
+/// it is worth. Deactivate it and make another.
 /// A code that has already been advertised should not silently change what it is worth; deactivate
 /// it and create another instead.
 /// </remarks>

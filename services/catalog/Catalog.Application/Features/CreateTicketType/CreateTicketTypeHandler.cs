@@ -15,7 +15,7 @@ internal sealed class CreateTicketTypeHandler(
         if (@event is null || @event.TenantId != request.TenantId)
         {
             // Opaque not-found on a tenant mismatch — never reveal that another tenant's event
-            // exists. Same pattern as CreatePromoCode/DefineSeatMap.
+            // exists. Same pattern as CreatePromoCode.
             return new CreateTicketTypeResult(CreateTicketTypeOutcome.EventNotFound, null);
         }
 

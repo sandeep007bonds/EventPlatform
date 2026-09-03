@@ -1,40 +1,63 @@
 namespace Catalog.Application.Features.PublishEvent;
 
 /// <summary>
-/// Handles <see cref="PublishEventCommand"/> by transitioning a draft event to published and
-/// enqueuing an <see cref="EventPublished"/> integration event (carrying the seat count) in the
-/// same unit of work. A seated event must have a seat map before it can be published.
+/// Handles <see cref="PublishEventCommand"/> by validating every performance against its venue's
+/// seat map, publishing the event and each ready performance, and enqueuing the integration events
+/// in the same unit of work.
 /// </summary>
+/// <remarks>
+/// Publishing is all-or-nothing across performances: if any one of them is not sellable the whole
+/// publish is refused, listing every problem. A partial publish would take an event live with one
+/// of its advertised nights silently unbuyable, which is worse than not publishing at all.
+/// </remarks>
 /// <param name="repository">The event repository.</param>
-/// <param name="seatMaps">The seat-map repository.</param>
+/// <param name="ticketTypes">The ticket-type repository, for the prices carried on each message.</param>
+/// <param name="venue">The Venue service client.</param>
 /// <param name="events">The integration-event publisher (transactional outbox).</param>
 internal sealed class PublishEventHandler(
     IEventRepository repository,
-    ISeatMapRepository seatMaps,
+    ITicketTypeRepository ticketTypes,
+    IVenueClient venue,
     IEventPublisher events)
-    : IRequestHandler<PublishEventCommand, PublishEventOutcome>
+    : IRequestHandler<PublishEventCommand, PublishEventResult>
 {
     /// <inheritdoc />
-    public async Task<PublishEventOutcome> Handle(PublishEventCommand request, CancellationToken cancellationToken)
+    public async Task<PublishEventResult> Handle(PublishEventCommand request, CancellationToken cancellationToken)
     {
         var @event = await repository.GetByIdAsync(request.Id, cancellationToken);
         if (@event is null || @event.TenantId != request.TenantId)
         {
-            return PublishEventOutcome.NotFound;
+            return new PublishEventResult(PublishEventOutcome.NotFound, []);
         }
 
         if (@event.Status != EventStatus.Draft)
         {
-            return PublishEventOutcome.NotDraft;
+            return new PublishEventResult(PublishEventOutcome.NotDraft, []);
         }
 
-        var seatMap = await seatMaps.GetByEventIdAsync(request.Id, cancellationToken);
-        if (seatMap is null)
+        var problems = new List<string>();
+        var readyBySession = new Dictionary<Guid, SessionPublishReadiness>();
+
+        foreach (var session in @event.Sessions.Where(s => s.Status == EventSessionStatus.Draft))
         {
-            return PublishEventOutcome.NoSeatMap;
+            var readiness = await SessionPublishCheck.RunAsync(session, ticketTypes, venue, cancellationToken);
+
+            if (readiness.Problem is null)
+            {
+                readyBySession[session.Id] = readiness;
+            }
+            else
+            {
+                problems.Add(readiness.Problem);
+            }
         }
 
-        @event.Publish();
+        if (problems.Count > 0 || readyBySession.Count == 0)
+        {
+            return new PublishEventResult(PublishEventOutcome.NoSellablePerformance, problems);
+        }
+
+        var published = @event.Publish();
 
         events.Enqueue(new EventPublished(
             Guid.CreateVersion7(),
@@ -42,16 +65,16 @@ internal sealed class PublishEventHandler(
             @event.TenantId,
             @event.Id,
             @event.Title,
-            seatMap.Capacity,
-            @event.BookingEndsAt,
-            @event.StartsAt,
-            @event.EndsAt,
-            @event.MaxTicketsPerBuyer,
-            @event.OnSaleAt,
-            @event.DoorsOpenAt,
-            @event.RequiresQueue));
+            @event.RequiresQueue,
+            @event.OnSaleAt));
+
+        foreach (var session in published)
+        {
+            events.Enqueue(readyBySession[session.Id].ToIntegrationEvent(@event, session));
+        }
 
         await repository.SaveChangesAsync(cancellationToken);
-        return PublishEventOutcome.Published;
+
+        return new PublishEventResult(PublishEventOutcome.Published, []);
     }
 }

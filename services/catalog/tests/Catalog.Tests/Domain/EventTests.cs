@@ -1,31 +1,37 @@
 namespace Catalog.Tests.Domain;
 
-// Event carries the date and lifecycle rules the rest of the platform trusts without re-checking:
-// Inventory enforces a booking cutoff it was handed, Ordering sells against a status it was told.
-// If these guards are wrong, every service downstream is confidently wrong with them.
+// Event carries the lifecycle and selling rules the rest of the platform trusts without
+// re-checking: Inventory enforces a per-buyer cap it was handed, Ordering sells against a status it
+// was told. If these guards are wrong, every service downstream is confidently wrong with them.
 public sealed class EventTests
 {
     private static readonly DateTimeOffset Starts = new(2027, 3, 1, 19, 0, 0, TimeSpan.Zero);
     private static readonly DateTimeOffset Ends = Starts.AddHours(4);
 
-    private static readonly EventLocation Location = new(
-        "DY Patil Stadium",
-        "Sector 7",
-        null,
-        "Navi Mumbai",
-        "Maharashtra",
-        "400706",
-        "IN",
-        null,
-        null);
-
     [Fact]
-    public void ANewEvent_StartsAsADraft()
+    public void ANewEvent_StartsAsADraftWithOnePerformance()
     {
         var @event = CreateEvent();
 
         @event.Status.ShouldBe(EventStatus.Draft);
-        @event.SalesPaused.ShouldBeFalse();
+        @event.Sessions.Count.ShouldBe(1);
+        @event.Sessions.Single().Status.ShouldBe(EventSessionStatus.Draft);
+    }
+
+    // The cached range is what the storefront sorts and filters by, so it has to track the
+    // performances rather than being set once and forgotten.
+    [Fact]
+    public void TheEventsRange_TracksItsPerformances()
+    {
+        var @event = CreateEvent();
+
+        @event.FirstSessionStartsAt.ShouldBe(Starts);
+        @event.LastSessionEndsAt.ShouldBe(Ends);
+
+        @event.AddSession("Late show", Starts.AddDays(1), Ends.AddDays(1), null, null);
+
+        @event.FirstSessionStartsAt.ShouldBe(Starts);
+        @event.LastSessionEndsAt.ShouldBe(Ends.AddDays(1));
     }
 
     [Fact]
@@ -36,26 +42,141 @@ public sealed class EventTests
     public void AnEventThatEndsExactlyWhenItStarts_CannotBeCreated() =>
         Should.Throw<ArgumentOutOfRangeException>(() => CreateEvent(endsAt: Starts));
 
-    // Draft is the only editable state for the *schedule*. Once published, buyers may already be
-    // holding seats against the dates and limits as they stand, so changing them is a different
-    // problem than editing.
+    // One act cannot be on two stages at once, whatever the calendar says.
     [Fact]
-    public void APublishedEventsSchedule_CannotBeChanged()
+    public void TwoPerformancesOfTheSameEvent_CannotOverlap()
     {
         var @event = CreateEvent();
-        @event.Publish();
 
-        Should.Throw<InvalidOperationException>(() => UpdateDetails(@event));
+        Should.Throw<InvalidOperationException>(() =>
+            @event.AddSession("Matinee", Starts.AddHours(1), Ends.AddHours(1), null, null));
     }
 
-    // The counterpart to the rule above, and the reason the two were split: none of this changes
-    // what a ticket holder bought, so locking it after publish only stopped organizers fixing their
-    // own mistakes.
+    [Fact]
+    public void PerformancesThatMeetExactlyAtTheBoundary_AreAllowed()
+    {
+        var @event = CreateEvent();
+
+        @event.AddSession("Late show", Ends, Ends.AddHours(3), null, null);
+
+        @event.Sessions.Count.ShouldBe(2);
+    }
+
+    [Fact]
+    public void AnEventMustKeepAtLeastOnePerformance()
+    {
+        var @event = CreateEvent();
+
+        Should.Throw<InvalidOperationException>(() => @event.RemoveSession(@event.Sessions.Single().Id));
+    }
+
+    // Cancel it instead: tickets sold for a performance still have to resolve to something.
+    [Fact]
+    public void APerformanceThatWentOnSale_CannotBeRemoved()
+    {
+        var @event = CreateEvent();
+        var late = @event.AddSession("Late show", Starts.AddDays(1), Ends.AddDays(1), null, null);
+        MakeSellable(late);
+        @event.Publish();
+
+        Should.Throw<InvalidOperationException>(() => @event.RemoveSession(late.Id));
+    }
+
+    [Fact]
+    public void PublishingWithNoSellablePerformance_IsRefused()
+    {
+        var @event = CreateEvent();
+
+        Should.Throw<InvalidOperationException>(@event.Publish);
+        @event.Status.ShouldBe(EventStatus.Draft);
+    }
+
+    [Fact]
+    public void PublishingTakesEveryReadyPerformanceOnSale()
+    {
+        var @event = CreateEvent();
+        MakeSellable(@event.Sessions.Single());
+        var second = @event.AddSession("Night two", Starts.AddDays(1), Ends.AddDays(1), null, null);
+        MakeSellable(second);
+
+        var published = @event.Publish();
+
+        published.Count.ShouldBe(2);
+        @event.Status.ShouldBe(EventStatus.Published);
+        @event.Sessions.ShouldAllBe(s => s.Status == EventSessionStatus.Published);
+    }
+
+    [Fact]
+    public void AnEventCanOnlyBePublishedOnce()
+    {
+        var @event = PublishedEvent();
+
+        Should.Throw<InvalidOperationException>(@event.Publish);
+    }
+
+    // The event-wide switch sweeps every performance, including a draft late show that has not
+    // gone on sale — otherwise pausing a run would throw halfway through.
+    [Fact]
+    public void PausingTheEvent_PausesEveryPerformance()
+    {
+        var @event = PublishedEvent();
+        @event.AddSession("Unreleased late show", Starts.AddDays(2), Ends.AddDays(2), null, null);
+
+        @event.PauseSales();
+
+        @event.Sessions.ShouldAllBe(s => s.SalesPaused);
+        @event.AllSalesPaused().ShouldBeTrue();
+
+        @event.ResumeSales();
+
+        @event.Sessions.ShouldAllBe(s => !s.SalesPaused);
+        @event.AllSalesPaused().ShouldBeFalse();
+    }
+
+    [Fact]
+    public void SalesCanOnlyBePausedOnAPublishedEvent()
+    {
+        var @event = CreateEvent();
+
+        Should.Throw<InvalidOperationException>(@event.PauseSales);
+    }
+
+    // The one rule that spans both levels: moving the on-sale later can close a night's sales
+    // before they ever opened.
+    [Fact]
+    public void AnOnSaleTimeAfterAPerformancesBookingCutoff_IsRejected()
+    {
+        var @event = CreateEvent(bookingEndsAt: Starts.AddDays(-1));
+
+        Should.Throw<ArgumentOutOfRangeException>(() => @event.UpdateSellingRules(
+            onSaleAt: Starts.AddHours(-1),
+            maxTicketsPerBuyer: null,
+            requiresQueue: false,
+            taxRatePercent: null,
+            taxLabel: null,
+            bookingFeePerTicketMinor: 0));
+    }
+
+    [Fact]
+    public void SellingRulesCanOnlyBeChangedWhileADraft()
+    {
+        var @event = PublishedEvent();
+
+        Should.Throw<InvalidOperationException>(() => @event.UpdateSellingRules(
+            onSaleAt: null,
+            maxTicketsPerBuyer: 4,
+            requiresQueue: false,
+            taxRatePercent: null,
+            taxLabel: null,
+            bookingFeePerTicketMinor: 0));
+    }
+
+    // The counterpart to the rule above: none of this changes what a ticket holder bought, so
+    // locking it after publish only stopped organizers fixing their own mistakes.
     [Fact]
     public void APublishedEventsPresentation_CanStillBeChanged()
     {
-        var @event = CreateEvent();
-        @event.Publish();
+        var @event = PublishedEvent();
 
         UpdatePresentation(@event, title: "Coldplay — Mumbai (rescheduled venue entrance)");
 
@@ -81,7 +202,9 @@ public sealed class EventTests
         @event.ChangeSlug("coldplay-mumbai-night-two");
         @event.Slug.ShouldBe("coldplay-mumbai-night-two");
 
+        MakeSellable(@event.Sessions.Single());
         @event.Publish();
+
         Should.Throw<InvalidOperationException>(() => @event.ChangeSlug("coldplay-mumbai-night-three"));
     }
 
@@ -93,78 +216,6 @@ public sealed class EventTests
         Should.Throw<ArgumentException>(() => @event.ChangeSlug("admin"));
         Should.Throw<ArgumentException>(() => @event.ChangeSlug("Coldplay Mumbai"));
         Should.Throw<ArgumentException>(() => @event.ChangeSlug("-leading-hyphen"));
-    }
-
-    [Fact]
-    public void AnEventCanOnlyBePublishedOnce()
-    {
-        var @event = CreateEvent();
-        @event.Publish();
-
-        Should.Throw<InvalidOperationException>(@event.Publish);
-    }
-
-    [Fact]
-    public void UpdatingDetails_CanMoveTheEndTimeButNotBeforeTheStart()
-    {
-        var @event = CreateEvent();
-
-        UpdateDetails(@event, endsAt: Starts.AddHours(6));
-        @event.EndsAt.ShouldBe(Starts.AddHours(6));
-
-        Should.Throw<ArgumentOutOfRangeException>(() => UpdateDetails(@event, endsAt: Starts.AddMinutes(-1)));
-    }
-
-    [Fact]
-    public void ABookingCutoffBeforeTheOnSaleTime_IsRejected() =>
-        Should.Throw<ArgumentOutOfRangeException>(() => UpdateDetails(
-            CreateEvent(),
-            onSaleAt: Starts.AddDays(-10),
-            bookingEndsAt: Starts.AddDays(-20)));
-
-    // Selling a ticket after the doors have opened is a different feature (walk-ups), not something
-    // the cutoff should quietly allow by being set past the start time.
-    [Fact]
-    public void ABookingCutoffAfterTheEventStarts_IsRejected() =>
-        Should.Throw<ArgumentOutOfRangeException>(() => UpdateDetails(
-            CreateEvent(),
-            bookingEndsAt: Starts.AddMinutes(1)));
-
-    [Fact]
-    public void ABookingCutoffExactlyAtTheStartTime_IsAllowed()
-    {
-        var @event = CreateEvent();
-
-        UpdateDetails(@event, bookingEndsAt: Starts);
-
-        @event.BookingEndsAt.ShouldBe(Starts);
-    }
-
-    [Fact]
-    public void SalesCanOnlyBePausedOnAPublishedEvent()
-    {
-        var @event = CreateEvent();
-
-        Should.Throw<InvalidOperationException>(@event.PauseSales);
-
-        @event.Publish();
-        @event.PauseSales();
-        @event.SalesPaused.ShouldBeTrue();
-
-        Should.Throw<InvalidOperationException>(@event.PauseSales);
-    }
-
-    [Fact]
-    public void ResumingSalesRequiresThemToBePaused()
-    {
-        var @event = CreateEvent();
-        @event.Publish();
-
-        Should.Throw<InvalidOperationException>(@event.ResumeSales);
-
-        @event.PauseSales();
-        @event.ResumeSales();
-        @event.SalesPaused.ShouldBeFalse();
     }
 
     // The visibility rule is a security boundary, not a display preference: it is what stops one
@@ -183,50 +234,47 @@ public sealed class EventTests
     [Fact]
     public void OncePublished_AnEventIsVisibleToEveryoneIncludingAnonymousCallers()
     {
-        var @event = CreateEvent();
-        @event.Publish();
+        var @event = PublishedEvent();
 
         @event.IsVisibleTo(null).ShouldBeTrue();
         @event.IsVisibleTo(Guid.CreateVersion7()).ShouldBeTrue();
     }
 
-    private static Event CreateEvent(Guid? tenantId = null, DateTimeOffset? endsAt = null) =>
+    private static Event CreateEvent(
+        Guid? tenantId = null,
+        DateTimeOffset? endsAt = null,
+        DateTimeOffset? bookingEndsAt = null) =>
         Event.Create(
             tenantId ?? Guid.CreateVersion7(),
             title: "ColdPlay India Tour — Mumbai",
             slug: "coldplay-india-tour-mumbai",
-            startsAt: Starts,
-            endsAt: endsAt ?? Ends,
             currency: "INR",
-            locationName: "DY Patil Stadium",
-            addressLine1: "Sector 7",
-            addressLine2: null,
-            city: "Navi Mumbai",
-            region: "Maharashtra",
-            postalCode: "400706",
-            country: "IN",
-            latitude: null,
-            longitude: null,
-            eventGroupId: null);
-
-    private static void UpdateDetails(
-        Event @event,
-        DateTimeOffset? endsAt = null,
-        DateTimeOffset? onSaleAt = null,
-        DateTimeOffset? bookingEndsAt = null) =>
-        @event.UpdateSchedule(
             startsAt: Starts,
             endsAt: endsAt ?? Ends,
-            doorsOpenAt: null,
-            onSaleAt: onSaleAt,
-            bookingEndsAt: bookingEndsAt,
-            location: Location,
-            maxTicketsPerBuyer: null,
-            requiresQueue: false,
-            taxRatePercent: null,
-            taxLabel: null,
-            bookingFeePerTicketMinor: 0,
-            timeZoneId: null);
+            bookingEndsAt: bookingEndsAt);
+
+    private static Event PublishedEvent()
+    {
+        var @event = CreateEvent();
+        MakeSellable(@event.Sessions.Single());
+        @event.Publish();
+
+        return @event;
+    }
+
+    // A performance is only sellable once it names a seat-map version and allocates a block to a
+    // ticket type. Both ids belong to other services/aggregates, so a test can invent them.
+    private static void MakeSellable(EventSession session)
+    {
+        session.AttachSeatMap(
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
+            1,
+            new VenueSnapshot("DY Patil Stadium", "Navi Mumbai", "IN", "Asia/Kolkata"));
+
+        session.SetAllocations([("LT", Guid.CreateVersion7())]);
+    }
 
     private static void UpdatePresentation(Event @event, string title) =>
         @event.UpdatePresentation(

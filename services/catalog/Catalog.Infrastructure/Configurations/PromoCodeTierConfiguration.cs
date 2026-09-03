@@ -12,7 +12,7 @@ internal sealed class PromoCodeTierConfiguration : IEntityTypeConfiguration<Prom
 
         builder.Property(t => t.PromoCodeId).IsRequired();
 
-        // Same 50-char cap as Seat.PriceTier / GeneralAdmissionSection.PriceTier — these values are
+        // Same 50-char cap as TicketType.Name — these values are
         // compared against those verbatim, so a shorter cap here would silently truncate a legal tier.
         builder.Property(t => t.PriceTier).HasMaxLength(50).IsRequired();
 

@@ -1,5 +1,8 @@
+global using System.Globalization;
+global using System.Net;
 global using Catalog.Application.Abstractions;
 global using Catalog.Domain;
+global using Dapr.Client;
 global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;

@@ -21,7 +21,7 @@ if (MigrationRunner.IsMigrationRun(args))
 app.UseServiceDefaults();
 app.MapCatalogEndpoints();
 app.MapEventGroupEndpoints();
-app.MapEntryGateEndpoints();
+app.MapEventSessionEndpoints();
 app.MapPromoCodeEndpoints();
 app.MapTicketTypeEndpoints();
 app.MapPolicyEndpoints();

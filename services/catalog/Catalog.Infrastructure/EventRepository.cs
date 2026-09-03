@@ -9,13 +9,21 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
 
     /// <inheritdoc />
     public Task<Event?> GetByIdAsync(Guid id, CancellationToken cancellationToken) =>
-        dbContext.Events.Include(e => e.SocialLinks).FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
+        dbContext.Events
+            .Include(e => e.SocialLinks)
+            .Include(e => e.Sessions)
+            .ThenInclude(s => s.Allocations)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
     /// <inheritdoc />
     public Task<Event?> GetBySlugAsync(string slug, CancellationToken cancellationToken) =>
         dbContext.Events
             .AsNoTracking()
             .Include(e => e.SocialLinks)
+            .Include(e => e.Sessions)
+            .ThenInclude(s => s.Allocations)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(e => e.Slug == slug, cancellationToken);
 
     /// <inheritdoc />
@@ -47,7 +55,15 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var visible = dbContext.Events.AsNoTracking().Include(e => e.SocialLinks).Where(e =>
+        // Sessions without their allocations: a list renders dates and venues, never which block
+        // is sold as which ticket type. Pulling the allocations too would multiply the row count
+        // for something no list has ever displayed.
+        var visible = dbContext.Events
+            .AsNoTracking()
+            .Include(e => e.SocialLinks)
+            .Include(e => e.Sessions)
+            .AsSplitQuery()
+            .Where(e =>
             e.Status != EventStatus.Draft || (callerTenantId != null && e.TenantId == callerTenantId));
 
         if (status is not null)
@@ -62,7 +78,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
 
         var totalCount = await visible.CountAsync(cancellationToken);
         var items = await visible
-            .OrderBy(e => e.StartsAt)
+            .OrderBy(e => e.FirstSessionStartsAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
@@ -79,7 +95,12 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
         int pageSize,
         CancellationToken cancellationToken)
     {
-        var query = dbContext.Events.AsNoTracking().Include(e => e.SocialLinks).Where(e => e.TenantId == tenantId);
+        var query = dbContext.Events
+            .AsNoTracking()
+            .Include(e => e.SocialLinks)
+            .Include(e => e.Sessions)
+            .AsSplitQuery()
+            .Where(e => e.TenantId == tenantId);
 
         if (status is not null)
         {
@@ -93,7 +114,7 @@ internal sealed class EventRepository(CatalogDbContext dbContext) : IEventReposi
 
         var totalCount = await query.CountAsync(cancellationToken);
         var items = await query
-            .OrderBy(e => e.StartsAt)
+            .OrderBy(e => e.FirstSessionStartsAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync(cancellationToken);
