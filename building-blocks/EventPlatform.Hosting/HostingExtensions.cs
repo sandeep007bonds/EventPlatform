@@ -35,6 +35,14 @@ public static class HostingExtensions
         {
             options.CustomizeProblemDetails = context =>
             {
+                // In *every* environment, unlike the exception details below. This is the id a
+                // person reads off a failure and quotes to support, so it has to be on the
+                // production response — that is the whole of PLAT-015's ask. It leaks nothing:
+                // it is an opaque grouping key that means something only to someone who can
+                // already query the databases.
+                context.ProblemDetails.Extensions["correlationId"] =
+                    context.HttpContext.RequestServices.GetRequiredService<ICorrelationContext>().CorrelationId;
+
                 if (!environment.IsDevelopment())
                 {
                     return;
@@ -59,6 +67,12 @@ public static class HostingExtensions
         builder.Services.AddScoped<IAuditContext>(sp =>
             new HttpAuditContext(sp.GetRequiredService<IHttpContextAccessor>(), serviceName));
 
+        // The chain of work, beside the actor. TryAdd because AddOutbox registers the same pair —
+        // a service can call either or both, and whichever runs first should win rather than the
+        // second silently replacing a context the first already populated.
+        builder.Services.TryAddScoped<CorrelationContext>();
+        builder.Services.TryAddScoped<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
+
         return builder;
     }
 
@@ -77,6 +91,10 @@ public static class HostingExtensions
         app.UseExceptionHandler();
         app.UseStatusCodePages();
         app.UseAuthentication();
+
+        // Before tenant resolution and authorization, so an id exists for anything they reject —
+        // a 401 or a 403 is exactly the response a person is most likely to be asking about.
+        app.UseMiddleware<CorrelationContextMiddleware>();
         app.UseMiddleware<TenantContextMiddleware>();
         app.UseAuthorization();
         app.UseEventPlatformOpenApi();

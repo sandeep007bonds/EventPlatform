@@ -44,6 +44,15 @@ references), and stays silent when a name resolves to more than one arity in vie
 picking one. Verified both ways: zero findings on the passing tree, and still catches a genuine
 three-argument call to a six-parameter record in the same project.
 
+A fourth, learned when `EventVersionAttribute` landed: **an attribute sits between a doc block and
+the thing it documents, and an attribute is itself a call with arguments**. The `<param>` rule
+skipped blank lines when looking for the signature after a doc block but not attribute lines, so
+`[AttributeUsage(AttributeTargets.Class, Inherited = false)]` was read as a two-parameter
+`AttributeUsage()` whose `<param>` docs were all missing — on a file that compiles. The rule now
+skips leading `[` lines too. Nothing in the tree had a documented member behind an attribute before,
+which is why it took this long to surface; verified zero findings across 856 files afterwards, and
+still catching a genuinely missing `<param>` on a method that carries an `[Obsolete]`.
+
 The CS1570 rule checks **only tag balance**, and that limit is the calibration. Attribute syntax and
 entity escaping are the compiler's job: `<`/`&` appear in doc prose that compiles, and a rule that
 guessed at them would fire on correct code. Tags that never close (`<see>`, `<paramref>`,
@@ -52,6 +61,20 @@ passing tree (zero findings across 850 files) and against three constructed fail
 naming the wrong tag, a block ending with `<summary>` still open, and crossed nesting
 (`<b>…<i>…</b></i>`) — all three caught, and a file exercising `<para>`, `<list>`, `<see langword>`
 and `<br/>` stayed silent.
+
+## Covered by `check-endpoint-conventions.py`
+
+Not build errors at all — conventions whose absence compiles perfectly and fails *silently* at
+runtime, which is why they need a check rather than a rule review.
+
+| Convention | What breaks without it | Detection |
+|---|---|---|
+| **Explicit auth decision** on every endpoint | The deny-by-default fallback 401s it — including health probes and Dapr subscribers, where failing closed is its own outage (ADR-0035) | `Map{Get,Post,…}` without `RequireOrganizer`/`RequireBuyer`/`RequireAuthenticatedCaller`/`AllowAnonymous`, on the call or its `MapGroup` |
+| **`.WithIntegrationEnvelope()`** on every `.WithTopic(...)` | Nothing. The message is handled correctly — it just starts a fresh correlation chain, so the trail from the buyer's click ends there and no test notices (ADR-0040) | A `.WithTopic(` statement whose chain does not mention `WithIntegrationEnvelope` |
+
+The second rule was calibrated the same way as the rest: zero findings across the eleven
+subscriptions once they were all annotated, and verified to catch a real omission by removing the
+call from Queue's subscriber and watching it fail.
 
 ## Not detectable without semantic analysis
 

@@ -78,6 +78,9 @@ public sealed class NotificationSendServiceTests
         notifications.Received(1).AddDeliveryLog(Arg.Is<DeliveryLogEntry>(e => e.Status == DeliveryStatus.Failed));
     }
 
+    // A real CorrelationContext rather than a substitute: it self-seeds an id, which is the
+    // behaviour under test here as much as anywhere — a delivery-log row must never be written with
+    // an empty chain, including from a background send with no request behind it.
     private NotificationSendService CreateService() =>
-        new(emailSender, smsSender, whatsAppSender, templates, renderer, notifications);
+        new(emailSender, smsSender, whatsAppSender, templates, renderer, notifications, new CorrelationContext());
 }

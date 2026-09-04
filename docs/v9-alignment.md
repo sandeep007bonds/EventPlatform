@@ -40,7 +40,8 @@ SEARCH 10 · REPORT 13.
 | At first audit | 71 | 52 | 90 | 3 |
 | After the Venue service (ADR-0038) | 85 | 48 | 80 | 3 |
 | After Catalog moved to performances (ADR-0039) | 86 | 51 | 76 | 3 |
-| Now | 90 | 50 | 73 | 3 |
+| After event sessions reached the SPA | 90 | 50 | 73 | 3 |
+| Now | 91 | 50 | 72 | 3 |
 
 Read the first row honestly: **71 of 216** when this ledger was written, and lower than the
 "~110 already satisfied" estimate given before going row by row — that estimate counted families
@@ -74,7 +75,7 @@ The only family v9 titles individually.
 | PLAT-012 | Health/readiness | ✅ | `EventPlatform.Hosting/HealthCheckExtensions.cs`; every service ships both (golden rule 8). |
 | PLAT-013 | API/OpenAPI standards | ✅ | `OpenApiExtensions.cs` + Scalar at `/scalar/v1`; `docs/08-api-design.md`. |
 | PLAT-014 | Error model | ✅ | ProblemDetails in `HostingExtensions.cs` and at the gateway. |
-| PLAT-015 | Correlation IDs | ◐ | W3C `traceparent` propagates through OTel, and Communication carries a `CorrelationId` on delivery log entries. What is missing is a **platform-wide correlation id building block** — one that surfaces the id in ProblemDetails, in the audit record, and on every published event. Closed by the envelope work (see EVENTS §6 of the plan). |
+| PLAT-015 | Correlation IDs | ✅ | `ICorrelationContext` (`EventPlatform.Auditing`) beside `IAuditContext`; minted at the gateway, adopted from `X-Correlation-Id`, carried on every outbox row and every published event's envelope, re-adopted by every subscriber, surfaced in ProblemDetails in **all** environments and echoed on every response. ADR-0040. Communication's misnamed `CorrelationId` — which always held the triggering event id — was renamed `CausationId` and now carries both. |
 | PLAT-016 | Idempotency framework | ◐ | Real idempotency exists on the money paths (Ordering checkout, Payments intents, Ticketing issuance), but each rolls its own. v9 wants a shared framework with a `ProcessedCommand` table. Ours is per-service and unverified across services. |
 | PLAT-017 | Outbox framework | ✅ | `building-blocks/EventPlatform.Messaging` — `OutboxMessage`, `OutboxEventPublisher`, `OutboxRelay`, `IOutboxDbContext`. Business state and outbox commit in one local transaction. |
 | PLAT-018 | Kafka integration | ⊘ | We use **Dapr pub/sub** (Redis Streams locally, Azure Service Bus in Azure). Same guarantees at the seam that matters — at-least-once with consumer idempotency — and Dapr keeps the broker swappable, so this is reversible rather than lost. ADR-0004/0010. |
@@ -115,7 +116,7 @@ The only family v9 titles individually.
 | AUD-004 | Audit read API (`GET /v1/audit`, `/{id}`) | ✗ | — |
 | AUD-005 | Redaction policy for sensitive values | ✗ | — |
 | AUD-006 | Audit as a consumer of domain events | ✗ | — |
-| AUD-007 | Correlation/causation on every audit record | ✗ | Blocked on PLAT-015 and the event envelope. |
+| AUD-007 | Correlation/causation on every audit record | ◐ | No longer blocked: the ids exist platform-wide and are on every outbox row and published event (ADR-0040), and Communication's delivery log carries both. Still ✗ for *audit records* specifically, because there is no `AuditRecord` table yet — see AUD-001. |
 | AUD-008 | Audit retention | ✗ | — |
 
 *Sequenced last in the plan deliberately: an Audit service that consumes events is only worth
@@ -401,7 +402,8 @@ given (`DataGrid` + `csv.ts`), which is the honest client-side behaviour and not
 
 ## What the audit says
 
-Three gaps were structural, and everything else queued behind them. **Two are now closed.**
+Three gaps were structural, and everything else queued behind them. **All three are now closed**,
+though the third's dead-letter half is still outstanding.
 
 1. ~~**Venue (VEN-001)**~~ — done. `services/venue` owns venues, gates, facilities and versioned
    seat maps with logical identity separated from graphical layout (ADR-0038). There is no legacy
@@ -414,9 +416,15 @@ Three gaps were structural, and everything else queued behind them. **Two are no
    the per-buyer cap (a cap counted per night is not a cap), the queue admission token (one waiting
    room gates one on-sale), and promo codes. REPORT is no longer blocked on the grain — a
    projection built now would be built on the right one.
-3. **The event envelope (PLAT-015 / AUD-007)** — no `causationId`, no `eventVersion`, no DLQ story.
-   Audit consumes events, so Audit is worth building only after the envelope carries what it needs
-   to record. **This is now the only structural gap left.**
+3. ~~**The event envelope (PLAT-015)**~~ — done. Every published event carries a correlation id, a
+   causation id and a contract version, beside the event rather than inside it, so all nineteen
+   contract records and their construction sites were left alone (ADR-0040). A chain now reads end
+   to end across five databases. **Audit is unblocked** — AUD-007's ids are on the wire and in the
+   outbox; what is still missing is Audit itself (AUD-001…008), which is a store, a read API,
+   redaction and retention, not plumbing.
+
+   The **dead-letter half of this gap is still open**: no subscription has a dead-letter topic and
+   no resiliency policy caps pub/sub retries, so a poison message is redelivered indefinitely.
 
 One of the two cheap unblockers is done: **`TicketTypeId` through Inventory (PRICE-010 /
 INV-012)** landed with the re-key, because provisioning had to carry the type anyway. That leaves

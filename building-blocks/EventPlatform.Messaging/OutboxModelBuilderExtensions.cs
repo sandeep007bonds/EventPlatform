@@ -18,6 +18,11 @@ public static class OutboxModelBuilderExtensions
         entity.Property(m => m.Payload).IsRequired();
         entity.HasIndex(m => m.PublishedAt);
 
+        // Indexed because this is the question the column exists to answer: "everything that
+        // happened because of that one action". Without the index that is a full scan of a table
+        // that only ever grows.
+        entity.HasIndex(m => m.CorrelationId);
+
         return modelBuilder;
     }
 }

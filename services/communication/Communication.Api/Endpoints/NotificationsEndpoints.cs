@@ -22,12 +22,14 @@ public static class NotificationsEndpoints
         // IntegrationEventNotificationHandler and services/communication/CLAUDE.md.
         app.MapPost("/integration/ordering/order-confirmed", OnOrderConfirmedAsync)
             .WithTopic("pubsub", nameof(OrderConfirmed))
+            .WithIntegrationEnvelope()
             .WithName("OnOrderConfirmed")
             .AllowAnonymous()
             .ExcludeFromDescription();
 
         app.MapPost("/integration/ticketing/ticket-issued", OnTicketIssuedAsync)
             .WithTopic("pubsub", nameof(TicketIssued))
+            .WithIntegrationEnvelope()
             .WithName("OnTicketIssued")
             .AllowAnonymous()
             .ExcludeFromDescription();
@@ -36,6 +38,7 @@ public static class NotificationsEndpoints
         // the event) — see IntegrationEventNotificationHandler.HandleOrderTicketsIssuedAsync.
         app.MapPost("/integration/ticketing/order-tickets-issued", OnOrderTicketsIssuedAsync)
             .WithTopic("pubsub", nameof(OrderTicketsIssued))
+            .WithIntegrationEnvelope()
             .WithName("OnOrderTicketsIssued")
             .AllowAnonymous()
             .ExcludeFromDescription();
@@ -55,7 +58,7 @@ public static class NotificationsEndpoints
             request.TemplateKey,
             request.Placeholders,
             request.Body,
-            request.CorrelationId);
+            request.CausationId);
 
         var errors = NotificationRequestValidator.Validate(command);
         if (errors.Count > 0)

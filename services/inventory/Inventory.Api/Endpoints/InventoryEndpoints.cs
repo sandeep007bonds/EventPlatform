@@ -16,6 +16,7 @@ public static class InventoryEndpoints
         // denied subscriber fails by going quiet rather than erroring.
         app.MapPost("/integration/catalog/event-session-published", OnEventSessionPublishedAsync)
             .WithTopic("pubsub", nameof(EventSessionPublished))
+            .WithIntegrationEnvelope()
             .WithName("OnEventSessionPublished")
             .AllowAnonymous()
             .ExcludeFromDescription();
@@ -24,11 +25,13 @@ public static class InventoryEndpoints
         // whole event arrives as one of these per performance.
         app.MapPost("/integration/catalog/event-sales-paused", OnEventSalesPausedAsync)
             .WithTopic("pubsub", nameof(EventSalesPaused))
+            .WithIntegrationEnvelope()
             .WithName("OnEventSalesPaused")
             .AllowAnonymous()
             .ExcludeFromDescription();
         app.MapPost("/integration/catalog/event-sales-resumed", OnEventSalesResumedAsync)
             .WithTopic("pubsub", nameof(EventSalesResumed))
+            .WithIntegrationEnvelope()
             .WithName("OnEventSalesResumed")
             .AllowAnonymous()
             .ExcludeFromDescription();

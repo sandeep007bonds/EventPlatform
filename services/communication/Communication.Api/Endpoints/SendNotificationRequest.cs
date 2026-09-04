@@ -7,7 +7,10 @@ namespace Communication.Api.Endpoints;
 /// <param name="TemplateKey">The template to render. Required for Email; ignored otherwise.</param>
 /// <param name="Placeholders">Placeholder values for template rendering. Only used for Email.</param>
 /// <param name="Body">The raw message body. Required for Sms/WhatsApp; ignored for Email.</param>
-/// <param name="CorrelationId">An optional caller-supplied correlation id for the delivery-log row.</param>
+/// <param name="CausationId">
+/// The id of whatever prompted this send, if the caller has one. Named for what it is: the chain-wide
+/// correlation id is taken from the request's own <c>X-Correlation-Id</c>, not from the body.
+/// </param>
 public sealed record SendNotificationRequest(
     Guid TenantId,
     NotificationChannel Channel,
@@ -15,4 +18,4 @@ public sealed record SendNotificationRequest(
     string? TemplateKey,
     IReadOnlyDictionary<string, string>? Placeholders,
     string? Body,
-    Guid? CorrelationId);
+    Guid? CausationId);

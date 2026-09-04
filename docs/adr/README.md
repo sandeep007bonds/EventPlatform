@@ -51,6 +51,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0037](0037-post-publish-editing-slugs-and-policy-documents.md) | Editing split by consequence, not by status; event slugs; versioned policy documents | Accepted |
 | [0038](0038-venue-service-and-versioned-seat-maps.md) | A Venue service; seat maps become versioned assets with logical identity separate from graphical layout | Accepted |
 | [0039](0039-event-sessions-as-the-selling-grain.md) | The performance, not the event, is what gets sold; Catalog's seat map is deleted in favour of Venue's | Accepted |
+| [0040](0040-the-event-envelope.md) | Every published event carries a correlation id, a causation id and a contract version — beside the event, not inside it | Accepted |
 
 ## Format
 

@@ -29,6 +29,10 @@ hybrid multi-tenancy · payments saga + idempotency + PCI SAQ-A · Phase 1 = sea
 5. **Respect the layers.** Domain never depends on Infrastructure. Never read
    another service's database — talk via API or events only.
 6. **Idempotency + outbox** on anything touching money or inventory.
+   Every pub/sub subscriber also chains `.WithIntegrationEnvelope()` after `.WithTopic(...)`, so
+   the message's correlation id becomes this scope's and anything published while handling it
+   stays in the same chain (ADR-0040). Forget it and the chain silently starts over — nothing
+   fails, the trail just goes quiet.
 7. **No secrets in code.** Key Vault only.
 8. **Every service** ships: tests (unit + integration), health/readiness
    endpoints, OpenTelemetry, a README, and a `CLAUDE.md`.
@@ -105,7 +109,7 @@ dotnet format --verify-no-changes   # style check
 
 ```bash
 python3 scripts/check-csharp-style.py     # analyzer errors, whole tree, no toolchain
-python3 scripts/check-endpoint-auth.py    # every endpoint has an explicit auth decision
+python3 scripts/check-endpoint-conventions.py  # auth decisions + subscriber envelopes
 git config core.hooksPath .githooks       # once per clone: run both on commit
 ```
 

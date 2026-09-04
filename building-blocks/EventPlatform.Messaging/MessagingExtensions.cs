@@ -23,6 +23,12 @@ public static class MessagingExtensions
         services.AddSingleton(options);
 
         services.AddScoped<IOutboxDbContext>(sp => sp.GetRequiredService<TDbContext>());
+
+        // The publisher stamps every event with the current chain of work, so the context has to
+        // exist wherever the outbox does. TryAdd because AddServiceDefaults registers the same
+        // pair — order of the two calls must not matter.
+        services.TryAddScoped<CorrelationContext>();
+        services.TryAddScoped<ICorrelationContext>(sp => sp.GetRequiredService<CorrelationContext>());
         services.AddScoped<IEventPublisher, OutboxEventPublisher>();
 
         services.AddSingleton(_ => new DaprClientBuilder().Build());

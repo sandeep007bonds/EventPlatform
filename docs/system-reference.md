@@ -246,6 +246,13 @@ lost if the write succeeded, and cannot be sent if it didn't.
 
 ### Integration events
 
+Every published event carries an **envelope** beside it — a correlation id shared by everything
+descending from one originating action, the id of the message that caused it, and the contract's
+version. It travels as a reserved `envelope` property of the published JSON rather than as extra
+fields on the event, so a consumer's typed binding never had to change (ADR-0040). The correlation
+id starts at the gateway, is echoed on every response and appears in every ProblemDetails, so a
+buyer can quote it from a failure.
+
 | Event | Published by | Consumed by |
 |---|---|---|
 | `EventPublished` | catalog | queue (provision) — event-level facts only, since a waiting room gates the on-sale, not one night |

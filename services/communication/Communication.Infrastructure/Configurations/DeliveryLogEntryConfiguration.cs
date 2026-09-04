@@ -21,5 +21,6 @@ internal sealed class DeliveryLogEntryConfiguration : IEntityTypeConfiguration<D
 
         builder.HasIndex(e => e.TenantId);
         builder.HasIndex(e => e.CorrelationId);
+        builder.HasIndex(e => e.CausationId);
     }
 }

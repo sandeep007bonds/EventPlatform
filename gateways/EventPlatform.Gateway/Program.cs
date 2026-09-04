@@ -28,6 +28,10 @@ if (app.Environment.IsProduction() && !string.IsNullOrWhiteSpace(devSigningKey))
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 app.UseCors(CorsExtensions.FrontendPolicyName);
+
+// Before MapReverseProxy, so the id is on the request YARP forwards and every backend service
+// adopts it rather than minting its own.
+app.UseCorrelationId();
 app.UseEventPlatformOpenApi();
 app.MapDefaultHealthChecks();
 

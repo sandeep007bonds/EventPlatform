@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../Communication.Domain/Communication.Domain.csproj" />
+    <ProjectReference Include="../../../building-blocks/EventPlatform.Auditing/EventPlatform.Auditing.csproj" />
     <ProjectReference Include="../../../building-blocks/EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
   </ItemGroup>
 

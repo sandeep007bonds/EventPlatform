@@ -7,6 +7,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     private readonly ITemplateStore templates = Substitute.For<ITemplateStore>();
     private readonly ITemplateRenderer renderer = Substitute.For<ITemplateRenderer>();
     private readonly IEmailSender emailSender = Substitute.For<IEmailSender>();
+    private readonly CorrelationContext correlation = new();
 
     [Fact]
     public async Task HandleOrderConfirmed_AlreadyProcessed_IsNoOp()
@@ -93,5 +94,6 @@ public sealed class IntegrationEventNotificationHandlerTests
         await notifications.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
-    private IntegrationEventNotificationHandler CreateHandler() => new(notifications, recipients, templates, renderer, emailSender);
+    private IntegrationEventNotificationHandler CreateHandler() =>
+        new(notifications, recipients, templates, renderer, emailSender, correlation);
 }

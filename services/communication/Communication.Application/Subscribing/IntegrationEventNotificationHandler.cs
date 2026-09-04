@@ -14,12 +14,14 @@ namespace Communication.Application.Subscribing;
 /// <param name="templates">The template store, for rendering the combined ticket-delivery email.</param>
 /// <param name="renderer">The placeholder renderer, for rendering the combined ticket-delivery email.</param>
 /// <param name="emailSender">The configured email vendor (or dev/logging fallback), for sending the combined ticket-delivery email.</param>
+/// <param name="correlation">The chain of work the triggering event belongs to, adopted from its envelope.</param>
 public sealed class IntegrationEventNotificationHandler(
     INotificationRepository notifications,
     IRecipientResolver recipients,
     ITemplateStore templates,
     ITemplateRenderer renderer,
-    IEmailSender emailSender)
+    IEmailSender emailSender,
+    ICorrelationContext correlation)
 {
     /// <summary>Handles an <see cref="OrderConfirmed"/> event.</summary>
     /// <param name="event">The event.</param>
@@ -73,7 +75,7 @@ public sealed class IntegrationEventNotificationHandler(
         if (template is null)
         {
             notifications.AddDeliveryLog(
-                DeliveryLogEntry.Skipped(@event.TenantId, NotificationChannel.Email, TemplateKeys.OrderTickets, @event.EventId));
+                DeliveryLogEntry.Skipped(@event.TenantId, NotificationChannel.Email, TemplateKeys.OrderTickets, correlation.CorrelationId, @event.EventId));
             notifications.RecordProcessedEvent(@event.EventId, nameof(OrderTicketsIssued));
             await notifications.SaveChangesAsync(cancellationToken);
             return;
@@ -96,8 +98,8 @@ public sealed class IntegrationEventNotificationHandler(
         var result = await emailSender.SendAsync(@event.BuyerEmail!, subject, body, cancellationToken);
 
         notifications.AddDeliveryLog(result.Succeeded
-            ? DeliveryLogEntry.Sent(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.ProviderReference, @event.EventId)
-            : DeliveryLogEntry.Failed(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.FailureReason ?? "unknown", @event.EventId));
+            ? DeliveryLogEntry.Sent(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.ProviderReference, correlation.CorrelationId, @event.EventId)
+            : DeliveryLogEntry.Failed(@event.TenantId, NotificationChannel.Email, @event.BuyerEmail!, TemplateKeys.OrderTickets, emailSender.Provider, result.FailureReason ?? "unknown", correlation.CorrelationId, @event.EventId));
         notifications.RecordProcessedEvent(@event.EventId, nameof(OrderTicketsIssued));
         await notifications.SaveChangesAsync(cancellationToken);
     }
@@ -115,7 +117,8 @@ public sealed class IntegrationEventNotificationHandler(
         // instead — no other change needed.
         _ = await recipients.ResolveAsync(userId, cancellationToken);
 
-        notifications.AddDeliveryLog(DeliveryLogEntry.Skipped(tenantId, NotificationChannel.Email, intendedTemplateKey, eventId));
+        notifications.AddDeliveryLog(
+            DeliveryLogEntry.Skipped(tenantId, NotificationChannel.Email, intendedTemplateKey, correlation.CorrelationId, eventId));
         notifications.RecordProcessedEvent(eventId, eventType);
         await notifications.SaveChangesAsync(cancellationToken);
     }

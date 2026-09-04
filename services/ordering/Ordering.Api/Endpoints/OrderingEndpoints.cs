@@ -41,11 +41,13 @@ public static class OrderingEndpoints
         // caller is the sidecar on localhost.
         app.MapPost("/integration/payments/payment-captured", OnPaymentCapturedAsync)
             .WithTopic("pubsub", nameof(PaymentCaptured))
+            .WithIntegrationEnvelope()
             .WithName("OnPaymentCaptured")
             .AllowAnonymous()
             .ExcludeFromDescription();
         app.MapPost("/integration/payments/payment-failed", OnPaymentFailedAsync)
             .WithTopic("pubsub", nameof(PaymentFailed))
+            .WithIntegrationEnvelope()
             .WithName("OnPaymentFailed")
             .AllowAnonymous()
             .ExcludeFromDescription();

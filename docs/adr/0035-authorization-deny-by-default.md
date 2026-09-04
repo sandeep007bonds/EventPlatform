@@ -86,7 +86,7 @@ exactly as exposed as the three above.
 ### What step 3 turned up
 
 Annotating "every endpoint" in step 2 meant every endpoint *in an `Endpoints/` file* — which is
-what `scripts/check-endpoint-auth.py` looked at, and it passed. Three kinds of endpoint are not
+what `scripts/check-endpoint-conventions.py` looked at, and it passed. Three kinds of endpoint are not
 registered there and were all still unannotated:
 
 | Endpoint | Registered in | What the fallback would have done |

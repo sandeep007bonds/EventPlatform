@@ -13,6 +13,7 @@ public static class TicketingEndpoints
         // Dapr pub/sub: issue tickets when Ordering confirms an order.
         app.MapPost("/integration/ordering/order-confirmed", OnOrderConfirmedAsync)
             .WithTopic("pubsub", nameof(OrderConfirmed))
+            .WithIntegrationEnvelope()
             .WithName("OnOrderConfirmed")
             .AllowAnonymous()
             .ExcludeFromDescription();
@@ -22,6 +23,7 @@ public static class TicketingEndpoints
         // needs a live cross-service call (ADR-0025).
         app.MapPost("/integration/catalog/event-session-published", OnEventSessionPublishedAsync)
             .WithTopic("pubsub", nameof(EventSessionPublished))
+            .WithIntegrationEnvelope()
             .WithName("OnEventSessionPublished")
             .AllowAnonymous()
             .ExcludeFromDescription();

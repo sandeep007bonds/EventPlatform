@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-"""Fails if any endpoint is registered without an explicit authorization decision.
+"""Fails on an endpoint registration that is missing a convention which fails *silently* at runtime.
 
-Two sweeps:
+Everything here shares one shape: forget it and nothing throws, nothing logs, and the damage shows
+up somewhere else entirely — a probe 401ing, a subscriber going quiet, a correlation chain
+restarting. That is precisely the class of mistake a build-time check is for.
+
+Three sweeps:
 
 1. Minimal-API handlers under `services/*/​*.Api/Endpoints/`. Every `Map{Get,Post,Put,Delete,Patch}`
    must carry RequireOrganizer(), RequireBuyer(), RequireAuthenticatedCaller() or AllowAnonymous() —
@@ -12,10 +16,15 @@ Two sweeps:
    which is exactly why the deny-by-default fallback policy would have 401'd Kubernetes probes and
    silently killed pub/sub had they not been annotated.
 
-This exists because the platform shipped with no authorization enforcement at all and three
+3. Dapr pub/sub subscribers. Every `.WithTopic(...)` must also chain `.WithIntegrationEnvelope()`,
+   which adopts the incoming message's correlation id into the handler's scope (ADR-0040). Omit it
+   and the message is still handled perfectly — it just starts a brand-new chain, so the trail from
+   the buyer's click to this event quietly ends here and no test would ever notice.
+
+Sweeps 1 and 2 exist because the platform shipped with no authorization enforcement at all and three
 endpoints leaking payment and ticket credentials (ADR-0035). The fallback policy now denies
 unannotated endpoints, so a missing decision fails closed — but it fails at runtime, and a probe or
-a subscriber failing closed is its own outage. This check moves that discovery to build time.
+a subscriber failing closed is its own outage.
 """
 import re
 import sys
@@ -24,6 +33,9 @@ from pathlib import Path
 HANDLER_MAP = re.compile(r'\.Map(?:Get|Post|Put|Delete|Patch)\s*\(')
 INFRA_MAP = re.compile(r'\.Map(?:HealthChecks|OpenApi|ScalarApiReference|SubscribeHandler)\s*\(')
 AUTH = ('RequireOrganizer', 'RequireBuyer', 'RequireAuthenticatedCaller', 'AllowAnonymous')
+
+SUBSCRIBE = re.compile(r'\.WithTopic\s*\(')
+ENVELOPE = 'WithIntegrationEnvelope'
 
 HANDLER_GLOBS = [('services', '*/*.Api/Endpoints/*.cs')]
 INFRA_GLOBS = [
@@ -89,15 +101,37 @@ def scan(globs, pattern, use_groups):
     return found
 
 
-failures = scan(HANDLER_GLOBS, HANDLER_MAP, use_groups=True)
-failures += scan(INFRA_GLOBS, INFRA_MAP, use_groups=False)
+def scan_envelopes():
+    found = []
+    for root, glob in HANDLER_GLOBS:
+        for path in sorted(Path(root).glob(glob)):
+            text = path.read_text(encoding='utf-8')
+            for line_no, stmt in registrations(text, SUBSCRIBE):
+                if ENVELOPE not in stmt:
+                    found.append(f"{path}:{line_no}: {stmt.strip()[:100]}")
+    return found
 
-if failures:
+
+auth_failures = scan(HANDLER_GLOBS, HANDLER_MAP, use_groups=True)
+auth_failures += scan(INFRA_GLOBS, INFRA_MAP, use_groups=False)
+envelope_failures = scan_envelopes()
+
+if auth_failures:
     print("Endpoints with no explicit authorization decision:\n")
-    for f in failures:
+    for f in auth_failures:
         print("  " + f)
-    print(f"\n{len(failures)} endpoint(s). Add RequireOrganizer/RequireBuyer/"
-          "RequireAuthenticatedCaller/AllowAnonymous — see ADR-0035.")
+    print(f"\n{len(auth_failures)} endpoint(s). Add RequireOrganizer/RequireBuyer/"
+          "RequireAuthenticatedCaller/AllowAnonymous — see ADR-0035.\n")
+
+if envelope_failures:
+    print("Pub/sub subscribers that drop the correlation chain:\n")
+    for f in envelope_failures:
+        print("  " + f)
+    print(f"\n{len(envelope_failures)} subscriber(s). Chain .WithIntegrationEnvelope() "
+          "after .WithTopic(...) — see ADR-0040.\n")
+
+if auth_failures or envelope_failures:
     sys.exit(1)
 
 print("All endpoints carry an explicit authorization decision.")
+print("All pub/sub subscribers adopt the incoming correlation chain.")

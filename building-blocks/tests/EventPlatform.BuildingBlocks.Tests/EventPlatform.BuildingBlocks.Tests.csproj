@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- The building blocks' own tests. They are shared by every service, so a bug here is a bug
+       everywhere — which is exactly why they are worth testing on their own rather than only
+       through whichever service happens to exercise them. -->
+
+  <PropertyGroup>
+    <RootNamespace>EventPlatform.BuildingBlocks.Tests</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../EventPlatform.Auditing/EventPlatform.Auditing.csproj" />
+    <ProjectReference Include="../../EventPlatform.Contracts/EventPlatform.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+</Project>

@@ -9,13 +9,27 @@ public sealed class OutboxMessage
     /// <param name="type">Fully-qualified CLR type name of the event.</param>
     /// <param name="payload">JSON-serialized event payload.</param>
     /// <param name="occurredAt">When the event occurred (UTC).</param>
-    public OutboxMessage(Guid id, string topic, string type, string payload, DateTimeOffset occurredAt)
+    /// <param name="correlationId">The chain of work this event belongs to.</param>
+    /// <param name="causationId">The message that caused it, if any.</param>
+    /// <param name="eventVersion">The contract version of the event.</param>
+    public OutboxMessage(
+        Guid id,
+        string topic,
+        string type,
+        string payload,
+        DateTimeOffset occurredAt,
+        Guid correlationId,
+        Guid? causationId,
+        int eventVersion)
     {
         Id = id;
         Topic = topic;
         Type = type;
         Payload = payload;
         OccurredAt = occurredAt;
+        CorrelationId = correlationId;
+        CausationId = causationId;
+        EventVersion = eventVersion;
     }
 
     // Parameterless ctor for EF Core materialization.
@@ -37,6 +51,27 @@ public sealed class OutboxMessage
 
     /// <summary>When the event occurred (UTC).</summary>
     public DateTimeOffset OccurredAt { get; private set; }
+
+    /// <summary>
+    /// The chain of work this event belongs to, shared by everything descending from one
+    /// originating action across every service it touches.
+    /// </summary>
+    /// <remarks>
+    /// Stored as a column rather than only travelling on the wire, and indexed: the question this
+    /// answers — "show me everything that happened because of that checkout" — is asked of the
+    /// database long after the trace has expired (PLAT-015).
+    /// </remarks>
+    public Guid CorrelationId { get; private set; }
+
+    /// <summary>
+    /// The message that directly caused this one, or <see langword="null"/> when a person or a
+    /// timer started the chain. Walking these one hop at a time reconstructs the order of events;
+    /// <see cref="CorrelationId"/> alone gives only the unordered set.
+    /// </summary>
+    public Guid? CausationId { get; private set; }
+
+    /// <summary>The event contract's version, from <c>EventVersionAttribute</c>.</summary>
+    public int EventVersion { get; private set; }
 
     /// <summary>When the message was published, or <see langword="null"/> while pending.</summary>
     public DateTimeOffset? PublishedAt { get; private set; }

@@ -31,7 +31,12 @@ public static class CorsExtensions
             {
                 policy.WithOrigins(allowedOrigins)
                     .AllowAnyHeader()
-                    .WithMethods("GET", "POST", "PUT", "DELETE");
+                    .WithMethods("GET", "POST", "PUT", "DELETE")
+
+                    // Response headers are invisible to a cross-origin caller unless exposed, so
+                    // without this the SPA could never read back the correlation id it needs to
+                    // show a buyer on a failure — the id would exist and be unreachable.
+                    .WithExposedHeaders(CorrelationExtensions.HeaderName);
             });
         });
 

@@ -26,6 +26,7 @@ public static class QueueEndpoints
         // denied subscriber fails by going quiet rather than erroring.
         app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
             .WithTopic("pubsub", nameof(EventPublished))
+            .WithIntegrationEnvelope()
             .WithName("OnEventPublished")
             .AllowAnonymous()
             .ExcludeFromDescription();

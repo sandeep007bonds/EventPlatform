@@ -117,7 +117,8 @@ public sealed class AuditFieldsInterceptorTests : IAsyncLifetime
             "order-confirmed",
             "dev-log",
             providerReference: null,
-            correlationId: null);
+            correlationId: Guid.NewGuid(),
+            causationId: null);
 
         dbContext.DeliveryLog.Add(entry);
         await dbContext.SaveChangesAsync(CancellationToken.None);

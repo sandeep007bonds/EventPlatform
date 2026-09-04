@@ -23,10 +23,10 @@ if [ -n "$staged_cs" ]; then
   echo "==> C# style"
   python3 scripts/check-csharp-style.py --staged || status=1
 
-  # Endpoint authorization is a whole-tree question — a route's decision can be
+  # Endpoint conventions are a whole-tree question — a route's decision can be
   # removed by editing a file that is not itself staged.
-  echo "==> Endpoint authorization"
-  python3 scripts/check-endpoint-auth.py || status=1
+  echo "==> Endpoint conventions"
+  python3 scripts/check-endpoint-conventions.py || status=1
 fi
 
 if [ -n "$staged_fe" ] && [ -d frontend/node_modules ]; then

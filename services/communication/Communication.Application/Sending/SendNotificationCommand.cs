@@ -7,7 +7,7 @@ namespace Communication.Application.Sending;
 /// <param name="TemplateKey">The template to render. Required for <see cref="Communication.Domain.NotificationChannel.Email"/>; ignored otherwise.</param>
 /// <param name="Placeholders">Placeholder values for template rendering. Only used for Email.</param>
 /// <param name="Body">The raw message body. Required for Sms/WhatsApp; ignored for Email (which is always template-driven).</param>
-/// <param name="CorrelationId">The triggering integration event id, if this send was raised from a subscriber.</param>
+/// <param name="CausationId">The triggering integration event id, if this send was raised from a subscriber.</param>
 public sealed record SendNotificationCommand(
     Guid TenantId,
     NotificationChannel Channel,
@@ -15,4 +15,4 @@ public sealed record SendNotificationCommand(
     string? TemplateKey,
     IReadOnlyDictionary<string, string>? Placeholders,
     string? Body,
-    Guid? CorrelationId);
+    Guid? CausationId);

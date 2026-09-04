@@ -11,13 +11,15 @@ namespace Communication.Application.Sending;
 /// <param name="templates">The template store, for Email's template-driven rendering.</param>
 /// <param name="renderer">The placeholder renderer, for Email's template-driven rendering.</param>
 /// <param name="notifications">The delivery-log/dedup-ledger repository.</param>
+/// <param name="correlation">The chain of work this send belongs to, stamped on the delivery log.</param>
 public sealed class NotificationSendService(
     IEmailSender emailSender,
     ISmsSender smsSender,
     IWhatsAppSender whatsAppSender,
     ITemplateStore templates,
     ITemplateRenderer renderer,
-    INotificationRepository notifications)
+    INotificationRepository notifications,
+    ICorrelationContext correlation)
 {
     /// <summary>Sends the notification described by <paramref name="command"/>.</summary>
     /// <param name="command">The validated send request.</param>
@@ -49,8 +51,8 @@ public sealed class NotificationSendService(
         }
 
         var logEntry = result.Succeeded
-            ? DeliveryLogEntry.Sent(command.TenantId, command.Channel, command.Recipient, command.TemplateKey, provider, result.ProviderReference, command.CorrelationId)
-            : DeliveryLogEntry.Failed(command.TenantId, command.Channel, command.Recipient, command.TemplateKey, provider, result.FailureReason ?? "unknown failure", command.CorrelationId);
+            ? DeliveryLogEntry.Sent(command.TenantId, command.Channel, command.Recipient, command.TemplateKey, provider, result.ProviderReference, correlation.CorrelationId, command.CausationId)
+            : DeliveryLogEntry.Failed(command.TenantId, command.Channel, command.Recipient, command.TemplateKey, provider, result.FailureReason ?? "unknown failure", correlation.CorrelationId, command.CausationId);
 
         notifications.AddDeliveryLog(logEntry);
         await notifications.SaveChangesAsync(cancellationToken);

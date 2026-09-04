@@ -26,9 +26,10 @@ jobs:
       # an endpoint with no authorization metadata compiles perfectly and is reachable by anyone.
       # The deny-by-default fallback policy (ADR-0035) now closes that, but it closes it at runtime
       # — and for a health probe or a Dapr subscriber, failing closed is its own outage. This step
-      # is where a missing decision is supposed to be caught.
-      - name: Check endpoint authorization
-        run: python3 scripts/check-endpoint-auth.py
+      # is where a missing decision is supposed to be caught — along with a pub/sub subscriber that
+      # forgot .WithIntegrationEnvelope() and silently starts its own correlation chain (ADR-0040).
+      - name: Check endpoint conventions
+        run: python3 scripts/check-endpoint-conventions.py
 
       # Also before the build, and for the same reason: no toolchain needed. This one is not
       # answering a question the compiler cannot — it is answering the same questions *faster*.

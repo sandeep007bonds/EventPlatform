@@ -246,7 +246,12 @@ def check_param_tags(path, raw, code, findings):
             continue
 
         after = index
-        while after < len(code_lines) and code_lines[after].strip() == '':
+        # Blank lines *and attributes* sit between a doc block and the thing it documents. An
+        # attribute is itself a call with arguments, so leaving it in makes it look like the
+        # signature: `[AttributeUsage(AttributeTargets.Class, Inherited = false)]` reads as a
+        # two-parameter `AttributeUsage()` whose <param> docs are all missing.
+        while after < len(code_lines) and (
+                code_lines[after].strip() == '' or code_lines[after].lstrip().startswith('[')):
             after += 1
         signature, cursor = [], after
         while cursor < len(code_lines) and cursor < after + 60:
