@@ -33,8 +33,8 @@ src/
                  TopProgressBar)
     auth/        identityApi (buyer OTP) + organizerApi (organizer
                  email+password) API clients
-    catalog/ inventory/ ordering/ ticketing/   typed API client per bounded
-                 context, hand-written types mirroring the backend DTOs
+    catalog/ venue/ inventory/ ordering/ ticketing/   typed API client per
+                 bounded context, hand-written types mirroring the backend DTOs
   components/common/
     skeletons/   ListSkeleton, TableSkeleton, CardSkeleton, DetailSkeleton
     errors/      UnauthorizedPage (401→403 visual), NotFoundPage (404),
@@ -64,7 +64,11 @@ src/
             auth/ (OrganizerAuthFlow)
   types/         ambient declarations not yet in TS's bundled DOM lib
                  (barcode-detector.d.ts)
-  utils/         formatMoney, eventStatusColor — small, shared across features
+  hooks/         usePerformanceLabels — resolves {event, performance} ids to names
+                 for order/ticket lists, one fetch per distinct event on the page
+  utils/         formatMoney, eventStatusColor, eventSessions (which performance
+                 a screen is talking about), seatMap (flattens a Venue version's
+                 section → row → seat nesting) — small, shared across features
 ```
 
 ## Design notes
@@ -223,22 +227,48 @@ src/
   local state you initialise yourself.
 - **The admin event page is tabbed, and each tab saves on its own.** `AdminEventDetailPage` is a
   header plus `Tabs`; the sections live in their own components (`EventPresentationForm`,
-  `EventScheduleForm`, `EventSeatMapPanel`, `EventSlugCard`, `TicketTypesPanel`, `PromoCodesPanel`,
-  `PolicyDocumentsPanel`, `SeatBlockPanel`, `QueueSettingsPanel`). One Save per tab rather than one
-  for the page, because the halves have different rules: **Event page** (title, description,
-  imagery, contact, social) posts to `PUT /presentation` and works at any status, while
-  **Schedule & venue** posts to `PUT /details` and is refused after publish (ADR-0037). A single
+  `EventPerformancesPanel`, `EventSellingRulesForm`, `EventSlugCard`, `TicketTypesPanel`,
+  `PromoCodesPanel`, `PolicyDocumentsPanel`, `SeatBlockPanel`, `QueueSettingsPanel`). One Save per
+  tab rather than one for the page, because the halves have different rules: **Event page** (title,
+  description, imagery, contact, social) posts to `PUT /presentation` and works at any status, while
+  **Selling rules** posts to `PUT /selling-rules` and is refused after publish (ADR-0037). A single
   Save spanning both would have to fail as a whole when only one half is still allowed. After
-  publish the schedule form renders read-only with an explanation rather than disappearing — an
-  organizer still needs to see the booking cutoff they set, and hiding it makes the setting look
-  gone rather than fixed. The active tab lives in a `?tab=` query param so a reload or a shared link
-  lands in the right place.
-- **Buyer event URLs are slugs; the id still works.** `/events/:id` accepts either an event GUID or
-  its slug — `EventDetailPage` picks `getEvent` or `getEventBySlug` by testing the param's shape
-  (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app _issues_
-  use `event.slug`; the id route stays because links issued before slugs existed are still out
-  there. Everything keyed on the event id waits for that first call to return, so the seat map and
-  inventory fetches are sequenced after it rather than run alongside.
+  publish the rules form renders read-only with an explanation rather than disappearing — an
+  organizer still needs to see the fee they set, and hiding it makes the setting look gone rather
+  than fixed. The active tab lives in a `?tab=` query param so a reload or a shared link lands in
+  the right place.
+  **`EventSeatMapPanel`, `EntryGatesPanel`, `SeatMapSectionsFields` and `EventScheduleForm` are
+  gone** — Catalog no longer owns seat maps or gates, and the dates belong to the performances.
+  Don't reintroduce them.
+- **Buyer event URLs are slugs; the id still works.** `/events/:eventSlug` accepts either an event
+  GUID or its slug — `EventDetailPage` picks `getEvent` or `getEventBySlug` by testing the param's
+  shape (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app
+  _issues_ use `event.slug`; the id route stays because links issued before slugs existed are still
+  out there. Everything keyed on the event id waits for that first call to return, so the seat map
+  and inventory fetches are sequenced after it rather than run alongside.
+- **An event is a run of performances, and almost every screen has to say which one (ADR-0039).**
+  Inventory, orders, tickets and scans key on `eventSessionId`, not the event: the same seat is
+  separate inventory on Friday and Saturday. Three consequences that keep biting if forgotten:
+  - **`EventResponse` has no `startsAt`, `city` or `salesPaused`.** Times and the venue live on
+    each `EventSessionResponse`; the event carries a denormalised `firstSessionStartsAt` /
+    `lastSessionEndsAt` for lists, and `allSalesPaused` (true only when _every_ night is paused).
+    `utils/eventSessions.ts` has the helpers — `primarySession` (the next one still to come, not
+    blindly the first), `runLabel`, `venueLabel`, `sessionLabel`, `upcomingSellableSessions`.
+  - **Routes name the performance where the page is about one:**
+    `/events/:eventSlug/s/:eventSessionId/seats`. `/events/:eventSlug/queue` deliberately does not
+    — one waiting room gates the on-sale, which covers the whole run, so the queue stays
+    event-keyed and carries the intended night in `?eventSessionId=` only to hand the buyer to the
+    right seat map on the way out.
+  - **Never call a route param or a field bare `sessionId`.** Queue already owns that word for a
+    buyer's place in line, and the SPA uses it for auth. It is always `eventSessionId`, and UI copy
+    says "performance".
+- **Seat maps come from the Venue service; prices come from Inventory.** `venueApi.getSeatMap`
+  returns the pinned, immutable version — which seats exist and how the hall is laid out, the same
+  every night. `inventoryApi.getInventorySeats` returns status _and_ `priceMinor` per seat for one
+  performance. Render the price from Inventory, never re-derive it from Catalog's ticket types: the
+  number on a seat has to be the number checkout charges (ADR-0034, same rule as `CheckoutPage`).
+  `utils/seatMap.ts`'s `flattenSeatMap` turns Venue's section → row → seat nesting into the flat
+  list `SeatGrid` and every lookup want.
 - **Policy HTML is sanitised by the server, and rendered as markup here.**
   `PolicyDocumentsPanel` (organizer, on the event's Policies tab or at `/admin/policies` for the
   tenant defaults) is a textarea plus a live preview, **not** a WYSIWYG — Ant Design ships no
@@ -342,3 +372,7 @@ Two consequences for how you write code:
   boundary, and anything the SPA hides is still reachable by hand.
 - Reintroduce a dev-login path into the UI — both roles have real login now.
 - Add a UI library beyond Ant Design without discussion.
+- Key a seat, an order, a ticket or a scan on the event id. It is the performance
+  (`eventSessionId`) — the three deliberate exceptions are the queue admission token, the
+  per-buyer cap and promo codes, all of which cover the whole run.
+- Compute a price in the browser. Ask the server.

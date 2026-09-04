@@ -8,7 +8,7 @@ export interface UploadImageResponse {
 /**
  * Uploads an image and returns its public URL. Two separate calls from the caller's
  * perspective — this only uploads the file; saving the returned URL onto an event is a
- * separate `updateEventDetails` call against Catalog. Uses the shared `httpClient` (per
+ * separate `updateEventPresentation` call against Catalog. Uses the shared `httpClient` (per
  * frontend/CLAUDE.md's "one axios instance" rule) — no Content-Type header is set here, so
  * axios/the browser attach the correct `multipart/form-data` boundary automatically.
  */

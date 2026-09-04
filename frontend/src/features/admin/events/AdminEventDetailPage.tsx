@@ -2,18 +2,17 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Descriptions, Space, Tabs, Tag, theme, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { formatEventDateTime } from '../../../utils/eventTime';
 import {
   getEvent,
-  getSeatMap,
-  listEntryGates,
+  listTicketTypes,
   pauseSales,
   publishEvent,
   resumeSales,
-  type EntryGateResponse,
   type EventResponse,
-  type SeatMapResponse,
+  type TicketTypeResponse,
 } from '../../../services/catalog/catalogApi';
+import { primarySession, runLabel, venueLabel } from '../../../utils/eventSessions';
+import { formatEventDateTime } from '../../../utils/eventTime';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
@@ -26,14 +25,13 @@ import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { SeatBlockPanel } from '../inventory/SeatBlockPanel';
 import { TourLegsList } from '../eventGroups/TourLegsList';
-import { EntryGatesPanel } from './EntryGatesPanel';
 import { QueueSettingsPanel } from './QueueSettingsPanel';
 import { PromoCodesPanel } from '../promoCodes/PromoCodesPanel';
 import { TicketTypesPanel } from '../ticketTypes/TicketTypesPanel';
 import { PolicyDocumentsPanel } from '../policies/PolicyDocumentsPanel';
 import { EventPresentationForm } from './EventPresentationForm';
-import { EventScheduleForm } from './EventScheduleForm';
-import { EventSeatMapPanel } from './EventSeatMapPanel';
+import { EventSellingRulesForm } from './EventSellingRulesForm';
+import { EventPerformancesPanel } from './EventPerformancesPanel';
 import { EventSlugCard } from './EventSlugCard';
 
 const TAB_QUERY_PARAM = 'tab';
@@ -42,23 +40,23 @@ const TAB_QUERY_PARAM = 'tab';
  * Organizer's event workspace.
  *
  * Grouped into tabs rather than one long scroll, because the sections have genuinely different
- * lifecycles: the event page stays editable forever, the schedule locks at publish, the seat map is
- * a pre-publish activity, and seat blocking only exists afterwards. One page made that look like
- * one decision. **Each tab saves on its own** — a tab is a unit of work, and a single Save spanning
- * "the title" and "the tax rate" would have to fail as a whole when only one half is still allowed.
+ * lifecycles: the event page stays editable forever, the selling rules lock at publish, the
+ * performances are where the venue and the dates live, and seat blocking only exists afterwards.
+ * One page made that look like one decision. **Each tab saves on its own** — a tab is a unit of
+ * work, and a single Save spanning "the title" and "the tax rate" would have to fail as a whole
+ * when only one half is still allowed.
  *
  * The active tab lives in the query string so a reload, a bookmark or a link to "the policies of
  * this event" all land where they should.
  */
 export function AdminEventDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { eventId: id } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { token } = theme.useToken();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
-  const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
-  const [entryGates, setEntryGates] = useState<EntryGateResponse[]>([]);
+  const [ticketTypes, setTicketTypes] = useState<TicketTypeResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
@@ -66,15 +64,10 @@ export function AdminEventDetailPage() {
   const [togglingSales, setTogglingSales] = useState(false);
 
   const load = (eventId: string) => {
-    Promise.all([
-      getEvent(eventId),
-      getSeatMap(eventId).catch(() => null),
-      listEntryGates(eventId).catch(() => []),
-    ])
-      .then(([eventResult, seatMapResult, gatesResult]) => {
+    Promise.all([getEvent(eventId), listTicketTypes(eventId).catch(() => [])])
+      .then(([eventResult, ticketTypesResult]) => {
         setEvent(eventResult);
-        setSeatMap(seatMapResult);
-        setEntryGates(gatesResult);
+        setTicketTypes(ticketTypesResult);
         setNotFound(false);
         setLoadError(false);
       })
@@ -86,14 +79,6 @@ export function AdminEventDetailPage() {
         }
       })
       .finally(() => setLoading(false));
-  };
-
-  const refreshEntryGates = () => {
-    if (id) {
-      listEntryGates(id)
-        .then(setEntryGates)
-        .catch(() => toast.error('Could not load entry gates.'));
-    }
   };
 
   useEffect(() => {
@@ -112,7 +97,12 @@ export function AdminEventDetailPage() {
       toast.success('Event published.');
       load(id);
     } catch {
-      toast.error('Could not publish this event — check it has a seat map and is still a draft.');
+      // Publishing is all-or-nothing across performances, and the server answers with every
+      // problem it found rather than the first — a run with three unallocated blocks is three
+      // things to fix, not three round trips.
+      toast.error(
+        'Could not publish — every performance needs a published seat map with all of its blocks allocated.',
+      );
     } finally {
       setSubmitting(false);
     }
@@ -124,12 +114,12 @@ export function AdminEventDetailPage() {
     }
     setTogglingSales(true);
     try {
-      if (event.salesPaused) {
+      if (event.allSalesPaused) {
         await resumeSales(id);
-        toast.success('Sales resumed.');
+        toast.success('Sales resumed across every performance.');
       } else {
         await pauseSales(id);
-        toast.success('Sales paused.');
+        toast.success('Sales paused across every performance.');
       }
       load(id);
     } catch {
@@ -165,6 +155,13 @@ export function AdminEventDetailPage() {
 
   const isDraft = event.status === 'Draft';
   const reload = () => load(id);
+  const featured = primarySession(event);
+  // What the Publish button is waiting on. Catalog refuses a publish unless every performance names
+  // a published seat-map version and allocates every one of its blocks, so saying so here is more
+  // useful than a button that only explains itself after being clicked.
+  const unreadySessions = event.sessions.filter(
+    (session) => session.seatMapVersionId == null || session.allocations.length === 0,
+  );
 
   return (
     <>
@@ -179,23 +176,23 @@ export function AdminEventDetailPage() {
                 <Tag color={eventStatusColor[event.status]} style={{ marginLeft: 4 }}>
                   {event.status}
                 </Tag>
-                {event.salesPaused && <Tag color="warning">Sales paused</Tag>}
+                {event.allSalesPaused && <Tag color="warning">Sales paused</Tag>}
               </Space>
             }
             extra={
               <>
-                {isDraft && seatMap && (
+                {isDraft && event.sessions.length > 0 && unreadySessions.length === 0 && (
                   <Button type="primary" loading={submitting} onClick={() => void handlePublish()}>
                     Publish
                   </Button>
                 )}
                 {event.status === 'Published' && (
                   <Button
-                    danger={!event.salesPaused}
+                    danger={!event.allSalesPaused}
                     loading={togglingSales}
                     onClick={() => void handleToggleSales()}
                   >
-                    {event.salesPaused ? 'Resume sales' : 'Pause sales'}
+                    {event.allSalesPaused ? 'Resume sales' : 'Pause all sales'}
                   </Button>
                 )}
                 <Button onClick={() => void navigate('/admin')}>← Back to events</Button>
@@ -205,17 +202,15 @@ export function AdminEventDetailPage() {
 
           <Card style={{ marginBottom: 24 }}>
             <Descriptions column={{ xs: 1, sm: 2, md: 4 }} size="small">
-              <Descriptions.Item label="Starts">
-                {formatEventDateTime(event.startsAt, event.timeZoneId)}
+              <Descriptions.Item label="Runs">
+                {runLabel(event) ?? 'No performances yet'}
               </Descriptions.Item>
-              <Descriptions.Item label="Ends">
-                {formatEventDateTime(event.endsAt, event.timeZoneId)}
-              </Descriptions.Item>
+              <Descriptions.Item label="Performances">{event.sessions.length}</Descriptions.Item>
               <Descriptions.Item label="Venue">
-                {event.locationName}, {event.city}
+                {venueLabel(featured) ?? 'Not set'}
               </Descriptions.Item>
               <Descriptions.Item label="Time zone">
-                {event.timeZoneId ?? 'Not set'}
+                {featured?.timeZoneId ?? 'Not set'}
               </Descriptions.Item>
               <Descriptions.Item label="Currency">{event.currency}</Descriptions.Item>
               <Descriptions.Item label="Tax">
@@ -226,13 +221,22 @@ export function AdminEventDetailPage() {
                   ? `${formatMoney(event.bookingFeePerTicketMinor, event.currency)} per ticket`
                   : 'None'}
               </Descriptions.Item>
-              <Descriptions.Item label="Capacity">
-                {seatMap ? `${seatMap.capacity} total` : '—'}
+              <Descriptions.Item label="On sale">
+                {event.onSaleAt
+                  ? formatEventDateTime(event.onSaleAt, featured?.timeZoneId)
+                  : 'Immediately'}
               </Descriptions.Item>
             </Descriptions>
-            {isDraft && !seatMap && (
+            {isDraft && event.sessions.length === 0 && (
               <Typography.Text type="warning" style={{ display: 'block', marginTop: 12 }}>
-                Define a seat map on the Seat map tab before you can publish.
+                Add a performance on the Performances tab before you can publish.
+              </Typography.Text>
+            )}
+            {isDraft && unreadySessions.length > 0 && (
+              <Typography.Text type="warning" style={{ display: 'block', marginTop: 12 }}>
+                {unreadySessions.length} of {event.sessions.length} performance
+                {event.sessions.length === 1 ? '' : 's'} still needs a published seat map with every
+                block allocated to a ticket type.
               </Typography.Text>
             )}
           </Card>
@@ -281,14 +285,24 @@ export function AdminEventDetailPage() {
                   children: <EventPresentationForm event={event} onSaved={reload} />,
                 },
                 {
-                  key: 'schedule',
+                  key: 'performances',
                   label: (
                     <Space size={6}>
-                      Schedule &amp; venue
+                      Performances
+                      {event.sessions.length > 0 && <Tag>{event.sessions.length}</Tag>}
+                    </Space>
+                  ),
+                  children: <EventPerformancesPanel event={event} />,
+                },
+                {
+                  key: 'rules',
+                  label: (
+                    <Space size={6}>
+                      Selling rules
                       {!isDraft && <Tag>Locked</Tag>}
                     </Space>
                   ),
-                  children: <EventScheduleForm event={event} onSaved={reload} />,
+                  children: <EventSellingRulesForm event={event} onSaved={reload} />,
                 },
                 {
                   key: 'tickets',
@@ -299,35 +313,8 @@ export function AdminEventDetailPage() {
                       <PromoCodesPanel
                         eventId={id}
                         currency={event.currency}
-                        priceTiers={[
-                          ...new Set([
-                            ...(seatMap?.seats.map((seat) => seat.priceTier) ?? []),
-                            ...(seatMap?.generalAdmissionSections.map((s) => s.priceTier) ?? []),
-                          ]),
-                        ]}
+                        ticketTypes={ticketTypes}
                       />
-                    </>
-                  ),
-                },
-                {
-                  key: 'seatmap',
-                  label: 'Seat map & gates',
-                  children: (
-                    <>
-                      <EventSeatMapPanel
-                        eventId={id}
-                        seatMap={seatMap}
-                        entryGates={entryGates}
-                        isDraft={isDraft}
-                        onChanged={reload}
-                      />
-                      {isDraft && (
-                        <EntryGatesPanel
-                          eventId={id}
-                          gates={entryGates}
-                          onGateCreated={refreshEntryGates}
-                        />
-                      )}
                     </>
                   ),
                 },
@@ -342,7 +329,7 @@ export function AdminEventDetailPage() {
                   children: (
                     <>
                       <EventSlugCard event={event} onSaved={reload} />
-                      {!isDraft && <SeatBlockPanel eventId={id} />}
+                      {!isDraft && <SeatBlockPanel event={event} />}
                       {!isDraft && event.requiresQueue && <QueueSettingsPanel eventId={id} />}
                       {isDraft && (
                         <Typography.Text

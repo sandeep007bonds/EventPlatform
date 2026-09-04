@@ -1,4 +1,5 @@
 import {
+  Alert,
   Button,
   Card,
   Checkbox,
@@ -39,10 +40,10 @@ export interface EventLegFieldsProps {
 /**
  * The repeatable "one card per city/date" fields inside `CreateEventPage`'s `Form` — every field
  * `CreateEventPage` used to render once now lives here, addressed via `[field.name, ...]` nested
- * paths, following `SeatMapSectionsFields.tsx`'s exact shape (one `Card` per item, a trailing
+ * paths, following the repeater shape used across these forms (one `Card` per item, a trailing
  * dashed "Add" button, a remove affordance hidden once there's only one item left). Clicking "Add
  * another city/date" also seeds the new leg's `currency`/`country` from the first leg's current
- * values (mirrors `SeatMapSectionsFields.tsx`'s `DEFAULT_SEAT_MAP_SECTION` seed-on-add pattern) and,
+ * values (the same seed-on-add pattern `eventLegDefaults.ts` supplies) and,
  * if no tour is picked yet, switches the (now-required) tour picker to "+ New tour" automatically —
  * a multi-leg batch always needs a tour to attach its legs to.
  */
@@ -199,99 +200,18 @@ export function EventLegFields({
                     </Col>
                   </Row>
 
-                  <Divider titlePlacement="left">Location</Divider>
-                  <Row gutter={16}>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'locationName']}
-                        label="Venue name"
-                        rules={[{ required: true }, { max: 200 }]}
-                      >
-                        <Input placeholder="e.g. Wankhede Stadium" />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'addressLine1']}
-                        label="Address line 1"
-                        rules={[{ required: true }, { max: 200 }]}
-                      >
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'addressLine2']}
-                        label="Address line 2"
-                        rules={[{ max: 200 }]}
-                      >
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'city']}
-                        label="City"
-                        rules={[{ required: true }, { max: 100 }]}
-                      >
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={8}>
-                      <Form.Item
-                        name={[field.name, 'region']}
-                        label="State / region"
-                        rules={[{ max: 100 }]}
-                      >
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={8}>
-                      <Form.Item
-                        name={[field.name, 'postalCode']}
-                        label="Postal code"
-                        rules={[{ max: 20 }]}
-                      >
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={8}>
-                      <Form.Item
-                        name={[field.name, 'country']}
-                        label="Country (ISO 3166-1 alpha-2)"
-                        rules={[{ required: true, len: 2 }]}
-                      >
-                        <Input
-                          maxLength={2}
-                          placeholder="US"
-                          style={{ textTransform: 'uppercase' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'latitude']}
-                        label="Latitude (optional)"
-                        rules={[{ type: 'number', min: -90, max: 90 }]}
-                      >
-                        <InputNumber min={-90} max={90} step={0.000001} style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                    <Col xs={24} sm={12}>
-                      <Form.Item
-                        name={[field.name, 'longitude']}
-                        label="Longitude (optional)"
-                        rules={[{ type: 'number', min: -180, max: 180 }]}
-                      >
-                        <InputNumber
-                          min={-180}
-                          max={180}
-                          step={0.000001}
-                          style={{ width: '100%' }}
-                        />
-                      </Form.Item>
-                    </Col>
-                  </Row>
+                  <Divider titlePlacement="left">Venue</Divider>
+                  <Alert
+                    type="info"
+                    showIcon
+                    message="Pick the venue after this event is created"
+                    description={
+                      'Venues and seat maps belong to your venue library, and a performance points ' +
+                      'at a published version of one — so two nights can use different ' +
+                      "configurations of the same hall. Open the event's Performances tab once " +
+                      "it's created to attach one."
+                    }
+                  />
                 </ConfigProvider>
               </Card>
             );

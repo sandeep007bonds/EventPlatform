@@ -1,14 +1,21 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Button, Card, InputNumber, Modal, Space, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import { useNavigate, useParams } from 'react-router-dom';
-import { getEvent, getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
+import {
+  getEvent,
+  getEventBySlug,
+  type EventResponse,
+  type EventSessionResponse,
+} from '../../../services/catalog/catalogApi';
+import { getSeatMap, type SeatMapResponse } from '../../../services/venue/venueApi';
 import {
   getGeneralAdmissionAllocations,
   getInventorySeats,
   placeHold,
-  type SeatInventoryStatus,
+  type GeneralAdmissionAllocationResponse,
+  type InventorySeatResponse,
 } from '../../../services/inventory/inventoryApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
@@ -18,16 +25,20 @@ import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { getValidAdmissionToken } from '../../../utils/queueAdmission';
 import { getSession } from '../../../services/http/tokenStore';
+import { admissionAreasOf, flattenSeatMap } from '../../../utils/seatMap';
+import { sessionLabel, venueLabel } from '../../../utils/eventSessions';
 import { OtpLoginFlow } from '../auth/OtpLoginFlow';
 
 const MAX_SEATS = 10;
 const MAX_GENERAL_ADMISSION_QUANTITY = 10;
 
-// Inventory is provisioned asynchronously (pub/sub off Catalog's EventPublished, via the outbox
-// relay), so the per-seat status endpoint can briefly return an empty list right after a publish
-// — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
+// Inventory is provisioned asynchronously (pub/sub off Catalog's EventSessionPublished, via the
+// outbox relay), so the per-seat status endpoint can briefly return an empty list right after a
+// publish — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
 const INVENTORY_POLL_INTERVAL_MS = 1500;
 const INVENTORY_POLL_MAX_ATTEMPTS = 6;
+
+type SeatInventoryStatus = InventorySeatResponse['status'];
 
 const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
   Available: '#eef1f3',
@@ -49,86 +60,90 @@ interface ConflictBody {
 }
 
 /**
- * Interactive picker: reserved sections render as a real seat grid (rows of seats, per-seat
- * availability, click to select); general-admission sections render as a quantity stepper per
- * tier. Both can be held together in one request, summarized in a sticky bottom bar.
+ * Interactive picker for **one performance**: reserved sections render as a real seat grid (rows of
+ * seats, per-seat availability, click to select); admission areas render as a quantity stepper.
+ * Both can be held together in one request, summarized in a sticky bottom bar.
+ *
+ * Two services feed this page, and the split matters. **Venue** says which seats exist and how the
+ * hall is laid out — the same answer every night. **Inventory** says what each one costs tonight
+ * and whether it is still free — a different answer for every performance. Prices are read from
+ * Inventory, never re-derived from Catalog's ticket types, so the number on a seat is the number
+ * the checkout will charge (ADR-0034).
  */
 export function SeatSelectionPage() {
-  const { id: eventId } = useParams<{ id: string }>();
+  const { eventSlug, eventSessionId } = useParams<{
+    eventSlug: string;
+    eventSessionId: string;
+  }>();
   const navigate = useNavigate();
 
+  const [event, setEvent] = useState<EventResponse | null>(null);
+  const [session, setSession] = useState<EventSessionResponse | null>(null);
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
-  const [currency, setCurrency] = useState('USD');
-  const [maxTicketsPerBuyer, setMaxTicketsPerBuyer] = useState<number | null>(null);
-  const [onSaleAt, setOnSaleAt] = useState<string | null>(null);
-  const [salesPaused, setSalesPaused] = useState(false);
-  const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
+  const [seatInventory, setSeatInventory] = useState<Map<string, InventorySeatResponse>>(new Map());
+  const [allocations, setAllocations] = useState<GeneralAdmissionAllocationResponse[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Keyed by Inventory's own allocation id, which is what a hold request must reference. The Venue
+  // admission area is a different id entirely — it identifies the block in the building, not the
+  // pool of tickets for tonight.
   const [gaQuantities, setGaQuantities] = useState<Map<string, number>>(new Map());
-  // Catalog's seat map only knows its own section id — Inventory provisions each general-admission
-  // allocation with its own separately-generated id (only linked via a CatalogSectionId foreign
-  // field), so a hold request must reference *this* map's values, never seatMap.generalAdmissionSections[].id.
-  const [gaAllocationIdsBySection, setGaAllocationIdsBySection] = useState<Map<string, string>>(
-    new Map(),
-  );
   const [loading, setLoading] = useState(true);
   const [provisioning, setProvisioning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [otpModalOpen, setOtpModalOpen] = useState(false);
 
-  const refreshStatuses = async (evId: string) => {
-    const [seats, allocations] = await Promise.all([
-      getInventorySeats(evId),
-      getGeneralAdmissionAllocations(evId),
+  const refreshInventory = async (sessionId: string) => {
+    const [seats, pools] = await Promise.all([
+      getInventorySeats(sessionId),
+      getGeneralAdmissionAllocations(sessionId),
     ]);
-    setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
-    setGaAllocationIdsBySection(
-      new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
-    );
+    setSeatInventory(new Map(seats.map((seat) => [seat.seatId, seat])));
+    setAllocations(pools);
   };
 
   useEffect(() => {
-    if (!eventId) {
+    if (!eventSlug || !eventSessionId) {
       return;
     }
 
     let cancelled = false;
     let attempts = 0;
 
-    const pollStatuses = (map: SeatMapResponse) => {
-      Promise.all([getInventorySeats(eventId), getGeneralAdmissionAllocations(eventId)])
-        .then(([seats, allocations]) => {
+    const pollInventory = (map: SeatMapResponse) => {
+      Promise.all([
+        getInventorySeats(eventSessionId),
+        getGeneralAdmissionAllocations(eventSessionId),
+      ])
+        .then(([seats, pools]) => {
           if (cancelled) {
             return;
           }
 
-          const seatsReady = seats.length > 0 || map.seats.length === 0;
-          const allocationsReady =
-            allocations.length > 0 || map.generalAdmissionSections.length === 0;
+          const expectedSeats = flattenSeatMap(map.version).length;
+          const seatsReady = seats.length > 0 || expectedSeats === 0;
+          const poolsReady = pools.length > 0 || map.version.admissionAreas.length === 0;
 
-          if (seatsReady && allocationsReady) {
-            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
-            setGaAllocationIdsBySection(
-              new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
-            );
+          const apply = () => {
+            setSeatInventory(new Map(seats.map((seat) => [seat.seatId, seat])));
+            setAllocations(pools);
             setProvisioning(false);
+          };
+
+          if (seatsReady && poolsReady) {
+            apply();
             return;
           }
 
           attempts += 1;
           if (attempts >= INVENTORY_POLL_MAX_ATTEMPTS) {
             // Set whatever came back even if incomplete — better than leaving stale/empty state.
-            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
-            setGaAllocationIdsBySection(
-              new Map(allocations.map((a) => [a.catalogSectionId, a.allocationId])),
-            );
-            setProvisioning(false);
+            apply();
             return;
           }
           setProvisioning(true);
           setTimeout(() => {
             if (!cancelled) {
-              pollStatuses(map);
+              pollInventory(map);
             }
           }, INVENTORY_POLL_INTERVAL_MS);
         })
@@ -139,23 +154,42 @@ export function SeatSelectionPage() {
         });
     };
 
-    Promise.all([getEvent(eventId), getSeatMap(eventId)])
-      .then(([event, map]) => {
+    (isGuid(eventSlug) ? getEvent(eventSlug) : getEventBySlug(eventSlug))
+      .then(async (eventResult) => {
+        const sessionResult =
+          eventResult.sessions.find((candidate) => candidate.id === eventSessionId) ?? null;
+
         if (cancelled) {
           return;
         }
+
+        setEvent(eventResult);
+        setSession(sessionResult);
+
         // Covers a direct URL hit bypassing EventDetailPage's own redirect — a buyer with no
-        // valid (unexpired) admission token must go through the waiting room first.
-        if (event.requiresQueue && !getValidAdmissionToken(eventId)) {
-          void navigate(`/events/${eventId}/queue`, { replace: true });
+        // valid (unexpired) admission token must go through the waiting room first. The token is
+        // keyed on the *event*: one waiting room gates the on-sale, which covers the whole run.
+        if (eventResult.requiresQueue && !getValidAdmissionToken(eventResult.id)) {
+          void navigate(`/events/${eventResult.slug}/queue?eventSessionId=${eventSessionId}`, {
+            replace: true,
+          });
           return;
         }
-        setCurrency(event.currency);
-        setMaxTicketsPerBuyer(event.maxTicketsPerBuyer);
-        setOnSaleAt(event.onSaleAt);
-        setSalesPaused(event.salesPaused);
+
+        if (!sessionResult?.seatMapId) {
+          return;
+        }
+
+        const map = await getSeatMap(
+          sessionResult.seatMapId,
+          sessionResult.seatMapVersionNumber ?? undefined,
+        ).catch(() => null);
+
+        if (cancelled || !map) {
+          return;
+        }
         setSeatMap(map);
-        pollStatuses(map);
+        pollInventory(map);
       })
       .catch(() => {
         // seatMap stays null — the render below already shows a graceful message for that,
@@ -170,10 +204,31 @@ export function SeatSelectionPage() {
     return () => {
       cancelled = true;
     };
-  }, [eventId, navigate]);
+  }, [eventSlug, eventSessionId, navigate]);
+
+  const seats = useMemo(() => (seatMap ? flattenSeatMap(seatMap.version) : []), [seatMap]);
+
+  // Venue's admission areas joined to the pools Inventory provisioned for tonight — the area
+  // supplies the name and the ordering, the pool supplies the price and what is left.
+  const gaBlocks = useMemo(() => {
+    if (!seatMap) {
+      return [];
+    }
+    const poolsByArea = new Map(allocations.map((pool) => [pool.admissionAreaId, pool]));
+    return admissionAreasOf(seatMap.version)
+      .map((area) => ({ area, pool: poolsByArea.get(area.id) }))
+      .filter(
+        (
+          entry,
+        ): entry is { area: (typeof entry)['area']; pool: GeneralAdmissionAllocationResponse } =>
+          entry.pool != null,
+      );
+  }, [seatMap, allocations]);
+
+  const maxTicketsPerBuyer = event?.maxTicketsPerBuyer ?? null;
 
   const toggleSeat = (seatId: string) => {
-    if (statuses.get(seatId) !== 'Available') {
+    if (seatInventory.get(seatId)?.status !== 'Available') {
       return;
     }
 
@@ -188,7 +243,9 @@ export function SeatSelectionPage() {
         return prev;
       }
 
-      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
+      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined, and
+      // the server counts it across every performance of the run — so this is an optimistic check
+      // that can still be refused at hold time by an earlier order on another night.
       if (maxTicketsPerBuyer != null) {
         const gaCount = [...gaQuantities.values()].reduce((a, b) => a + b, 0);
         if (next.size + 1 + gaCount > maxTicketsPerBuyer) {
@@ -202,42 +259,38 @@ export function SeatSelectionPage() {
     });
   };
 
-  // gaQuantities is keyed by Catalog's section id (what the seat-map UI naturally has on hand) —
-  // never Inventory's own allocationId. Translated to the real allocation id only when building the
-  // hold request, via gaAllocationIdsBySection (see handleHold).
-  const setGaQuantity = (catalogSectionId: string, quantity: number) => {
+  const setGaQuantity = (allocationId: string, quantity: number) => {
     setGaQuantities((prev) => {
       if (quantity <= 0) {
         const next = new Map(prev);
-        next.delete(catalogSectionId);
+        next.delete(allocationId);
         return next;
       }
 
-      // The server caps the SUM of general-admission quantities across all sections in one hold
-      // (HoldOptions.MaxGeneralAdmissionQuantityPerHold) — each section's own stepper only clamps
-      // that section individually, so the total must be checked here too.
-      const otherSectionsTotal = [...prev].reduce(
-        (sum, [id, existingQuantity]) => (id === catalogSectionId ? sum : sum + existingQuantity),
+      // The server caps the SUM of general-admission quantities across all areas in one hold
+      // (HoldOptions.MaxGeneralAdmissionQuantityPerHold) — each area's own stepper only clamps
+      // that area individually, so the total must be checked here too.
+      const otherAreasTotal = [...prev].reduce(
+        (sum, [id, existingQuantity]) => (id === allocationId ? sum : sum + existingQuantity),
         0,
       );
-      if (otherSectionsTotal + quantity > MAX_GENERAL_ADMISSION_QUANTITY) {
+      if (otherAreasTotal + quantity > MAX_GENERAL_ADMISSION_QUANTITY) {
         toast.error(
           `You can select up to ${MAX_GENERAL_ADMISSION_QUANTITY} general-admission admissions in total.`,
         );
         return prev;
       }
 
-      // The event's organizer-configured per-buyer limit caps seats + GA quantities combined.
       if (
         maxTicketsPerBuyer != null &&
-        selected.size + otherSectionsTotal + quantity > maxTicketsPerBuyer
+        selected.size + otherAreasTotal + quantity > maxTicketsPerBuyer
       ) {
         toast.error(`You can select up to ${maxTicketsPerBuyer} tickets for this event.`);
         return prev;
       }
 
       const next = new Map(prev);
-      next.set(catalogSectionId, quantity);
+      next.set(allocationId, quantity);
       return next;
     });
   };
@@ -254,24 +307,20 @@ export function SeatSelectionPage() {
       setOtpModalOpen(true);
       return;
     }
-    if (!eventId || (selected.size === 0 && gaQuantities.size === 0)) {
+    if (!event || !eventSessionId || (selected.size === 0 && gaQuantities.size === 0)) {
       return;
     }
 
     setSubmitting(true);
     try {
       const result = await placeHold({
-        eventId,
+        eventSessionId,
         seatIds: [...selected],
-        generalAdmissionSelections: [...gaQuantities]
-          .map(([catalogSectionId, quantity]) => ({
-            allocationId: gaAllocationIdsBySection.get(catalogSectionId),
-            quantity,
-          }))
-          .filter((selection): selection is { allocationId: string; quantity: number } =>
-            Boolean(selection.allocationId),
-          ),
-        queueAdmissionToken: getValidAdmissionToken(eventId) ?? undefined,
+        generalAdmissionSelections: [...gaQuantities].map(([allocationId, quantity]) => ({
+          allocationId,
+          quantity,
+        })),
+        queueAdmissionToken: getValidAdmissionToken(event.id) ?? undefined,
       });
       void navigate(`/checkout/${result.holdId}`);
     } catch (error) {
@@ -280,7 +329,9 @@ export function SeatSelectionPage() {
       // buyer back to rejoin the queue rather than just showing a dead-end error.
       if (body?.message?.includes('requires joining the queue')) {
         toast.error('Your place in the queue has expired — please rejoin.');
-        void navigate(`/events/${eventId}/queue`, { replace: true });
+        void navigate(`/events/${event.slug}/queue?eventSessionId=${eventSessionId}`, {
+          replace: true,
+        });
         return;
       }
       toast.error(
@@ -290,7 +341,7 @@ export function SeatSelectionPage() {
             ? 'One of your general-admission selections is no longer available — please try again.'
             : (body?.message ?? 'Those selections are no longer available — please pick again.'),
       );
-      await refreshStatuses(eventId);
+      await refreshInventory(eventSessionId);
       setSelected(new Set());
       setGaQuantities(new Map());
     } finally {
@@ -302,40 +353,55 @@ export function SeatSelectionPage() {
     return <DetailSkeleton />;
   }
 
+  if (!event || !session) {
+    return (
+      <Typography.Text type="secondary">
+        Couldn't find that performance. It may have been cancelled or rescheduled.
+      </Typography.Text>
+    );
+  }
+
   if (!seatMap) {
     return (
       <Typography.Text type="secondary">
-        Couldn't load the seat map for this event — it may not be defined yet, or something went
-        wrong. Please try again shortly.
+        Couldn't load the seat map for this performance — it may not be set up yet, or something
+        went wrong. Please try again shortly.
       </Typography.Text>
     );
   }
 
   // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
   // enforce the on-sale window here too. The server rejects the hold either way (OnSaleNotStarted).
-  if (onSaleAt != null && dayjs(onSaleAt).isAfter(dayjs())) {
+  if (event.onSaleAt != null && dayjs(event.onSaleAt).isAfter(dayjs())) {
     return (
       <Typography.Text type="secondary">
-        Tickets go on sale {dayjs(onSaleAt).format('MMMM D, YYYY · h:mm A')}.
+        Tickets go on sale {dayjs(event.onSaleAt).format('MMMM D, YYYY · h:mm A')}.
       </Typography.Text>
     );
   }
 
-  // A buyer can reach this route directly by URL, bypassing EventDetailPage's disabled button —
-  // enforce the manual sales pause here too. The server rejects the hold either way (SalesPaused).
-  if (salesPaused) {
+  // Both of these are per performance now: one night can be paused, or past its booking cutoff,
+  // while the rest of the run is still selling.
+  if (session.salesPaused) {
     return (
       <Typography.Text type="secondary">
-        Sales are currently paused for this event. Please check back later.
+        Sales are currently paused for this performance. Please check back later.
       </Typography.Text>
     );
   }
 
-  const selectedSeatsTotal = seatMap.seats
-    .filter((seat) => selected.has(seat.id))
-    .reduce((sum, seat) => sum + seat.priceAmount, 0);
-  const gaTotal = seatMap.generalAdmissionSections.reduce(
-    (sum, section) => sum + (gaQuantities.get(section.id) ?? 0) * section.priceAmount,
+  if (session.bookingEndsAt != null && dayjs(session.bookingEndsAt).isBefore(dayjs())) {
+    return (
+      <Typography.Text type="secondary">Booking has closed for this performance.</Typography.Text>
+    );
+  }
+
+  const selectedSeatsTotal = [...selected].reduce(
+    (sum, seatId) => sum + (seatInventory.get(seatId)?.priceMinor ?? 0),
+    0,
+  );
+  const gaTotal = gaBlocks.reduce(
+    (sum, { pool }) => sum + (gaQuantities.get(pool.allocationId) ?? 0) * pool.priceMinor,
     0,
   );
   const selectedTotal = selectedSeatsTotal + gaTotal;
@@ -345,8 +411,10 @@ export function SeatSelectionPage() {
   return (
     <div style={{ paddingBottom: 96 }}>
       <PageHeader
-        title={seatMap.name}
-        description="Pick your seats and/or general-admission quantity, then hold them to check out."
+        title={event.title}
+        description={`${sessionLabel(session)}${
+          venueLabel(session) ? ` · ${venueLabel(session)}` : ''
+        } — pick your seats and/or general-admission quantity, then hold them to check out.`}
         extra={
           <Space size={16}>
             {LEGEND.map((item) => (
@@ -371,7 +439,7 @@ export function SeatSelectionPage() {
         }
       />
 
-      {seatMap.seats.length > 0 &&
+      {seats.length > 0 &&
         (provisioning ? (
           <Alert
             type="info"
@@ -381,27 +449,32 @@ export function SeatSelectionPage() {
           />
         ) : (
           <SeatGrid
-            seats={seatMap.seats}
+            seats={seats}
             renderSeat={(seat) => {
-              const status = statuses.get(seat.id) ?? 'Sold';
+              const inventory = seatInventory.get(seat.seatId);
+              const status = inventory?.status ?? 'Sold';
               return (
                 <SeatChip
-                  key={seat.id}
-                  label={String(seat.number)}
-                  tooltip={`${seat.label} · ${seat.priceTier} · ${formatMoney(seat.priceAmount * 100, currency)}`}
-                  selected={selected.has(seat.id)}
+                  key={seat.seatId}
+                  label={seat.number}
+                  tooltip={
+                    inventory
+                      ? `${seat.label} · ${formatMoney(inventory.priceMinor, event.currency)}`
+                      : seat.label
+                  }
+                  selected={selected.has(seat.seatId)}
                   disabled={status !== 'Available'}
                   color={STATUS_COLOR[status]}
-                  onClick={() => toggleSeat(seat.id)}
+                  onClick={() => toggleSeat(seat.seatId)}
                 />
               );
             }}
           />
         ))}
 
-      {seatMap.generalAdmissionSections.map((section) => (
+      {gaBlocks.map(({ area, pool }) => (
         <Card
-          key={section.id}
+          key={area.id}
           style={{ marginBottom: 16 }}
           styles={{ body: { padding: '18px 20px' } }}
         >
@@ -414,17 +487,17 @@ export function SeatSelectionPage() {
             }}
           >
             <div>
-              <Typography.Text strong>{section.sectionName}</Typography.Text>
+              <Typography.Text strong>{area.name}</Typography.Text>
               <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
-                General admission · {section.priceTier} ·{' '}
-                {formatMoney(section.priceAmount * 100, currency)} per admission
+                General admission · {formatMoney(pool.priceMinor, event.currency)} per admission ·{' '}
+                {pool.remaining} left
               </Typography.Text>
             </div>
             <InputNumber
               min={0}
-              max={MAX_GENERAL_ADMISSION_QUANTITY}
-              value={gaQuantities.get(section.id) ?? 0}
-              onChange={(value) => setGaQuantity(section.id, value ?? 0)}
+              max={Math.min(MAX_GENERAL_ADMISSION_QUANTITY, pool.remaining)}
+              value={gaQuantities.get(pool.allocationId) ?? 0}
+              onChange={(value) => setGaQuantity(pool.allocationId, value ?? 0)}
               style={{ width: 88 }}
             />
           </div>
@@ -457,7 +530,7 @@ export function SeatSelectionPage() {
         >
           <div>
             <Typography.Text strong style={{ fontSize: 16 }}>
-              {formatMoney(selectedTotal * 100, currency)}
+              {formatMoney(selectedTotal, event.currency)}
             </Typography.Text>
             <Typography.Text type="secondary" style={{ display: 'block', fontSize: 13 }}>
               {selected.size} seat{selected.size === 1 ? '' : 's'}
@@ -492,4 +565,9 @@ export function SeatSelectionPage() {
       </Modal>
     </div>
   );
+}
+
+/** Whether the route param is an event id rather than a slug — see `EventDetailPage`. */
+function isGuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }

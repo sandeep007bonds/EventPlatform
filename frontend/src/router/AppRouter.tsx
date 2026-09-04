@@ -39,12 +39,17 @@ export function AppRouter() {
       <Route element={<BuyerLayout />}>
         {/* Public: no ProtectedRoute — anonymous browsing of published events (ADR-0015). */}
         <Route index element={<EventsListPage />} />
-        <Route path="/events/:id" element={<EventDetailPage />} />
+        {/* `:eventSlug` accepts a slug or a GUID — links issued before slugs existed still work. */}
+        <Route path="/events/:eventSlug" element={<EventDetailPage />} />
         {/* No ProtectedRoute — a buyer picks seats freely; the identity gate is the "Hold
-            selection" action itself (see SeatSelectionPage.tsx's handleHold, ADR-0016). */}
-        <Route path="/events/:id/seats" element={<SeatSelectionPage />} />
-        {/* Public, anonymous — the virtual waiting room for events with RequiresQueue set (ADR-0026). */}
-        <Route path="/events/:id/queue" element={<QueueWaitingRoomPage />} />
+            selection" action itself (see SeatSelectionPage.tsx's handleHold, ADR-0016).
+            The performance is in the path, not a query param: seats are inventory for one night
+            (ADR-0039), so a link to "these seats" is meaningless without saying which. */}
+        <Route path="/events/:eventSlug/s/:eventSessionId/seats" element={<SeatSelectionPage />} />
+        {/* Public, anonymous — the virtual waiting room for events with RequiresQueue set
+            (ADR-0026). Keyed on the event, not a performance: one waiting room gates the on-sale,
+            and an on-sale covers the whole run. */}
+        <Route path="/events/:eventSlug/queue" element={<QueueWaitingRoomPage />} />
         <Route
           path="/checkout/:holdId"
           element={
@@ -114,7 +119,7 @@ export function AppRouter() {
             </PageShell>
           }
         />
-        <Route path="events/:id" element={<AdminEventDetailPage />} />
+        <Route path="events/:eventId" element={<AdminEventDetailPage />} />
         <Route
           path="tours"
           element={
@@ -132,7 +137,7 @@ export function AppRouter() {
           }
         />
         <Route
-          path="tours/:id"
+          path="tours/:tourId"
           element={
             <PageShell>
               <TourDetailPage />

@@ -7,8 +7,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import {
   getEvent,
   listPublicPromoCodes,
+  listTicketTypes,
   type PublicPromoCodeResponse,
 } from '../../../services/catalog/catalogApi';
+import { findSession, sessionLabel, venueLabel } from '../../../utils/eventSessions';
 import { getHold, type HoldView } from '../../../services/inventory/inventoryApi';
 import {
   checkout,
@@ -71,6 +73,10 @@ export function CheckoutPage() {
 
   const [hold, setHold] = useState<HoldView | null>(null);
   const [currency, setCurrency] = useState('USD');
+  // What the buyer is actually buying a seat at, and what each line's ticket type is called. A
+  // hold names a performance and a ticket type by id; a person needs "Saturday matinee" and "Gold".
+  const [sessionSummary, setSessionSummary] = useState<string | null>(null);
+  const [ticketTypeNames, setTicketTypeNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [buyerEmail, setBuyerEmail] = useState(user?.email ?? '');
@@ -104,17 +110,27 @@ export function CheckoutPage() {
         // All three are independent and none is fatal on its own: without the event we keep the
         // default currency, without a quote we fall back to the hold's total, without public codes
         // the buyer can still type one in.
-        const [event, initialQuote, codes] = await Promise.all([
+        const [event, initialQuote, codes, ticketTypes] = await Promise.all([
           getEvent(result.catalogEventId).catch(() => null),
           quoteCheckout(holdId).catch(() => null),
           listPublicPromoCodes(result.catalogEventId).catch(() => []),
+          listTicketTypes(result.catalogEventId).catch(() => []),
         ]);
         if (cancelled) {
           return;
         }
         if (event) {
           setCurrency(event.currency);
+          const session = findSession(event, result.eventSessionId);
+          setSessionSummary(
+            session
+              ? `${event.title} · ${sessionLabel(session)}${
+                  venueLabel(session) ? ` · ${venueLabel(session)}` : ''
+                }`
+              : event.title,
+          );
         }
+        setTicketTypeNames(new Map(ticketTypes.map((type) => [type.id, type.name])));
         setQuote(initialQuote);
         setPublicCodes(codes);
       })
@@ -273,6 +289,17 @@ export function CheckoutPage() {
           style={{ marginBottom: 20 }}
         />
 
+        {/*
+          Which performance this is for, stated before the price. Once an event runs several
+          nights, "two Gold seats" is not enough to check an order against — the buyer has to be
+          able to see they are paying for Saturday and not Friday, before they pay.
+        */}
+        {sessionSummary && (
+          <Typography.Paragraph strong style={{ marginBottom: 16 }}>
+            {sessionSummary}
+          </Typography.Paragraph>
+        )}
+
         <div>
           {hold.lines.map((line, index) => (
             <div
@@ -285,7 +312,7 @@ export function CheckoutPage() {
               }}
             >
               <Typography.Text>
-                {line.priceTier}
+                {ticketTypeNames.get(line.ticketTypeId) ?? 'Ticket'}
                 {line.generalAdmissionAllocationId ? ` × ${line.quantity}` : ''}
               </Typography.Text>
               <Typography.Text>{formatMoney(line.priceMinor, currency)}</Typography.Text>

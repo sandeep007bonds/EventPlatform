@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Card, Col, Empty, Input, Pagination, Row, Select, Tag, Typography } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
-import { formatEventDateTime } from '../../../utils/eventTime';
+import { primarySession, runLabel, venueLabel } from '../../../utils/eventSessions';
 import { Link } from 'react-router-dom';
 import {
   listEvents,
@@ -161,11 +161,12 @@ export function EventsListPage() {
                     {event.title}
                   </Typography.Title>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-                    {formatEventDateTime(event.startsAt, event.timeZoneId)}
+                    {runLabel(event) ?? 'Dates to be announced'}
+                    {event.sessions.length > 1 && <> · {event.sessions.length} performances</>}
                   </Typography.Text>
                   <Typography.Text type="secondary" style={{ display: 'block', marginTop: 2 }}>
                     <EnvironmentOutlined style={{ marginRight: 6 }} />
-                    {event.city}
+                    {venueLabel(primarySession(event)) ?? 'Venue to be announced'}
                   </Typography.Text>
                 </Card>
               </Link>

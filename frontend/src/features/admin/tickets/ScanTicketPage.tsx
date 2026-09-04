@@ -5,10 +5,12 @@ import type { AxiosError } from 'axios';
 import dayjs from 'dayjs';
 import jsQR from 'jsqr';
 import {
-  listEntryGates,
+  getEvent,
   listEvents,
-  type EntryGateResponse,
+  type EventSessionResponse,
 } from '../../../services/catalog/catalogApi';
+import { getVenue, type VenueGateResponse } from '../../../services/venue/venueApi';
+import { inStartOrder, sessionLabel } from '../../../utils/eventSessions';
 import { scanTicket, type TicketResponse } from '../../../services/ticketing/ticketingApi';
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { toast } from '../../../components/common/feedback/toast';
@@ -31,9 +33,15 @@ const STATUS_COLOR: Record<TicketResponse['status'], string> = {
 };
 
 /**
- * Gate scan: pick which event and (optionally) which physical gate this device represents, then
- * either paste/wedge-scan a ticket's token, or point a camera at its QR code. "Any gate" is an
- * unscoped supervisor scanner that bypasses a section's gate restriction, if it has one.
+ * Gate scan: pick which event, which **performance**, and (optionally) which physical gate this
+ * device represents, then either paste/wedge-scan a ticket's token, or point a camera at its QR
+ * code. "Any gate" is an unscoped supervisor scanner that bypasses a section's gate restriction,
+ * if it has one.
+ *
+ * The performance is not optional and cannot be inferred (ADR-0039). A scan is validated against
+ * one night's check-in window, and a device left on yesterday's performance would turn tonight's
+ * ticket holders away at the door — so the selector defaults to the performance happening now or
+ * next, and says which one it picked.
  *
  * Camera decoding prefers the native Barcode Detection API where available (hardware-accelerated,
  * no extra JS work) and falls back to jsQR (pure JS) elsewhere. For sustained, high-volume gate
@@ -46,7 +54,19 @@ export function ScanTicketPage() {
   const [events, setEvents] = useState<EventOption[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventId, setEventId] = useState<string | undefined>();
-  const [gates, setGates] = useState<EntryGateResponse[]>([]);
+  // Tagged with the event they belong to, for the same reason as the gates below: switching event
+  // must not leave the previous one's performances selectable for even one render.
+  const [eventSessions, setEventSessions] = useState<{
+    eventId: string;
+    sessions: EventSessionResponse[];
+  } | null>(null);
+  const [eventSessionId, setEventSessionId] = useState<string | undefined>();
+  // Tagged with the venue they came from, so a stale list can never be offered against a
+  // performance at a different venue — and so the effect below never has to clear it synchronously.
+  const [venueGates, setVenueGates] = useState<{
+    venueId: string;
+    gates: VenueGateResponse[];
+  } | null>(null);
   const [gateId, setGateId] = useState<string>(ANY_GATE_OPTION);
   const [token, setToken] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -67,24 +87,72 @@ export function ScanTicketPage() {
       .finally(() => setEventsLoading(false));
   }, []);
 
+  // Picking an event loads its performances and defaults to the one a scanner at the door would
+  // actually be working: the first that has not finished yet, falling back to the most recent.
   useEffect(() => {
-    let cancelled = false;
-    const fetchGates = eventId ? listEntryGates(eventId) : Promise.resolve([]);
+    if (!eventId) {
+      return;
+    }
 
-    fetchGates
-      .then((fetched) => {
+    let cancelled = false;
+    getEvent(eventId)
+      .then((event) => {
         if (cancelled) {
           return;
         }
-        setGateId(ANY_GATE_OPTION);
-        setGates(fetched);
+        const published = inStartOrder(event.sessions).filter(
+          (session) => session.status === 'Published',
+        );
+        setEventSessions({ eventId, sessions: published });
+
+        const now = new Date().toISOString();
+        setEventSessionId(
+          (published.find((session) => session.endsAt >= now) ?? published[published.length - 1])
+            ?.id,
+        );
       })
-      .catch(() => toast.error('Could not load this event’s entry gates.'));
+      .catch(() => toast.error('Could not load this event’s performances.'));
 
     return () => {
       cancelled = true;
     };
   }, [eventId]);
+
+  const sessions =
+    eventSessions != null && eventSessions.eventId === eventId ? eventSessions.sessions : [];
+
+  // Derived, not stored: after switching event the previously chosen id is still in state for a
+  // render, and a scan must never be sent against a performance of a different event.
+  const activeSessionId = sessions.some((session) => session.id === eventSessionId)
+    ? eventSessionId
+    : undefined;
+
+  // Gates belong to the venue, not the event — and which venue depends on which performance, since
+  // two nights of one run can be configured differently.
+  const venueId = sessions.find((session) => session.id === activeSessionId)?.venueId ?? null;
+
+  useEffect(() => {
+    if (!venueId) {
+      return;
+    }
+
+    let cancelled = false;
+    getVenue(venueId)
+      .then((venue) => {
+        if (cancelled) {
+          return;
+        }
+        setGateId(ANY_GATE_OPTION);
+        setVenueGates({ venueId, gates: venue.gates.filter((gate) => gate.isActive) });
+      })
+      .catch(() => toast.error('Could not load this venue’s entry gates.'));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [venueId]);
+
+  const gates = venueGates?.venueId === venueId ? venueGates.gates : [];
 
   const stopCamera = () => {
     if (rafRef.current !== null) {
@@ -101,7 +169,7 @@ export function ScanTicketPage() {
 
   const handleScan = async (tokenOverride?: string) => {
     const scanToken = (tokenOverride ?? token).trim();
-    if (!eventId || !scanToken) {
+    if (!activeSessionId || !scanToken) {
       return;
     }
 
@@ -111,7 +179,7 @@ export function ScanTicketPage() {
     try {
       const ticket = await scanTicket(
         scanToken,
-        eventId,
+        activeSessionId,
         gateId === ANY_GATE_OPTION ? undefined : gateId,
       );
       setResult(ticket);
@@ -122,7 +190,10 @@ export function ScanTicketPage() {
       const message = axiosError.response?.data?.message;
 
       if (status === 404) {
-        setError(message ?? 'No ticket matches that token.');
+        // Deliberately one message for both cases the server folds together: an unknown token and
+        // a token for a different performance answer identically, so a ticket for another night
+        // cannot be confirmed as valid by probing this door.
+        setError(message ?? 'No ticket matches that token for this performance.');
       } else if (status === 409) {
         setError(message ?? 'This ticket has already been checked in (or voided).');
       } else {
@@ -213,7 +284,7 @@ export function ScanTicketPage() {
     <div style={{ maxWidth: 560, margin: '0 auto' }}>
       <PageHeader
         title="Scan tickets"
-        description="Pick the event and gate this device is scanning for, then paste or scan a ticket's token to check it in."
+        description="Pick the event, performance and gate this device is scanning for, then paste or scan a ticket's token to check it in."
       />
       <Card styles={{ body: { padding: 24 } }}>
         <Space direction="vertical" style={{ width: '100%', marginBottom: 20 }}>
@@ -226,9 +297,21 @@ export function ScanTicketPage() {
             style={{ width: '100%' }}
           />
           <Select
-            placeholder="Gate"
+            placeholder="Select performance"
             disabled={!eventId}
-            value={eventId ? gateId : undefined}
+            value={activeSessionId}
+            onChange={setEventSessionId}
+            options={sessions.map((session) => ({
+              value: session.id,
+              label: sessionLabel(session),
+            }))}
+            notFoundContent="No published performances"
+            style={{ width: '100%' }}
+          />
+          <Select
+            placeholder="Gate"
+            disabled={!activeSessionId}
+            value={activeSessionId ? gateId : undefined}
             onChange={setGateId}
             options={[
               { value: ANY_GATE_OPTION, label: 'Any gate (supervisor)' },
@@ -240,7 +323,7 @@ export function ScanTicketPage() {
 
         <Button
           icon={<CameraOutlined />}
-          disabled={!eventId}
+          disabled={!activeSessionId}
           onClick={() => void toggleCamera()}
           style={{ width: '100%', marginBottom: 12 }}
         >
@@ -267,7 +350,7 @@ export function ScanTicketPage() {
             prefix={<QrcodeOutlined />}
             placeholder="Ticket token"
             value={token}
-            disabled={!eventId}
+            disabled={!activeSessionId}
             onChange={(event) => setToken(event.target.value)}
             onPressEnter={() => void handleScan()}
             autoFocus
@@ -275,7 +358,7 @@ export function ScanTicketPage() {
           <Button
             type="primary"
             size="large"
-            disabled={!eventId}
+            disabled={!activeSessionId}
             loading={submitting}
             onClick={() => void handleScan()}
           >
@@ -308,9 +391,9 @@ export function ScanTicketPage() {
 
         {!error && !result && (
           <Typography.Text type="secondary">
-            {eventId
+            {activeSessionId
               ? 'Waiting for a ticket token — scan a QR code or paste it above.'
-              : 'Select an event to start scanning.'}
+              : 'Select an event and performance to start scanning.'}
           </Typography.Text>
         )}
       </Card>

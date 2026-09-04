@@ -33,7 +33,10 @@ export interface OrderResponse {
   /** The promo code that was actually applied, or `null`. */
   promoCode: string | null;
   currency: string;
+  /** The event — the whole run. Promo codes and the per-buyer cap live at this level. */
   catalogEventId: string;
+  /** The performance the buyer actually bought a seat at. */
+  eventSessionId: string;
   holdId: string;
   lines: OrderLineResponse[];
   /**
@@ -51,6 +54,8 @@ export interface OrderSummaryResponse {
   totalMinor: number;
   currency: string;
   catalogEventId: string;
+  /** Which night this order is for — mandatory context once an event has several performances. */
+  eventSessionId: string;
   createdAt: string;
 }
 

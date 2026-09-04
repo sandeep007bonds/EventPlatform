@@ -89,20 +89,30 @@ export function TourLegsList({
     );
   }
 
+  // A leg's dates now live on its performances, and the server keeps the run's span denormalised
+  // on the event — so a leg is "upcoming" until its *last* performance has finished, and sorts by
+  // its first. A leg with no performances yet has neither, and sorts last among the upcoming.
   const now = dayjs();
+  const runStart = (leg: EventResponse) =>
+    leg.firstSessionStartsAt == null
+      ? Number.MAX_SAFE_INTEGER
+      : dayjs(leg.firstSessionStartsAt).valueOf();
+  const hasFinished = (leg: EventResponse) =>
+    leg.lastSessionEndsAt != null && !dayjs(leg.lastSessionEndsAt).isAfter(now);
+
   const upcoming = legs
-    .filter((leg) => dayjs(leg.endsAt).isAfter(now))
-    .sort((a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf());
-  const past = legs
-    .filter((leg) => !dayjs(leg.endsAt).isAfter(now))
-    .sort((a, b) => dayjs(b.startsAt).valueOf() - dayjs(a.startsAt).valueOf());
+    .filter((leg) => !hasFinished(leg))
+    .sort((a, b) => runStart(a) - runStart(b));
+  const past = legs.filter(hasFinished).sort((a, b) => runStart(b) - runStart(a));
 
   const renderLeg = (leg: EventResponse) => (
     <Space key={leg.id} style={{ width: '100%', justifyContent: 'space-between' }}>
       <Link to={`/admin/events/${leg.id}`}>{leg.title}</Link>
       <Space size={8}>
         <Typography.Text type="secondary">
-          {dayjs(leg.startsAt).format('MMM D, YYYY')}
+          {leg.firstSessionStartsAt == null
+            ? 'No performances yet'
+            : dayjs(leg.firstSessionStartsAt).format('MMM D, YYYY')}
         </Typography.Text>
         <Tag color={eventStatusColor[leg.status]}>{leg.status}</Tag>
       </Space>

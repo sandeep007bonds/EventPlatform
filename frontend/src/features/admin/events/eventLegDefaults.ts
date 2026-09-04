@@ -28,7 +28,7 @@ export type LegStatus = 'pending' | 'created' | 'failed';
 /**
  * A blank leg, used as the form's initial single leg and seeded into each newly-added one — split
  * into its own file (not exported alongside a component) purely so react-refresh's "a file should
- * only export components" lint rule stays happy, matching `seatMapSectionDefaults.ts`'s precedent.
+ * only export components" lint rule stays happy.
  */
 export const DEFAULT_LEG: Partial<EventLegFormValues> = {
   currency: 'USD',

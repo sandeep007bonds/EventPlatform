@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Button, Card, Col, Descriptions, Row, Space, Tag, Typography, Divider } from 'antd';
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Col, Descriptions, Radio, Row, Space, Tag, Typography, Divider } from 'antd';
 import type { AxiosError } from 'axios';
 import {
   CalendarOutlined,
@@ -22,17 +22,26 @@ import {
   getEvent,
   getEventBySlug,
   getEventGroup,
-  getSeatMap,
   listEvents,
   type EventGroupResponse,
   type EventResponse,
-  type SeatMapResponse,
+  type EventSessionResponse,
 } from '../../../services/catalog/catalogApi';
+import { getSeatMap, type SeatMapResponse } from '../../../services/venue/venueApi';
 import { getInventoryCount } from '../../../services/inventory/inventoryApi';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
 import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPage';
 import { eventStatusColor } from '../../../utils/eventStatus';
+import {
+  inStartOrder,
+  isSellable,
+  primarySession,
+  runLabel,
+  sessionLabel,
+  upcomingSellableSessions,
+  venueLabel,
+} from '../../../utils/eventSessions';
 import { toEmbedUrl } from '../../../utils/videoEmbed';
 import { toast } from '../../../components/common/feedback/toast';
 import { EventPoliciesSection } from './EventPoliciesSection';
@@ -43,22 +52,34 @@ import { EventPoliciesSection } from './EventPoliciesSection';
  * The route param is either the event's GUID or its slug. Both resolve to the same page: links
  * issued before slugs existed keep working, and everything the platform hands out from now on is
  * the readable one.
+ *
+ * Since ADR-0039 an event is a **run of performances**, so this page has to answer "which night?"
+ * before it can show a time, a venue or a Select-seats button. It picks the next one on sale and
+ * lets the buyer change it; a single-performance event renders exactly as it did before, with no
+ * picker and no extra step.
  */
 export function EventDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { eventSlug } = useParams<{ eventSlug: string }>();
   const navigate = useNavigate();
 
   const [event, setEvent] = useState<EventResponse | null>(null);
-  const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  // Tagged with the performance it belongs to rather than cleared on switch: a bare `setSeatMap`
+  // in the effect body is both a cascading render and a window in which the previous night's
+  // capacity is shown under the new night's heading.
+  const [sessionDetail, setSessionDetail] = useState<{
+    eventSessionId: string;
+    seatMap: SeatMapResponse | null;
+    availableCount: number | null;
+  } | null>(null);
   const [eventGroup, setEventGroup] = useState<EventGroupResponse | null>(null);
   const [otherLegs, setOtherLegs] = useState<EventResponse[]>([]);
-  const [availableCount, setAvailableCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
-    if (!id) {
+    if (!eventSlug) {
       return;
     }
 
@@ -66,22 +87,20 @@ export function EventDetailPage() {
 
     // The event resolves first, then everything keyed on its id — a slug in the URL means the id is
     // not known until the first call returns, so these cannot all start together.
-    (isGuid(id) ? getEvent(id) : getEventBySlug(id))
-      .then(async (eventResult) => {
-        const [seatMapResult, inventoryResult] = await Promise.all([
-          getSeatMap(eventResult.id).catch(() => null),
-          getInventoryCount(eventResult.id).catch(() => null),
-        ]);
-
+    (isGuid(eventSlug) ? getEvent(eventSlug) : getEventBySlug(eventSlug))
+      .then((eventResult) => {
         if (cancelled) {
           return;
         }
-        setEvent(eventResult);
-        setSeatMap(seatMapResult);
-        setAvailableCount(inventoryResult?.seatCount ?? null);
 
-        // Sequenced after the event resolves, since it needs event.eventGroupId — kept out of
-        // the Promise.all above (seat map/inventory only need the route param, the tour doesn't).
+        setEvent(eventResult);
+
+        // The next performance still on sale, or — when none is — the one a summary would speak
+        // for, so a sold-out or finished run still shows its details rather than a blank page.
+        const sellable = upcomingSellableSessions(eventResult);
+        setSelectedSessionId((sellable[0] ?? primarySession(eventResult))?.id ?? null);
+
+        // Sequenced after the event resolves, since it needs event.eventGroupId.
         if (eventResult.eventGroupId) {
           const groupId = eventResult.eventGroupId;
 
@@ -126,31 +145,74 @@ export function EventDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [eventSlug]);
+
+  const session = useMemo<EventSessionResponse | null>(
+    () => event?.sessions.find((candidate) => candidate.id === selectedSessionId) ?? null,
+    [event, selectedSessionId],
+  );
+
+  // The seat map and the availability count both belong to the *selected* performance, so they are
+  // re-fetched whenever the buyer switches night rather than loaded once with the event.
+  useEffect(() => {
+    if (!session?.seatMapId) {
+      return;
+    }
+
+    let cancelled = false;
+    const { seatMapId, seatMapVersionNumber, id: eventSessionId } = session;
+
+    void Promise.all([
+      getSeatMap(seatMapId, seatMapVersionNumber ?? undefined).catch(() => null),
+      getInventoryCount(eventSessionId).catch(() => null),
+    ]).then(([seatMapResult, inventoryResult]) => {
+      if (cancelled) {
+        return;
+      }
+      setSessionDetail({
+        eventSessionId,
+        seatMap: seatMapResult,
+        availableCount: inventoryResult?.seatCount ?? null,
+      });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  // Only ever the selected performance's own detail; anything left over from the last one reads as
+  // "not loaded yet", which is the truth.
+  const detail = sessionDetail?.eventSessionId === session?.id ? sessionDetail : null;
+  const seatMap = detail?.seatMap ?? null;
+  const availableCount = detail?.availableCount ?? null;
 
   const handleSelectSeats = () => {
     // No login gate here — a buyer picks seats freely and only verifies via OTP when they
     // actually hold them (see SeatSelectionPage.tsx's handleHold, ADR-0016).
-    if (!event) {
+    if (!event || !session) {
       return;
     }
     if (!seatMap) {
-      toast.error('This event has no seat map yet.');
+      toast.error('This performance has no seat map yet.');
       return;
     }
     if (event.onSaleAt && dayjs(event.onSaleAt).isAfter(dayjs())) {
       toast.error('Tickets are not on sale yet for this event.');
       return;
     }
-    if (event.salesPaused) {
-      toast.error('Sales are currently paused for this event.');
+    if (session.salesPaused) {
+      toast.error('Sales are currently paused for this performance.');
       return;
     }
+
+    // The waiting room gates the on-sale, which covers the whole run — so it is keyed on the
+    // event, and the buyer picks their night on the way out of it, not on the way in.
     if (event.requiresQueue) {
-      void navigate(`/events/${event.id}/queue`);
+      void navigate(`/events/${event.slug}/queue?eventSessionId=${session.id}`);
       return;
     }
-    void navigate(`/events/${event.id}/seats`);
+    void navigate(`/events/${event.slug}/s/${session.id}/seats`);
   };
 
   if (loading) {
@@ -172,11 +234,14 @@ export function EventDetailPage() {
     event.contactEmail ??
     event.websiteUrl ??
     event.socialLinks.length > 0;
-  const bookingClosed = event.bookingEndsAt != null && dayjs(event.bookingEndsAt).isBefore(dayjs());
-  const notOnSaleYet = event.onSaleAt != null && dayjs(event.onSaleAt).isAfter(dayjs());
 
-  // Named only when the event has a zone; without one the times are already in the reader's own.
-  const zoneLabel = eventZoneAbbreviation(event.startsAt, event.timeZoneId);
+  // Every one of these is a property of the chosen performance, not of the run: booking closes at a
+  // different instant every night, and one night can be paused while the others sell.
+  const bookingClosed =
+    session?.bookingEndsAt != null && dayjs(session.bookingEndsAt).isBefore(dayjs());
+  const notOnSaleYet = event.onSaleAt != null && dayjs(event.onSaleAt).isAfter(dayjs());
+  const sellableSessions = upcomingSellableSessions(event);
+  const zoneLabel = session ? eventZoneAbbreviation(session.startsAt, session.timeZoneId) : null;
 
   return (
     <div>
@@ -220,6 +285,7 @@ export function EventDetailPage() {
       <Space size={8} wrap style={{ marginBottom: 24 }}>
         <Tag color={eventStatusColor[event.status]}>{event.status}</Tag>
         {event.category && <Tag>{event.category}</Tag>}
+        {event.sessions.length > 1 && <Tag>{event.sessions.length} performances</Tag>}
       </Space>
 
       <Row gutter={32}>
@@ -229,24 +295,24 @@ export function EventDetailPage() {
               <Space>
                 <CalendarOutlined style={{ color: '#3ea8c4' }} />
                 <Typography.Text>
-                  {formatEventDateTimeLong(event.startsAt, event.timeZoneId)}
-                  {event.doorsOpenAt &&
-                    ` · Doors ${formatEventTime(event.doorsOpenAt, event.timeZoneId)}`}
+                  {session
+                    ? formatEventDateTimeLong(session.startsAt, session.timeZoneId)
+                    : (runLabel(event) ?? 'Dates to be announced')}
+                  {session?.doorsOpenAt &&
+                    ` · Doors ${formatEventTime(session.doorsOpenAt, session.timeZoneId)}`}
                   {zoneLabel && ` (${zoneLabel})`}
                 </Typography.Text>
               </Space>
               <Space align="start">
                 <EnvironmentOutlined style={{ color: '#3ea8c4' }} />
-                <Typography.Text>
-                  {event.locationName} — {event.addressLine1}, {event.city}
-                </Typography.Text>
+                <Typography.Text>{venueLabel(session) ?? 'Venue to be announced'}</Typography.Text>
               </Space>
               {notOnSaleYet && event.onSaleAt && (
                 <Tag color="blue" style={{ width: 'fit-content' }}>
-                  On sale {formatEventDateTime(event.onSaleAt, event.timeZoneId)}
+                  On sale {formatEventDateTime(event.onSaleAt, session?.timeZoneId)}
                 </Tag>
               )}
-              {event.salesPaused && (
+              {session?.salesPaused && (
                 <Tag color="warning" style={{ width: 'fit-content' }}>
                   Sales paused
                 </Tag>
@@ -256,17 +322,18 @@ export function EventDetailPage() {
                   Booking closed
                 </Tag>
               )}
-              {!bookingClosed && event.bookingEndsAt && (
+              {!bookingClosed && session?.bookingEndsAt && (
                 <Space>
                   <ClockCircleOutlined style={{ color: '#faad14' }} />
                   <Typography.Text type="warning">
-                    Booking closes {formatEventDateTime(event.bookingEndsAt, event.timeZoneId)}
+                    Booking closes {formatEventDateTime(session.bookingEndsAt, session.timeZoneId)}
                   </Typography.Text>
                 </Space>
               )}
               {event.maxTicketsPerBuyer != null && (
                 <Typography.Text type="secondary">
                   Limit: {event.maxTicketsPerBuyer} per person
+                  {event.sessions.length > 1 && ', across every performance'}
                 </Typography.Text>
               )}
             </Space>
@@ -291,7 +358,7 @@ export function EventDetailPage() {
                   )}
                   {seatMap && (
                     <Descriptions.Item label="Venue capacity">
-                      {seatMap.capacity} total
+                      {seatMap.version.capacity} total
                     </Descriptions.Item>
                   )}
                   {availableCount !== null && (
@@ -384,14 +451,20 @@ export function EventDetailPage() {
               <>
                 <Divider />
                 <Typography.Title level={5} style={{ marginTop: 0 }}>
-                  Other dates on this tour
+                  Other cities on this tour
                 </Typography.Title>
                 <Space direction="vertical" size={4}>
-                  {otherLegs.map((leg) => (
-                    <Link key={leg.id} to={`/events/${leg.slug}`}>
-                      {formatEventDate(leg.startsAt, leg.timeZoneId)} — {leg.city}
-                    </Link>
-                  ))}
+                  {otherLegs.map((leg) => {
+                    const legSession = primarySession(leg);
+                    return (
+                      <Link key={leg.id} to={`/events/${leg.slug}`}>
+                        {leg.firstSessionStartsAt
+                          ? formatEventDate(leg.firstSessionStartsAt, legSession?.timeZoneId)
+                          : 'Dates TBA'}{' '}
+                        — {venueLabel(legSession) ?? leg.title}
+                      </Link>
+                    );
+                  })}
                 </Space>
               </>
             )}
@@ -405,15 +478,44 @@ export function EventDetailPage() {
             <Typography.Title level={5} style={{ marginTop: 0 }}>
               Get your tickets
             </Typography.Title>
-            <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
-              {formatEventDate(event.startsAt, event.timeZoneId)} · {event.currency}
-            </Typography.Text>
-            {seatMap ? (
+
+            {/*
+              Only shown when there is a choice to make. One performance is the common case and
+              should look like it always did — an extra radio group with a single option is a
+              question the buyer does not need to be asked.
+            */}
+            {sellableSessions.length > 1 ? (
+              <>
+                <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>
+                  Choose a performance
+                </Typography.Text>
+                <Radio.Group
+                  value={selectedSessionId}
+                  onChange={(changed) => setSelectedSessionId(changed.target.value as string)}
+                  style={{ display: 'block', marginBottom: 20 }}
+                >
+                  <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                    {sellableSessions.map((candidate) => (
+                      <Radio key={candidate.id} value={candidate.id}>
+                        {sessionLabel(candidate)}
+                      </Radio>
+                    ))}
+                  </Space>
+                </Radio.Group>
+              </>
+            ) : (
+              <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 20 }}>
+                {session ? sessionLabel(session) : (runLabel(event) ?? 'Dates to be announced')} ·{' '}
+                {event.currency}
+              </Typography.Text>
+            )}
+
+            {session && seatMap ? (
               <Button
                 type="primary"
                 size="large"
                 block
-                disabled={bookingClosed || notOnSaleYet}
+                disabled={bookingClosed || notOnSaleYet || !isSellable(session)}
                 onClick={handleSelectSeats}
               >
                 {bookingClosed
@@ -423,7 +525,11 @@ export function EventDetailPage() {
                     : 'Select seats'}
               </Button>
             ) : (
-              <Typography.Text type="secondary">Seats aren't on sale yet.</Typography.Text>
+              <Typography.Text type="secondary">
+                {inStartOrder(event.sessions).length === 0
+                  ? 'No performances have been scheduled yet.'
+                  : "Seats aren't on sale yet."}
+              </Typography.Text>
             )}
           </Card>
         </Col>

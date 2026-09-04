@@ -144,7 +144,7 @@ seat) still serves existing events until they move onto venue-owned maps.
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
-| MAP-001 | Graphical editor: create/edit elements | ✗ | The organizer types rows and seats-per-row into a form (`SeatMapSectionsFields.tsx`). No canvas. |
+| MAP-001 | Graphical editor: create/edit elements | ✗ | No editor at all in the SPA yet — the form-based one went with Catalog's seat map, and Venue's API (`PUT /draft/layout`) is only reachable by hand. `frontend/src/services/venue/venueApi.ts` is the client it will be built on. |
 | MAP-002 | Logical identity separate from coordinates | ✅ | `SeatMapElement.cs` holds every coordinate; `Seat`/`SeatRow`/`VenueSection` hold none. Moving a block cannot change what a ticket names. ADR-0038. |
 | MAP-003 | Zoom / pan | ✗ | — |
 | MAP-004 | Drag / drop placement | ✗ | — |
@@ -347,7 +347,7 @@ divergence; the capabilities below are still owed.**
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
-| GATE-001 | **Scan**: validates session, ticket status and gate rule; duplicate detected; configurable authorization; auditable | ◐ | The scan now validates against the **performance** — body `{ token, eventSessionId, gateId? }`, checked against that night's window — plus ticket status and gate eligibility, resolved from a locally warmed cache of the pinned Venue version (ADR-0025). A duplicate is detected. Still missing: the scan is not written to an audit store. |
+| GATE-001 | **Scan**: validates session, ticket status and gate rule; duplicate detected; configurable authorization; auditable | ◐ | The scan now validates against the **performance** — body `{ token, eventSessionId, gateId? }`, checked against that night's window — plus ticket status and gate eligibility, resolved from a locally warmed cache of the pinned Venue version (ADR-0025). A duplicate is detected, and `ScanTicketPage` makes the scanner pick event → performance → gate, defaulting to the performance happening now or next. Still missing: the scan is not written to an audit store. |
 | GATE-002 | Accept / reject with reason codes | ◐ | Accept/reject with a message; no stable `ReasonCode` vocabulary. |
 | GATE-003 | `Scan` record with operator, device, correlation | ✗ | Check-in is a status change on the ticket. No scan record — so "who scanned this, on which device" is unanswerable, and GATE reporting has no source. |
 | GATE-004 | `AccessRule` — data-driven per session/type/area/gate with time windows | ✗ | Gate eligibility is a fixed reference on the seat, not a rule with `AllowedFrom`/`AllowedTo` or a capacity limit. |

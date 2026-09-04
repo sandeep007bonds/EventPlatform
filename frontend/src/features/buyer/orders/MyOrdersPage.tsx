@@ -7,6 +7,7 @@ import { ListSkeleton } from '../../../components/common/skeletons/ListSkeleton'
 import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { LoadError } from '../../../components/common/errors/LoadError';
 import { formatMoney } from '../../../utils/money';
+import { usePerformanceLabels } from '../../../hooks/usePerformanceLabels';
 
 const PAGE_SIZE = 10;
 
@@ -26,6 +27,7 @@ export function MyOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const performances = usePerformanceLabels(orders);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,40 +82,50 @@ export function MyOrdersPage() {
       ) : (
         <>
           <Space direction="vertical" size={12} style={{ width: '100%' }}>
-            {orders.map((order) => (
-              <Link key={order.id} to={`/orders/${order.id}`}>
-                <Card
-                  hoverable
-                  styles={{ body: { padding: '16px 20px' } }}
-                  style={{ width: '100%' }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      flexWrap: 'wrap',
-                      gap: 12,
-                    }}
+            {orders.map((order) => {
+              const performance = performances.get(order.eventSessionId);
+              return (
+                <Link key={order.id} to={`/orders/${order.id}`}>
+                  <Card
+                    hoverable
+                    styles={{ body: { padding: '16px 20px' } }}
+                    style={{ width: '100%' }}
                   >
-                    <Space direction="vertical" size={2}>
-                      <Space>
-                        <Tag color={STATUS_COLOR[order.status]}>{order.status}</Tag>
-                        <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-                          #{order.id.slice(0, 8)}
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: 12,
+                      }}
+                    >
+                      <Space direction="vertical" size={2}>
+                        <Space>
+                          <Tag color={STATUS_COLOR[order.status]}>{order.status}</Tag>
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            #{order.id.slice(0, 8)}
+                          </Typography.Text>
+                        </Space>
+                        {/* What the order was actually for. A history of "Confirmed · ₹4,000" rows
+                          is unreadable once someone has been to the same run twice. */}
+                        {performance && (
+                          <Typography.Text strong>
+                            {performance.eventTitle} · {performance.performance}
+                          </Typography.Text>
+                        )}
+                        <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                          Ordered {dayjs(order.createdAt).format('MMM D, YYYY · h:mm A')}
                         </Typography.Text>
                       </Space>
-                      <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                        {dayjs(order.createdAt).format('MMM D, YYYY · h:mm A')}
+                      <Typography.Text strong style={{ fontSize: 16 }}>
+                        {formatMoney(order.totalMinor, order.currency)}
                       </Typography.Text>
-                    </Space>
-                    <Typography.Text strong style={{ fontSize: 16 }}>
-                      {formatMoney(order.totalMinor, order.currency)}
-                    </Typography.Text>
-                  </div>
-                </Card>
-              </Link>
-            ))}
+                    </div>
+                  </Card>
+                </Link>
+              );
+            })}
           </Space>
           <Pagination
             style={{ marginTop: 24, textAlign: 'center' }}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Card, Tag } from 'antd';
+import { Card, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import {
   listTenantOrders,
@@ -11,6 +11,7 @@ import { PageHeader } from '../../../components/common/layout/PageHeader';
 import { LoadError } from '../../../components/common/errors/LoadError';
 import { formatMoney } from '../../../utils/money';
 import { DataGrid } from '../../../components/common/grid/DataGrid';
+import { usePerformanceLabels } from '../../../hooks/usePerformanceLabels';
 
 const PAGE_SIZE = 20;
 const STATUS_OPTIONS: OrderStatus[] = [
@@ -37,6 +38,7 @@ export function AdminOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const performances = usePerformanceLabels(orders);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +120,31 @@ export function AdminOrdersPage() {
               render: (status: OrderSummaryResponse['status']) => (
                 <Tag color={STATUS_COLOR[status]}>{status}</Tag>
               ),
+            },
+            {
+              // Which night the order is for. Once an event runs several performances this stops
+              // being decoration: two orders for the same event, the same buyer and the same price
+              // are otherwise indistinguishable in a refund conversation.
+              title: 'Performance',
+              key: 'performance',
+              searchable: true,
+              exportValue: (order) => {
+                const label = performances.get(order.eventSessionId);
+                return label ? `${label.eventTitle} — ${label.performance}` : order.eventSessionId;
+              },
+              render: (_, order) => {
+                const label = performances.get(order.eventSessionId);
+                return label ? (
+                  <>
+                    <div>{label.eventTitle}</div>
+                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                      {label.performance}
+                    </Typography.Text>
+                  </>
+                ) : (
+                  <Typography.Text type="secondary">—</Typography.Text>
+                );
+              },
             },
             {
               title: 'Total',

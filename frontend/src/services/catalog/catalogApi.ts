@@ -18,16 +18,21 @@ export interface EventResponse {
   title: string;
   /** URL-safe public identifier — the `/events/{slug}` a buyer sees instead of a GUID. */
   slug: string;
-  startsAt: string;
   status: EventStatus;
   currency: string;
   eventGroupId: string | null;
   description: string | null;
   category: string | null;
-  endsAt: string;
-  doorsOpenAt: string | null;
+  /**
+   * The run's advertised range, denormalised from the performances — the earliest start and the
+   * latest end. Null when the event has no performances yet. Never edit these directly; they are
+   * maintained by the server whenever a performance is added, moved or removed.
+   */
+  firstSessionStartsAt: string | null;
+  lastSessionEndsAt: string | null;
+  /** When the whole run goes on sale. An event-level decision — a run is advertised once. */
   onSaleAt: string | null;
-  bookingEndsAt: string | null;
+  /** Counted across every performance of the run, not per night. */
   maxTicketsPerBuyer: number | null;
   requiresQueue: boolean;
   /** Sales-tax rate as a percentage (e.g. 18 for 18% GST); null when the event is untaxed. */
@@ -36,56 +41,79 @@ export interface EventResponse {
   taxLabel: string | null;
   /** Booking fee per ticket in minor units (e.g. 3000 for ₹30); 0 means no fee. */
   bookingFeePerTicketMinor: number;
-  /** The venue's IANA time zone (e.g. "Asia/Kolkata"), or null when not set. */
-  timeZoneId: string | null;
-  salesPaused: boolean;
+  /** True only when *every* performance is paused. One paused night does not set this. */
+  allSalesPaused: boolean;
   ageRestriction: string | null;
   bannerImageUrl: string | null;
   videoUrl: string | null;
-  locationName: string;
-  addressLine1: string;
-  addressLine2: string | null;
-  city: string;
-  region: string | null;
-  postalCode: string | null;
-  country: string;
-  latitude: number | null;
-  longitude: number | null;
   contactPhone: string | null;
   contactMobile: string | null;
   contactEmail: string | null;
   websiteUrl: string | null;
   socialLinks: SocialLinkResponse[];
+  /** The performances of this event — what actually gets sold (ADR-0039). */
+  sessions: EventSessionResponse[];
+}
+
+/** Lifecycle of one performance. Independent of the event's own status. */
+export type EventSessionStatus = 'Draft' | 'Published' | 'Cancelled' | 'Completed';
+
+/**
+ * Which Venue block is sold as which ticket type, for this performance. Keyed by the block's
+ * stable `code`, because a Venue seat carries no price and a rename must not break the mapping.
+ * Per performance on purpose: Friday's Lower Tier can be Gold while Saturday's is Premium.
+ */
+export interface SessionAllocationResponse {
+  code: string;
+  ticketTypeId: string;
 }
 
 /**
- * Fields settable via {@link updateEventDetails} — Draft-only (409 otherwise).
- *
- * Everything here changes what a ticket holder bought, which is why it locks at publish. Title,
- * description, imagery and contact details are not here; they go through
- * {@link updateEventPresentation}, which works at any status.
+ * One performance — a single night of an event. This is the grain everything downstream keys on:
+ * inventory is provisioned per performance, an order and a ticket name one, and a scan is
+ * validated against one.
  */
-export interface UpdateEventDetailsRequest {
+export interface EventSessionResponse {
+  id: string;
+  eventId: string;
+  /** An optional label like "Matinee". Null when the date alone identifies it. */
+  name: string | null;
   startsAt: string;
   endsAt: string;
-  doorsOpenAt?: string | null;
+  doorsOpenAt: string | null;
+  /** "Book until two hours before this show" — a different instant every night. */
+  bookingEndsAt: string | null;
+  status: EventSessionStatus;
+  /** Paused for this performance alone. Pulling one night does not pull the run. */
+  salesPaused: boolean;
+  venueId: string | null;
+  seatMapId: string | null;
+  /** The exact Venue version pinned at attach time; a later republish does not move it. */
+  seatMapVersionId: string | null;
+  seatMapVersionNumber: number | null;
+  /** A display cache of the venue, never the source of truth — that is the Venue service. */
+  venueName: string | null;
+  city: string | null;
+  country: string | null;
+  timeZoneId: string | null;
+  allocations: SessionAllocationResponse[];
+}
+
+/**
+ * Fields settable via {@link updateSellingRules} — Draft-only (409 otherwise).
+ *
+ * What is left here after ADR-0039 is the money and the rules that apply to the **whole run**.
+ * Dates and the venue moved to the performances that own them ({@link updateEventSession},
+ * {@link attachSessionSeatMap}); title, description, imagery and contact details go through
+ * {@link updateEventPresentation}, which works at any status.
+ */
+export interface UpdateSellingRulesRequest {
+  requiresQueue: boolean;
+  bookingFeePerTicketMinor: number;
   onSaleAt?: string | null;
-  bookingEndsAt?: string | null;
-  locationName: string;
-  addressLine1: string;
-  addressLine2?: string | null;
-  city: string;
-  region?: string | null;
-  postalCode?: string | null;
-  country: string;
-  latitude?: number | null;
-  longitude?: number | null;
   maxTicketsPerBuyer?: number | null;
-  requiresQueue?: boolean;
   taxRatePercent?: number | null;
   taxLabel?: string | null;
-  bookingFeePerTicketMinor?: number;
-  timeZoneId?: string | null;
 }
 
 /** Fields settable via {@link updateEventPresentation} — editable at any status. */
@@ -164,37 +192,6 @@ export interface ListEventsResponse {
   totalCount: number;
 }
 
-/** A single reserved seat in a seat map. */
-export interface SeatResponse {
-  id: string;
-  section: string;
-  priceTier: string;
-  priceAmount: number;
-  row: string;
-  number: number;
-  label: string;
-  entryGateId: string | null;
-}
-
-/** A general-admission (capacity-only, no individual seats) section of a seat map. */
-export interface GeneralAdmissionSectionResponse {
-  id: string;
-  sectionName: string;
-  priceTier: string;
-  priceAmount: number;
-  capacity: number;
-  entryGateId: string | null;
-}
-
-/** Read model for an event's seat map — reserved seats and/or general-admission sections. */
-export interface SeatMapResponse {
-  eventId: string;
-  name: string;
-  capacity: number;
-  seats: SeatResponse[];
-  generalAdmissionSections: GeneralAdmissionSectionResponse[];
-}
-
 /**
  * Lists events. Public browsing (default) or `mine: true` for the caller's own tenant dashboard.
  * `eventGroupId` filters to the legs of a given tour, in either mode.
@@ -216,36 +213,29 @@ export async function getEvent(id: string): Promise<EventResponse> {
   return response.data;
 }
 
-/** Fetches an event's seat map. 404s if it doesn't exist or isn't visible to the caller. */
-export async function getSeatMap(eventId: string): Promise<SeatMapResponse> {
-  const response = await httpClient.get<SeatMapResponse>(
-    `/api/catalog/v1/events/${eventId}/seatmap`,
-  );
-  return response.data;
-}
-
-/** Fields for creating a new draft event. `endsAt` is required alongside `startsAt`. */
+/**
+ * Fields for creating a new draft event, together with its **first performance**. An event with no
+ * performance has nothing to sell, so the two are created together rather than leaving a window
+ * where the event exists and is unsellable.
+ *
+ * There is no venue here: a performance names a Venue seat-map version, attached afterwards via
+ * {@link attachSessionSeatMap} (ADR-0038/0039).
+ */
 export interface CreateEventRequest {
   title: string;
+  currency: string;
+  /** The first performance's times. */
   startsAt: string;
   endsAt: string;
-  currency: string;
-  locationName: string;
-  addressLine1: string;
-  addressLine2?: string | null;
-  city: string;
-  region?: string | null;
-  postalCode?: string | null;
-  country: string;
-  latitude?: number | null;
-  longitude?: number | null;
+  doorsOpenAt?: string | null;
+  bookingEndsAt?: string | null;
   eventGroupId?: string | null;
   maxTicketsPerBuyer?: number | null;
   requiresQueue?: boolean;
+  onSaleAt?: string | null;
   taxRatePercent?: number | null;
   taxLabel?: string | null;
   bookingFeePerTicketMinor?: number;
-  timeZoneId?: string | null;
   /** Optional vanity URL slug; derived from the title when omitted. */
   slug?: string | null;
 }
@@ -256,95 +246,30 @@ export async function createEvent(request: CreateEventRequest): Promise<{ id: st
   return response.data;
 }
 
-/** Per-section allocation choice: individually-seated rows, or a capacity-only pool. */
-export type AllocationType = 'Reserved' | 'GeneralAdmission';
-
-/**
- * A seat-map section to create — `Reserved` generates rows × seatsPerRow seats;
- * `GeneralAdmission` is a capacity-only pool with no individual seats.
- */
-export interface SeatMapSectionInput {
-  name: string;
-  priceTier: string;
-  priceAmount: number;
-  allocationType: AllocationType;
-  rows?: number;
-  seatsPerRow?: number;
-  capacity?: number;
-  entryGateId?: string | null;
-}
-
-/** A named physical entry point at an event's location. */
-export interface EntryGateResponse {
-  id: string;
-  eventId: string;
-  name: string;
-}
-
-/** Defines the seat map for a draft event (one time only). */
-export async function defineSeatMap(
-  eventId: string,
-  request: { name: string; sections: SeatMapSectionInput[] },
-): Promise<{ seatMapId: string }> {
-  const response = await httpClient.post<{ seatMapId: string }>(
-    `/api/catalog/v1/events/${eventId}/seatmap`,
-    request,
-  );
-  return response.data;
-}
-
-/** Adds more sections to a draft event's existing seat map (Draft-only). */
-export async function addSeatMapSections(
-  eventId: string,
-  request: { sections: SeatMapSectionInput[] },
-): Promise<{ seatMapId: string }> {
-  const response = await httpClient.post<{ seatMapId: string }>(
-    `/api/catalog/v1/events/${eventId}/seatmap/sections`,
-    request,
-  );
-  return response.data;
-}
-
-/** Replaces one existing section of a draft event's seat map (Draft-only) — a full remove+re-add. */
-export async function updateSeatMapSection(
-  eventId: string,
-  request: { currentSectionName: string; section: SeatMapSectionInput },
-): Promise<{ seatMapId: string }> {
-  const response = await httpClient.put<{ seatMapId: string }>(
-    `/api/catalog/v1/events/${eventId}/seatmap/sections`,
-    request,
-  );
-  return response.data;
-}
-
-/** Removes one section from a draft event's existing seat map entirely (Draft-only). */
-export async function removeSeatMapSection(eventId: string, sectionName: string): Promise<void> {
-  await httpClient.delete(
-    `/api/catalog/v1/events/${eventId}/seatmap/sections/${encodeURIComponent(sectionName)}`,
-  );
-}
-
 /** Publishes a draft event, making it sellable. */
 export async function publishEvent(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/publish`);
 }
 
-/** Pauses sales for a published event, without affecting already-placed holds/tickets. */
+/**
+ * Pauses sales across **every** performance of a published event, without affecting already-placed
+ * holds or tickets. To pull a single night, use {@link pauseSessionSales}.
+ */
 export async function pauseSales(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/pause-sales`);
 }
 
-/** Resumes sales for a published event previously paused via {@link pauseSales}. */
+/** Resumes sales across every performance, undoing {@link pauseSales}. */
 export async function resumeSales(eventId: string): Promise<void> {
   await httpClient.post(`/api/catalog/v1/events/${eventId}/resume-sales`);
 }
 
-/** Sets a draft event's dates, venue and pricing rules (Draft-only; 409 otherwise). */
-export async function updateEventDetails(
+/** Sets the run's selling rules — money, on-sale, buyer cap (Draft-only; 409 otherwise). */
+export async function updateSellingRules(
   eventId: string,
-  request: UpdateEventDetailsRequest,
+  request: UpdateSellingRulesRequest,
 ): Promise<void> {
-  await httpClient.put(`/api/catalog/v1/events/${eventId}/details`, request);
+  await httpClient.put(`/api/catalog/v1/events/${eventId}/selling-rules`, request);
 }
 
 /** Sets how an event is presented. Accepted at any status, including after publish. */
@@ -366,6 +291,145 @@ export async function changeEventSlug(eventId: string, slug: string): Promise<vo
 /** Fetches an event by its public slug. Same read model and visibility rule as {@link getEvent}. */
 export async function getEventBySlug(slug: string): Promise<EventResponse> {
   const response = await httpClient.get<EventResponse>(`/api/catalog/v1/events/by-slug/${slug}`);
+  return response.data;
+}
+
+/** The times and label of one performance — everything about it that is not the venue or the map. */
+export interface EventSessionRequest {
+  startsAt: string;
+  endsAt: string;
+  name?: string | null;
+  doorsOpenAt?: string | null;
+  bookingEndsAt?: string | null;
+}
+
+/**
+ * Lists an event's performances. Anonymous, like the event itself — a buyer choosing which night to
+ * attend needs the list before they have done anything.
+ */
+export async function listEventSessions(eventId: string): Promise<EventSessionResponse[]> {
+  const response = await httpClient.get<EventSessionResponse[]>(
+    `/api/catalog/v1/events/${eventId}/sessions`,
+  );
+  return response.data;
+}
+
+/** Adds a performance to an event. Draft-only for the event's own performances. */
+export async function addEventSession(
+  eventId: string,
+  request: EventSessionRequest,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.post<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions`,
+    request,
+  );
+  return response.data;
+}
+
+/** Reschedules or renames a performance. */
+export async function updateEventSession(
+  eventId: string,
+  eventSessionId: string,
+  request: EventSessionRequest,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.put<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}`,
+    request,
+  );
+  return response.data;
+}
+
+/** Removes a performance. Refused (409) once it has been published — it may have sold tickets. */
+export async function removeEventSession(eventId: string, eventSessionId: string): Promise<void> {
+  await httpClient.delete(`/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}`);
+}
+
+/**
+ * Points a performance at a Venue seat map, pinning a version. Omit `versionNumber` to pin whatever
+ * is published now — which is what you almost always want; naming one explicitly is for
+ * deliberately selling against an older layout.
+ *
+ * Changing the pinned version clears the allocations, because the block codes may not survive.
+ */
+export async function attachSessionSeatMap(
+  eventId: string,
+  eventSessionId: string,
+  request: { seatMapId: string; versionNumber?: number | null },
+): Promise<EventSessionResponse> {
+  const response = await httpClient.put<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/seat-map`,
+    request,
+  );
+  return response.data;
+}
+
+/**
+ * Sets which ticket type each block of the pinned seat map sells as. Replaces the whole map — one
+ * row per Venue section or admission area code, about twenty for a stadium, not one per seat.
+ *
+ * A block left out is not spare capacity: publish refuses it, because Inventory would never hear
+ * about those seats and the map would render with a hole nobody can tell from a sold-out block.
+ */
+export async function setSessionAllocations(
+  eventId: string,
+  eventSessionId: string,
+  allocations: SessionAllocationResponse[],
+): Promise<EventSessionResponse> {
+  const response = await httpClient.put<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/allocations`,
+    { allocations },
+  );
+  return response.data;
+}
+
+/**
+ * Publishes one performance on its own — the late-show path, for a night added to an event that is
+ * already selling. Publishing the event publishes all of them at once.
+ */
+export async function publishEventSession(
+  eventId: string,
+  eventSessionId: string,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.post<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/publish`,
+    {},
+  );
+  return response.data;
+}
+
+/** Cancels one performance without touching the rest of the run. */
+export async function cancelEventSession(
+  eventId: string,
+  eventSessionId: string,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.post<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/cancel`,
+    {},
+  );
+  return response.data;
+}
+
+/** Pauses sales for one performance. Already-placed holds and issued tickets are untouched. */
+export async function pauseSessionSales(
+  eventId: string,
+  eventSessionId: string,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.post<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/pause-sales`,
+    {},
+  );
+  return response.data;
+}
+
+/** Resumes sales for one paused performance. */
+export async function resumeSessionSales(
+  eventId: string,
+  eventSessionId: string,
+): Promise<EventSessionResponse> {
+  const response = await httpClient.post<EventSessionResponse>(
+    `/api/catalog/v1/events/${eventId}/sessions/${eventSessionId}/resume-sales`,
+    {},
+  );
   return response.data;
 }
 
@@ -441,23 +505,6 @@ export async function updateEventGroup(
   await httpClient.put(`/api/catalog/v1/event-groups/${id}`, request);
 }
 
-/** Lists every entry gate defined for an event. Public — no login required. */
-export async function listEntryGates(eventId: string): Promise<EntryGateResponse[]> {
-  const response = await httpClient.get<EntryGateResponse[]>(
-    `/api/catalog/v1/events/${eventId}/entry-gates`,
-  );
-  return response.data;
-}
-
-/** Defines a new entry gate for an event. */
-export async function createEntryGate(eventId: string, name: string): Promise<{ id: string }> {
-  const response = await httpClient.post<{ id: string }>(
-    `/api/catalog/v1/events/${eventId}/entry-gates`,
-    { name },
-  );
-  return response.data;
-}
-
 /** How a promo code's value is interpreted. */
 export type DiscountType = 'Percentage' | 'FixedAmount';
 
@@ -477,8 +524,8 @@ export interface PromoCodeResponse {
   maxRedemptionsPerBuyer: number | null;
   isActive: boolean;
   createdAt: string;
-  /** Tiers the code is restricted to. Empty means every tier. */
-  priceTiers: string[];
+  /** Ticket types the code is restricted to. Empty means every type in the order. */
+  ticketTypeIds: string[];
 }
 
 /**
@@ -490,7 +537,8 @@ export interface PublicPromoCodeResponse {
   description: string | null;
   discountType: DiscountType;
   discountValue: number;
-  priceTiers: string[];
+  /** Ticket types the code is restricted to. Empty means every type in the order. */
+  ticketTypeIds: string[];
 }
 
 /** Body for creating a promo code. */
@@ -504,8 +552,8 @@ export interface CreatePromoCodeRequest {
   isPublic?: boolean;
   maxRedemptions?: number | null;
   maxRedemptionsPerBuyer?: number | null;
-  /** Omit or send [] to apply the code to every tier. */
-  priceTiers?: string[];
+  /** Omit or send [] to apply the code to every ticket type. */
+  ticketTypeIds?: string[];
 }
 
 /** Lists every promo code for an event, active or not. Organizer-only. */

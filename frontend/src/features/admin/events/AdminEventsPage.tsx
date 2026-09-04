@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Button, Card, Input, Select, Tag, Typography } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { formatEventDateTime } from '../../../utils/eventTime';
+import { primarySession, runLabel, venueLabel } from '../../../utils/eventSessions';
 import { DataGrid } from '../../../components/common/grid/DataGrid';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -194,19 +194,28 @@ export function AdminEventsPage() {
                 ),
             },
             {
-              title: 'City',
-              dataIndex: 'city',
+              title: 'Venue',
+              key: 'venue',
+              exportValue: (row) => venueLabel(primarySession(row)) ?? '',
+              render: (_: unknown, row: EventResponse) => venueLabel(primarySession(row)) ?? '—',
+            },
+            {
+              title: 'Performances',
+              key: 'sessions',
+              exportValue: (row) => String(row.sessions.length),
+              render: (_: unknown, row: EventResponse) => row.sessions.length,
             },
             {
               title: 'Starts',
-              dataIndex: 'startsAt',
-              sorter: (a, b) => dayjs(a.startsAt).valueOf() - dayjs(b.startsAt).valueOf(),
+              dataIndex: 'firstSessionStartsAt',
+              sorter: (a, b) =>
+                dayjs(a.firstSessionStartsAt ?? 0).valueOf() -
+                dayjs(b.firstSessionStartsAt ?? 0).valueOf(),
               defaultSortOrder: 'ascend',
               // Exported as the ISO instant, not the rendered local string: a spreadsheet can
               // sort and filter on that, and it stays unambiguous once the file leaves here.
-              exportValue: (row) => row.startsAt,
-              render: (_: string, row: EventResponse) =>
-                formatEventDateTime(row.startsAt, row.timeZoneId),
+              exportValue: (row) => row.firstSessionStartsAt ?? '',
+              render: (_: string, row: EventResponse) => runLabel(row) ?? 'No performances yet',
             },
           ]}
         />

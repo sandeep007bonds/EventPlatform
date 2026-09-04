@@ -30,8 +30,12 @@ interface PromoCodesPanelProps {
   eventId: string;
   /** The event's currency, for rendering fixed-amount discounts. */
   currency: string;
-  /** Every price tier in the event's seat map, for the applicability picker. */
-  priceTiers: string[];
+  /**
+   * The event's ticket types, for the applicability picker. A code is scoped by ticket type now,
+   * not by a free-text tier name — the name was a string doing identity's work, matching only by
+   * case-insensitive luck and breaking silently the moment a type was renamed.
+   */
+  ticketTypes: { id: string; name: string }[];
 }
 
 interface PromoCodeFormValues {
@@ -43,7 +47,7 @@ interface PromoCodeFormValues {
   isPublic: boolean;
   maxRedemptions?: number | null;
   maxRedemptionsPerBuyer?: number | null;
-  priceTiers?: string[];
+  ticketTypeIds?: string[];
 }
 
 /**
@@ -53,8 +57,11 @@ interface PromoCodeFormValues {
  * There is no edit, by design (see Catalog's `PromoCode`): a code that has already been advertised
  * should not silently change what it's worth. Deactivate it and create another.
  */
-export function PromoCodesPanel({ eventId, currency, priceTiers }: PromoCodesPanelProps) {
+export function PromoCodesPanel({ eventId, currency, ticketTypes }: PromoCodesPanelProps) {
   const [form] = Form.useForm<PromoCodeFormValues>();
+  // A code stores ids; the table has to show names. A type deactivated after the code was created
+  // is still referenced by it, so a missing name is a real state, not a bug.
+  const ticketTypeNames = new Map(ticketTypes.map((type) => [type.id, type.name]));
   const [codes, setCodes] = useState<PromoCodeResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -98,7 +105,7 @@ export function PromoCodesPanel({ eventId, currency, priceTiers }: PromoCodesPan
         isPublic: values.isPublic,
         maxRedemptions: values.maxRedemptions ?? null,
         maxRedemptionsPerBuyer: values.maxRedemptionsPerBuyer ?? null,
-        priceTiers: values.priceTiers ?? [],
+        ticketTypeIds: values.ticketTypeIds ?? [],
       });
       form.resetFields();
       await load();
@@ -159,10 +166,12 @@ export function PromoCodesPanel({ eventId, currency, priceTiers }: PromoCodesPan
             {
               title: 'Applies to',
               render: (_, record) =>
-                record.priceTiers.length === 0 ? (
-                  <Typography.Text type="secondary">All tiers</Typography.Text>
+                record.ticketTypeIds.length === 0 ? (
+                  <Typography.Text type="secondary">All ticket types</Typography.Text>
                 ) : (
-                  record.priceTiers.map((tier) => <Tag key={tier}>{tier}</Tag>)
+                  record.ticketTypeIds.map((typeId) => (
+                    <Tag key={typeId}>{ticketTypeNames.get(typeId) ?? 'Removed type'}</Tag>
+                  ))
                 ),
             },
             {
@@ -271,16 +280,16 @@ export function PromoCodesPanel({ eventId, currency, priceTiers }: PromoCodesPan
 
         <Space align="start" wrap size="large">
           <Form.Item
-            name="priceTiers"
-            label="Applies to tiers"
-            tooltip="Leave empty to discount every tier."
+            name="ticketTypeIds"
+            label="Applies to ticket types"
+            tooltip="Leave empty to discount every ticket type in the order."
           >
             <Select
               mode="multiple"
               allowClear
-              placeholder="All tiers"
+              placeholder="All ticket types"
               style={{ minWidth: 240 }}
-              options={priceTiers.map((tier) => ({ value: tier, label: tier }))}
+              options={ticketTypes.map((type) => ({ value: type.id, label: type.name }))}
             />
           </Form.Item>
 

@@ -1,25 +1,30 @@
-import { useEffect, useState } from 'react';
-import { Alert, Button, Card, Col, Input, Row, Space, Statistic, Typography } from 'antd';
-import { getSeatMap, type SeatMapResponse } from '../../../services/catalog/catalogApi';
+import { useEffect, useMemo, useState } from 'react';
+import { Alert, Button, Card, Col, Input, Row, Select, Space, Statistic, Typography } from 'antd';
+import type { EventResponse } from '../../../services/catalog/catalogApi';
+import { getSeatMap, type SeatMapResponse } from '../../../services/venue/venueApi';
 import {
   blockSeats,
   getGeneralAdmissionAllocations,
   getInventorySeats,
   unblockSeats,
   type GeneralAdmissionAllocationResponse,
-  type SeatInventoryStatus,
+  type InventorySeatResponse,
 } from '../../../services/inventory/inventoryApi';
-import { getEventTickets, type TicketResponse } from '../../../services/ticketing/ticketingApi';
+import { getSessionTickets, type TicketResponse } from '../../../services/ticketing/ticketingApi';
 import { toast } from '../../../components/common/feedback/toast';
 import { LoadError } from '../../../components/common/errors/LoadError';
 import { SeatGrid } from '../../../components/common/seatmap/SeatGrid';
 import { SeatChip } from '../../../components/common/seatmap/SeatChip';
+import { admissionAreasOf, flattenSeatMap } from '../../../utils/seatMap';
+import { inStartOrder, sessionLabel } from '../../../utils/eventSessions';
 
-// Inventory is provisioned asynchronously (pub/sub off Catalog's EventPublished, via the outbox
-// relay), so the per-seat status endpoint can briefly return an empty list right after a publish
-// — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
+// Inventory is provisioned asynchronously (pub/sub off Catalog's EventSessionPublished, via the
+// outbox relay), so the per-seat status endpoint can briefly return an empty list right after a
+// publish — poll rather than trust a single fetch, mirroring OrderPage.tsx's ticket-polling pattern.
 const INVENTORY_POLL_INTERVAL_MS = 1500;
 const INVENTORY_POLL_MAX_ATTEMPTS = 6;
+
+type SeatInventoryStatus = InventorySeatResponse['status'];
 
 const STATUS_COLOR: Record<SeatInventoryStatus, string> = {
   Available: '#eef1f3',
@@ -37,8 +42,112 @@ const LEGEND: { label: string; color: string }[] = [
   { label: 'Checked in', color: CHECKED_IN_COLOR },
 ];
 
-/** Organizer seat block/unblock — reuses the same per-seat-status endpoint the buyer picker uses. */
-export function SeatBlockPanel({ eventId }: { eventId: string }) {
+/**
+ * Organizer seat block/unblock, for **one performance at a time** — the same per-seat status
+ * endpoint the buyer picker uses, so what an organizer sees is what a buyer sees.
+ *
+ * The performance selector is not a convenience. Availability is per night (ADR-0039): the same
+ * seat can be sold on Friday and blocked on Saturday, so a panel that did not say which night it
+ * was showing would be lying about half of them.
+ */
+export function SeatBlockPanel({ event }: { event: EventResponse }) {
+  const sessions = useMemo(
+    () => inStartOrder(event.sessions).filter((session) => session.status === 'Published'),
+    [event],
+  );
+
+  const [eventSessionId, setEventSessionId] = useState<string | null>(sessions[0]?.id ?? null);
+  const session = sessions.find((candidate) => candidate.id === eventSessionId) ?? null;
+
+  if (sessions.length === 0) {
+    return (
+      <Typography.Text type="secondary" style={{ display: 'block', marginTop: 24 }}>
+        No published performances yet — seat inventory appears once one is published.
+      </Typography.Text>
+    );
+  }
+
+  return (
+    <>
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          flexWrap: 'wrap',
+          gap: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div>
+          <Typography.Title level={4} style={{ margin: 0 }}>
+            Seat inventory
+          </Typography.Title>
+          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
+            Block seats to hold them back from sale (e.g. a kill or a restricted view). Availability
+            is per performance — blocking a seat here leaves it on sale on every other night.
+          </Typography.Text>
+        </div>
+        <Space size={16} wrap>
+          <Select
+            value={eventSessionId}
+            onChange={setEventSessionId}
+            style={{ minWidth: 260 }}
+            options={sessions.map((candidate) => ({
+              value: candidate.id,
+              label: sessionLabel(candidate),
+            }))}
+          />
+          {LEGEND.map((item) => (
+            <Space key={item.label} size={6}>
+              <span
+                aria-hidden
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 4,
+                  background: item.color,
+                  display: 'inline-block',
+                  border: '1px solid rgba(0,0,0,0.08)',
+                }}
+              />
+              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+                {item.label}
+              </Typography.Text>
+            </Space>
+          ))}
+        </Space>
+      </div>
+
+      {session?.seatMapId == null ? (
+        <Typography.Text type="secondary">
+          This performance has no seat map attached.
+        </Typography.Text>
+      ) : (
+        // Keyed, so switching performance remounts with fresh state. That is what makes the
+        // selection, the statuses and the loading flag reset — no effect has to clear them, which
+        // is both simpler and the only way to avoid a synchronous setState in an effect body.
+        <SessionSeatInventory
+          key={session.id}
+          eventSessionId={session.id}
+          seatMapId={session.seatMapId}
+          seatMapVersionNumber={session.seatMapVersionNumber}
+        />
+      )}
+    </>
+  );
+}
+
+/** The seat grid, GA counters and block/unblock controls for exactly one performance. */
+function SessionSeatInventory({
+  eventSessionId,
+  seatMapId,
+  seatMapVersionNumber,
+}: {
+  eventSessionId: string;
+  seatMapId: string;
+  seatMapVersionNumber: number | null;
+}) {
   const [seatMap, setSeatMap] = useState<SeatMapResponse | null>(null);
   const [statuses, setStatuses] = useState<Map<string, SeatInventoryStatus>>(new Map());
   const [checkedInSeatIds, setCheckedInSeatIds] = useState<Set<string>>(new Set());
@@ -58,13 +167,13 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
     let attempts = 0;
 
     const pollStatuses = (map: SeatMapResponse) => {
-      getInventorySeats(eventId)
+      getInventorySeats(eventSessionId)
         .then((seats) => {
           if (cancelled) {
             return;
           }
-          if (seats.length > 0 || map.seats.length === 0) {
-            setStatuses(new Map(seats.map((s) => [s.seatId, s.status])));
+          if (seats.length > 0 || flattenSeatMap(map.version).length === 0) {
+            setStatuses(new Map(seats.map((seat) => [seat.seatId, seat.status])));
             setProvisioning(false);
             setStatusLoadError(false);
             return;
@@ -89,7 +198,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         });
     };
 
-    getSeatMap(eventId)
+    getSeatMap(seatMapId, seatMapVersionNumber ?? undefined)
       .then((map) => {
         if (cancelled) {
           return;
@@ -106,7 +215,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         }
       });
 
-    getEventTickets(eventId)
+    getSessionTickets(eventSessionId)
       .then((tickets: TicketResponse[]) => {
         if (cancelled) {
           return;
@@ -132,7 +241,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         // Non-critical — the seat grid still works with plain Inventory statuses if this fails.
       });
 
-    getGeneralAdmissionAllocations(eventId)
+    getGeneralAdmissionAllocations(eventSessionId)
       .then((allocations) => {
         if (!cancelled) {
           setGaAllocations(allocations);
@@ -145,7 +254,20 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [eventId, reloadToken]);
+  }, [eventSessionId, seatMapId, seatMapVersionNumber, reloadToken]);
+
+  const seats = useMemo(() => (seatMap ? flattenSeatMap(seatMap.version) : []), [seatMap]);
+
+  const gaBlocks = useMemo(() => {
+    if (!seatMap) {
+      return [];
+    }
+    const poolsByArea = new Map(gaAllocations.map((pool) => [pool.admissionAreaId, pool]));
+    return admissionAreasOf(seatMap.version).map((area) => ({
+      area,
+      pool: poolsByArea.get(area.id) ?? null,
+    }));
+  }, [seatMap, gaAllocations]);
 
   const selectedStatuses = new Set([...selected].map((seatId) => statuses.get(seatId)));
   const canBlock =
@@ -171,10 +293,13 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   };
 
   const handleBlock = async () => {
+    if (!eventSessionId) {
+      return;
+    }
     setSubmitting(true);
     try {
-      await blockSeats(eventId, { seatIds: [...selected], reason: reason || undefined });
-      toast.success('Seats blocked.');
+      await blockSeats(eventSessionId, { seatIds: [...selected], reason: reason || undefined });
+      toast.success('Seats blocked for this performance.');
       setSelected(new Set());
       setReason('');
       setReloadToken((token) => token + 1);
@@ -186,10 +311,13 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   };
 
   const handleUnblock = async () => {
+    if (!eventSessionId) {
+      return;
+    }
     setSubmitting(true);
     try {
-      await unblockSeats(eventId, { seatIds: [...selected] });
-      toast.success('Seats unblocked.');
+      await unblockSeats(eventSessionId, { seatIds: [...selected] });
+      toast.success('Seats unblocked for this performance.');
       setSelected(new Set());
       setReloadToken((token) => token + 1);
     } catch {
@@ -206,7 +334,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
   if (loadError || !seatMap) {
     return (
       <LoadError
-        description="Could not load seat inventory."
+        description="Could not load seat inventory for this performance."
         onRetry={() => {
           setLoading(true);
           setReloadToken((token) => token + 1);
@@ -217,46 +345,6 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
 
   return (
     <>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          flexWrap: 'wrap',
-          gap: 16,
-          marginBottom: 16,
-        }}
-      >
-        <div>
-          <Typography.Title level={4} style={{ margin: 0 }}>
-            Seat inventory
-          </Typography.Title>
-          <Typography.Text type="secondary" style={{ display: 'block', marginTop: 4 }}>
-            Block seats to hold them back from sale (e.g. a kill or a restricted view).
-          </Typography.Text>
-        </div>
-        <Space size={16} wrap>
-          {LEGEND.map((item) => (
-            <Space key={item.label} size={6}>
-              <span
-                aria-hidden
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 4,
-                  background: item.color,
-                  display: 'inline-block',
-                  border: '1px solid rgba(0,0,0,0.08)',
-                }}
-              />
-              <Typography.Text type="secondary" style={{ fontSize: 13 }}>
-                {item.label}
-              </Typography.Text>
-            </Space>
-          ))}
-        </Space>
-      </div>
-
       {statusLoadError && (
         <Alert
           type="warning"
@@ -279,57 +367,48 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
         />
       ) : (
         <SeatGrid
-          seats={seatMap.seats}
+          seats={seats}
           renderSeat={(seat) => {
-            const status = statuses.get(seat.id) ?? 'Sold';
-            const checkedIn = checkedInSeatIds.has(seat.id);
+            const status = statuses.get(seat.seatId) ?? 'Sold';
+            const checkedIn = checkedInSeatIds.has(seat.seatId);
             return (
               <SeatChip
-                key={seat.id}
-                label={String(seat.number)}
+                key={seat.seatId}
+                label={seat.number}
                 tooltip={checkedIn ? `${seat.label} · Checked in` : `${seat.label} · ${status}`}
-                selected={selected.has(seat.id)}
+                selected={selected.has(seat.seatId)}
                 disabled={status !== 'Available' && status !== 'Blocked'}
                 color={checkedIn ? CHECKED_IN_COLOR : STATUS_COLOR[status]}
-                onClick={() => toggleSeat(seat.id)}
+                onClick={() => toggleSeat(seat.seatId)}
               />
             );
           }}
         />
       )}
 
-      {seatMap.generalAdmissionSections.length > 0 && (
+      {gaBlocks.length > 0 && (
         <>
           <Typography.Title level={5} style={{ marginTop: 24 }}>
             General admission
           </Typography.Title>
           <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            {seatMap.generalAdmissionSections.map((section) => {
-              const allocation = gaAllocations.find((a) => a.catalogSectionId === section.id);
-              const checkedIn = allocation
-                ? (checkedInGaCounts.get(allocation.allocationId) ?? 0)
-                : 0;
+            {gaBlocks.map(({ area, pool }) => {
+              const checkedIn = pool ? (checkedInGaCounts.get(pool.allocationId) ?? 0) : 0;
               return (
-                <Col key={section.id} xs={24} sm={12} md={8}>
-                  <Card size="small" title={`${section.sectionName} · ${section.priceTier}`}>
+                <Col key={area.id} xs={24} sm={12} md={8}>
+                  <Card size="small" title={area.name}>
                     <Row gutter={16}>
                       <Col span={12}>
-                        <Statistic
-                          title="Capacity"
-                          value={allocation?.totalCapacity ?? section.capacity}
-                        />
+                        <Statistic title="Capacity" value={pool?.totalCapacity ?? area.capacity} />
                       </Col>
                       <Col span={12}>
-                        <Statistic
-                          title="Remaining"
-                          value={allocation?.remaining ?? section.capacity}
-                        />
+                        <Statistic title="Remaining" value={pool?.remaining ?? area.capacity} />
                       </Col>
                       <Col span={12}>
-                        <Statistic title="Sold" value={allocation?.soldCount ?? 0} />
+                        <Statistic title="Sold" value={pool?.soldCount ?? 0} />
                       </Col>
                       <Col span={12}>
-                        <Statistic title="Held" value={allocation?.heldCount ?? 0} />
+                        <Statistic title="Held" value={pool?.heldCount ?? 0} />
                       </Col>
                       <Col span={24}>
                         <Statistic title="Checked in" value={checkedIn} />
@@ -354,7 +433,7 @@ export function SeatBlockPanel({ eventId }: { eventId: string }) {
             <Input
               placeholder="Reason (optional)"
               value={reason}
-              onChange={(event) => setReason(event.target.value)}
+              onChange={(changed) => setReason(changed.target.value)}
               disabled={!canBlock}
               style={{ width: 220 }}
             />

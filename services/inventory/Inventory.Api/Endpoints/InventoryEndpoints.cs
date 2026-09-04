@@ -425,7 +425,9 @@ public static class InventoryEndpoints
         CancellationToken cancellationToken)
     {
         var items = await repository.ListForSessionAsync(eventSessionId, cancellationToken);
-        var seats = items.Select(i => new InventorySeatResponse(i.SeatId, i.Status.ToString())).ToList();
+        var seats = items
+            .Select(i => new InventorySeatResponse(i.SeatId, i.Status.ToString(), i.TicketTypeId, i.PriceMinor))
+            .ToList();
         return Results.Ok(seats);
     }
 
@@ -436,7 +438,15 @@ public static class InventoryEndpoints
     {
         var allocations = await repository.ListGeneralAdmissionForSessionAsync(eventSessionId, cancellationToken);
         var response = allocations
-            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.AdmissionAreaId, a.RemainingCapacity, a.TotalCapacity, a.HeldCount, a.SoldCount))
+            .Select(a => new GeneralAdmissionAllocationResponse(
+                a.Id,
+                a.AdmissionAreaId,
+                a.TicketTypeId,
+                a.PriceMinor,
+                a.RemainingCapacity,
+                a.TotalCapacity,
+                a.HeldCount,
+                a.SoldCount))
             .ToList();
         return Results.Ok(response);
     }

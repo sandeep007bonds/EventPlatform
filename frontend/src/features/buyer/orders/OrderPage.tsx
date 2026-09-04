@@ -27,6 +27,7 @@ import { ServerErrorPage } from '../../../components/common/errors/ServerErrorPa
 import { toast } from '../../../components/common/feedback/toast';
 import { formatMoney } from '../../../utils/money';
 import { PriceRow } from '../checkout/PriceRow';
+import { usePerformanceLabels } from '../../../hooks/usePerformanceLabels';
 
 interface ConflictBody {
   message?: string;
@@ -57,6 +58,11 @@ export function OrderPage() {
   const { orderId } = useParams<{ orderId: string }>();
 
   const [order, setOrder] = useState<OrderResponse | null>(null);
+  // An order names an event and a performance by id. The heading has to say which night, or a
+  // buyer with two orders for the same run cannot tell their tickets apart.
+  const performanceRows = order
+    ? [{ catalogEventId: order.catalogEventId, eventSessionId: order.eventSessionId }]
+    : [];
   const [tickets, setTickets] = useState<TicketResponse[]>([]);
   const [qrUrls, setQrUrls] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -64,6 +70,7 @@ export function OrderPage() {
   const [notFound, setNotFound] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const performances = usePerformanceLabels(performanceRows);
 
   useEffect(() => {
     if (!orderId) {
@@ -231,6 +238,8 @@ export function OrderPage() {
     });
   };
 
+  const performance = order ? performances.get(order.eventSessionId) : undefined;
+
   if (loading) {
     return <DetailSkeleton />;
   }
@@ -265,7 +274,18 @@ export function OrderPage() {
       )}
 
       <Card
-        title="Order summary"
+        title={
+          performance ? (
+            <Space direction="vertical" size={0}>
+              <span>{performance.eventTitle}</span>
+              <Typography.Text type="secondary" style={{ fontSize: 13, fontWeight: 400 }}>
+                {performance.performance}
+              </Typography.Text>
+            </Space>
+          ) : (
+            'Order summary'
+          )
+        }
         styles={{ body: { padding: 24 } }}
         extra={
           <Space>

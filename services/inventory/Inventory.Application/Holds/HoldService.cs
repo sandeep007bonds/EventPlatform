@@ -281,6 +281,7 @@ public sealed class HoldService(
         return new HoldView(
             hold.Id,
             hold.TenantId,
+            hold.CatalogEventId,
             hold.EventSessionId,
             hold.UserId,
             hold.Status.ToString(),

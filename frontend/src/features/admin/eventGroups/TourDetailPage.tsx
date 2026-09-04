@@ -28,7 +28,7 @@ interface EditDatesFormValues {
  * rather than re-picking the tour from a dropdown on each new event.
  */
 export function TourDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { tourId: id } = useParams<{ tourId: string }>();
   const navigate = useNavigate();
 
   const [group, setGroup] = useState<EventGroupResponse | null>(null);

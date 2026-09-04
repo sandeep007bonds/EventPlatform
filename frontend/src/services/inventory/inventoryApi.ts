@@ -3,46 +3,67 @@ import { httpClient } from '../http/client';
 /** Availability status of a single seat. */
 export type SeatInventoryStatus = 'Available' | 'Held' | 'Sold' | 'Blocked';
 
-/** A single seat's current availability status. */
+/**
+ * A single seat's current availability, plus what it costs for this performance.
+ *
+ * The price comes from Inventory rather than being re-derived here from Catalog's ticket types:
+ * this is the price that was actually provisioned, so a picker can never quote a number the
+ * checkout then refuses (ADR-0034).
+ */
 export interface InventorySeatResponse {
   seatId: string;
   status: SeatInventoryStatus;
+  ticketTypeId: string;
+  priceMinor: number;
 }
 
-/** Fetches every seat's current status for an event. */
-export async function getInventorySeats(eventId: string): Promise<InventorySeatResponse[]> {
+/**
+ * Fetches every seat's current status for one **performance**. The same physical seat has a
+ * different status on every night of a run, which is the whole reason this is keyed here and not
+ * on the event (ADR-0039).
+ */
+export async function getInventorySeats(eventSessionId: string): Promise<InventorySeatResponse[]> {
   const response = await httpClient.get<InventorySeatResponse[]>(
-    `/api/inventory/v1/events/${eventId}/inventory/seats`,
+    `/api/inventory/v1/sessions/${eventSessionId}/inventory/seats`,
   );
   return response.data;
 }
 
-/** One general-admission allocation's current status, keyed by the Catalog section id a buyer already has. */
+/**
+ * One general-admission allocation's current status. `admissionAreaId` is the **Venue** area it was
+ * provisioned from, which is how a rendered map matches a pool to the block a buyer clicked.
+ */
 export interface GeneralAdmissionAllocationResponse {
   allocationId: string;
-  catalogSectionId: string;
+  admissionAreaId: string;
+  ticketTypeId: string;
+  /** The price of one admission, in minor units. */
+  priceMinor: number;
   remaining: number;
   totalCapacity: number;
   heldCount: number;
   soldCount: number;
 }
 
-/** Fetches every general-admission allocation for an event — the real ids a hold request must reference. */
+/**
+ * Fetches every general-admission allocation for a performance — the real ids a hold request must
+ * reference.
+ */
 export async function getGeneralAdmissionAllocations(
-  eventId: string,
+  eventSessionId: string,
 ): Promise<GeneralAdmissionAllocationResponse[]> {
   const response = await httpClient.get<GeneralAdmissionAllocationResponse[]>(
-    `/api/inventory/v1/events/${eventId}/inventory/general-admission`,
+    `/api/inventory/v1/sessions/${eventSessionId}/inventory/general-admission`,
   );
   return response.data;
 }
 
-/** Provisioned seat count for an event. */
+/** Provisioned seat count for a performance. */
 export async function getInventoryCount(
-  eventId: string,
-): Promise<{ eventId: string; seatCount: number }> {
-  const response = await httpClient.get<{ eventId: string; seatCount: number }>(
-    `/api/inventory/v1/events/${eventId}/inventory`,
+  eventSessionId: string,
+): Promise<{ eventSessionId: string; seatCount: number }> {
+  const response = await httpClient.get<{ eventSessionId: string; seatCount: number }>(
+    `/api/inventory/v1/sessions/${eventSessionId}/inventory`,
   );
   return response.data;
 }
@@ -56,7 +77,8 @@ export interface HoldLineView {
   seatId: string | null;
   generalAdmissionAllocationId: string | null;
   quantity: number;
-  priceTier: string;
+  /** The Catalog ticket type this line sells as, resolved at provisioning time. */
+  ticketTypeId: string;
   unitPriceMinor: number;
   priceMinor: number;
 }
@@ -65,7 +87,10 @@ export interface HoldLineView {
 export interface HoldView {
   holdId: string;
   tenantId: string;
+  /** The event — the whole run. Promo codes and the per-buyer cap are decided at this level. */
   catalogEventId: string;
+  /** The performance the held seats belong to. This is what the buyer actually chose. */
+  eventSessionId: string;
   userId: string;
   status: 'Active' | 'Converted' | 'Released';
   expiresAt: string;
@@ -80,11 +105,13 @@ export interface GeneralAdmissionSelection {
 }
 
 /**
- * Places a hold on the given seats and/or general-admission quantities. Throws (409, via axios) if
- * a seat or allocation is no longer available, or the event's booking window has closed.
+ * Places a hold on the given seats and/or general-admission quantities of one performance. Throws
+ * (409, via axios) if a seat or allocation is no longer available, that performance's booking
+ * window has closed, sales are paused, the buyer is over their cap for the run, or the event needs
+ * a queue admission token and none was presented.
  */
 export async function placeHold(request: {
-  eventId: string;
+  eventSessionId: string;
   seatIds?: string[];
   generalAdmissionSelections?: GeneralAdmissionSelection[];
   queueAdmissionToken?: string;
@@ -109,13 +136,16 @@ export async function releaseHold(holdId: string): Promise<void> {
 
 /** Blocks seats so they can't be held or sold (e.g. a kill or a restricted view). */
 export async function blockSeats(
-  eventId: string,
+  eventSessionId: string,
   request: { seatIds: string[]; reason?: string },
 ): Promise<void> {
-  await httpClient.post(`/api/inventory/v1/events/${eventId}/inventory/block`, request);
+  await httpClient.post(`/api/inventory/v1/sessions/${eventSessionId}/inventory/block`, request);
 }
 
 /** Unblocks previously blocked seats. */
-export async function unblockSeats(eventId: string, request: { seatIds: string[] }): Promise<void> {
-  await httpClient.post(`/api/inventory/v1/events/${eventId}/inventory/unblock`, request);
+export async function unblockSeats(
+  eventSessionId: string,
+  request: { seatIds: string[] },
+): Promise<void> {
+  await httpClient.post(`/api/inventory/v1/sessions/${eventSessionId}/inventory/unblock`, request);
 }

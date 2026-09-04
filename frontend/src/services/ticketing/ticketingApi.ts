@@ -10,7 +10,10 @@ export type TicketStatus = 'Issued' | 'CheckedIn' | 'Void';
 export interface TicketResponse {
   id: string;
   orderId: string;
+  /** The event — the whole run the ticket belongs to. */
   catalogEventId: string;
+  /** The performance it admits to. A scan is validated against this, never the event. */
+  eventSessionId: string;
   seatId: string | null;
   generalAdmissionAllocationId: string | null;
   token: string;
@@ -31,10 +34,13 @@ export async function getOrderTickets(orderId: string): Promise<TicketResponse[]
   return response.data;
 }
 
-/** Fetches every ticket for a tenant's event — e.g. to overlay check-in status on a seat map. */
-export async function getEventTickets(eventId: string): Promise<TicketResponse[]> {
+/**
+ * Fetches every ticket for one of a tenant's performances — e.g. to overlay check-in status on a
+ * seat map. Per performance, because that is the grain the seat map is rendered at.
+ */
+export async function getSessionTickets(eventSessionId: string): Promise<TicketResponse[]> {
   const response = await httpClient.get<TicketResponse[]>(
-    `/api/ticketing/v1/events/${eventId}/tickets`,
+    `/api/ticketing/v1/sessions/${eventSessionId}/tickets`,
   );
   return response.data;
 }
@@ -53,20 +59,24 @@ export async function getTicketQrCodeUrl(ticketId: string): Promise<string> {
 }
 
 /**
- * Scans/checks in a ticket by its opaque token (as read from its QR code), for the given event
- * and (optionally) a specific physical gate — omitting `gateId` means an unscoped "master"
- * scanner that bypasses any section-level gate restriction. Throws (via axios) on `404` (no
- * ticket matches that token, or it's not for the selected event) or `409` (already checked in or
- * void, outside the check-in window, or presented at the wrong gate).
+ * Scans/checks in a ticket by its opaque token (as read from its QR code), for the given
+ * **performance** and (optionally) a specific physical gate — omitting `gateId` means an unscoped
+ * "master" scanner that bypasses any section-level gate restriction.
+ *
+ * The performance, not the event: at a three-night run, tonight's door must turn away tomorrow's
+ * ticket. Throws (via axios) on `404` (no ticket matches that token, or it is for a different
+ * performance — deliberately the same response, so presenting a valid ticket on the wrong night
+ * does not confirm it is valid on another one) or `409` (already checked in or void, outside this
+ * performance's check-in window, or presented at the wrong gate).
  */
 export async function scanTicket(
   token: string,
-  eventId: string,
+  eventSessionId: string,
   gateId?: string,
 ): Promise<TicketResponse> {
   const response = await httpClient.post<TicketResponse>('/api/ticketing/v1/tickets/scan', {
     token,
-    eventId,
+    eventSessionId,
     gateId,
   });
   return response.data;
