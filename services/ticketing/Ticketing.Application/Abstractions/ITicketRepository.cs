@@ -42,10 +42,10 @@ public interface ITicketRepository
 
     /// <summary>Gets every ticket for a tenant's event — e.g. to overlay check-in status on a seat map.</summary>
     /// <param name="tenantId">Owning tenant.</param>
-    /// <param name="catalogEventId">The show/event.</param>
+    /// <param name="eventSessionId">The performance.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The event's tickets.</returns>
-    Task<IReadOnlyList<Ticket>> GetByEventAsync(Guid tenantId, Guid catalogEventId, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Ticket>> GetBySessionAsync(Guid tenantId, Guid eventSessionId, CancellationToken cancellationToken);
 
     /// <summary>Persists all pending changes.</summary>
     /// <param name="cancellationToken">A cancellation token.</param>

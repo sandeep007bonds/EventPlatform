@@ -10,11 +10,11 @@ namespace Ordering.Domain;
 /// A percentage in (0, 100] for <see cref="PromoDiscountType.Percentage"/>, or a flat amount in
 /// **major** currency units for <see cref="PromoDiscountType.FixedAmount"/>.
 /// </param>
-/// <param name="PriceTiers">
+/// <param name="TicketTypeIds">
 /// Tiers the code applies to. **Empty means every tier** — the unrestricted case is the absence of
 /// restrictions, so an organizer discounting a whole order never enumerates their tiers.
 /// </param>
 public sealed record PromoCodeTerms(
     PromoDiscountType DiscountType,
     decimal DiscountValue,
-    IReadOnlyList<string> PriceTiers);
+    IReadOnlyList<Guid> TicketTypeIds);

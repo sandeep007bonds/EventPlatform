@@ -168,9 +168,10 @@ public sealed class GeneralAdmissionAllocationTests
     private static GeneralAdmissionAllocation CreateAllocation(int totalCapacity) =>
         GeneralAdmissionAllocation.Create(
             tenantId: Guid.CreateVersion7(),
-            eventId: Guid.CreateVersion7(),
-            catalogSectionId: Guid.CreateVersion7(),
-            priceTier: "Floor",
+            eventSessionId: Guid.CreateVersion7(),
+            catalogEventId: Guid.CreateVersion7(),
+            admissionAreaId: Guid.CreateVersion7(),
+            ticketTypeId: Guid.CreateVersion7(),
             priceMinor: 5_000,
             totalCapacity: totalCapacity);
 }

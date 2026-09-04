@@ -12,6 +12,7 @@ namespace Ordering.Api.Endpoints;
 /// <param name="PromoCode">The discount code redeemed, if any.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
+/// <param name="EventSessionId">The performance — which night this order is for.</param>
 /// <param name="HoldId">The hold the order was created from.</param>
 /// <param name="Lines">The order lines.</param>
 /// <param name="PaymentClientSecret">
@@ -31,6 +32,7 @@ public sealed record OrderResponse(
     string? PromoCode,
     string Currency,
     Guid CatalogEventId,
+    Guid EventSessionId,
     Guid HoldId,
     IReadOnlyList<OrderLineResponse> Lines,
     string? PaymentClientSecret);

@@ -1,32 +1,46 @@
 namespace Inventory.Infrastructure;
 
 /// <summary>
-/// Reads the Catalog seat map via Dapr service invocation (app-id <c>catalog</c>), keeping the
-/// cross-service call behind the <see cref="ISeatMapClient"/> port. One request returns both
-/// reserved seats and general-admission sections.
+/// Reads a Venue seat-map version via Dapr service invocation (app-id <c>venue</c>), keeping the
+/// cross-service call behind the <see cref="ISeatMapClient"/> port.
 /// </summary>
+/// <remarks>
+/// The version is requested by number rather than "whichever is published", because the performance
+/// pinned one — resolving it again could hand back a map the tickets were never sold against
+/// (ADR-0039).
+/// </remarks>
 /// <param name="daprClient">The Dapr client.</param>
 internal sealed class DaprSeatMapClient(DaprClient daprClient) : ISeatMapClient
 {
-    private const string CatalogAppId = "catalog";
+    private const string VenueAppId = "venue";
 
     /// <inheritdoc />
-    public async Task<SeatMapSnapshot> GetSeatMapAsync(Guid eventId, CancellationToken cancellationToken)
+    public async Task<SeatMapSnapshot> GetSeatMapAsync(
+        Guid seatMapId,
+        int versionNumber,
+        CancellationToken cancellationToken)
     {
-        var seatMap = await daprClient.InvokeMethodAsync<CatalogSeatMap>(
+        var route = $"v1/seat-maps/{seatMapId}?version={versionNumber.ToString(CultureInfo.InvariantCulture)}";
+
+        var map = await daprClient.InvokeMethodAsync<VenueSeatMap>(
             HttpMethod.Get,
-            CatalogAppId,
-            $"v1/events/{eventId}/seatmap",
+            VenueAppId,
+            route,
             cancellationToken);
 
-        var seats = seatMap.Seats
-            .Select(seat => new SeatSnapshot(seat.Id, seat.PriceTier, seat.PriceAmount))
+        // Flattened section -> row -> seat, carrying the section code down onto each seat: the
+        // allocation map binds by code, and provisioning needs the pair together to know what the
+        // seat sells as.
+        var seats = map.Version.Sections
+            .SelectMany(section => section.Rows
+                .SelectMany(row => row.Seats)
+                .Select(seat => new SeatSnapshot(seat.Id, section.Code, seat.IsSellable)))
             .ToList();
 
-        var gaSections = seatMap.GeneralAdmissionSections
-            .Select(section => new GeneralAdmissionSectionSnapshot(section.Id, section.PriceTier, section.PriceAmount, section.Capacity))
+        var areas = map.Version.AdmissionAreas
+            .Select(area => new AdmissionAreaSnapshot(area.Id, area.Code, area.Capacity))
             .ToList();
 
-        return new SeatMapSnapshot(seats, gaSections);
+        return new SeatMapSnapshot(seats, areas);
     }
 }

@@ -9,7 +9,7 @@ public sealed class TicketingDbContext(DbContextOptions<TicketingDbContext> opti
     public DbSet<Ticket> Tickets => Set<Ticket>();
 
     /// <summary>Per-event check-in window settings, learned once from <c>EventPublished</c>.</summary>
-    public DbSet<EventScanContext> EventScanContexts => Set<EventScanContext>();
+    public DbSet<SessionScanContext> SessionScanContexts => Set<SessionScanContext>();
 
     /// <summary>Reserved-seat-to-entry-gate assignments, resolved once from Catalog's seat map.</summary>
     public DbSet<SeatEntryGate> SeatEntryGates => Set<SeatEntryGate>();

@@ -7,6 +7,10 @@ namespace Inventory.Domain;
 /// design exactly but operating on a remaining-capacity counter instead of a per-seat key.
 /// <see cref="Version"/> is an optimistic-concurrency token, same role as <see cref="InventoryItem.Version"/>.
 /// </summary>
+/// <remarks>
+/// Keyed by <b>performance</b>, and unique on (performance, admission area, ticket type) — one area
+/// can be sold under more than one type, and each of those is its own pool to count (ADR-0039).
+/// </remarks>
 public sealed class GeneralAdmissionAllocation
 {
     // Parameterless ctor for EF Core materialization.
@@ -17,17 +21,19 @@ public sealed class GeneralAdmissionAllocation
     private GeneralAdmissionAllocation(
         Guid id,
         Guid tenantId,
-        Guid eventId,
-        Guid catalogSectionId,
-        string priceTier,
+        Guid eventSessionId,
+        Guid catalogEventId,
+        Guid admissionAreaId,
+        Guid ticketTypeId,
         long priceMinor,
         int totalCapacity)
     {
         Id = id;
         TenantId = tenantId;
-        EventId = eventId;
-        CatalogSectionId = catalogSectionId;
-        PriceTier = priceTier;
+        EventSessionId = eventSessionId;
+        CatalogEventId = catalogEventId;
+        AdmissionAreaId = admissionAreaId;
+        TicketTypeId = ticketTypeId;
         PriceMinor = priceMinor;
         TotalCapacity = totalCapacity;
         HeldCount = 0;
@@ -40,16 +46,22 @@ public sealed class GeneralAdmissionAllocation
     /// <summary>Owning tenant (organizer).</summary>
     public Guid TenantId { get; private set; }
 
-    /// <summary>The event this section belongs to.</summary>
-    public Guid EventId { get; private set; }
+    /// <summary>The performance this pool is sellable for.</summary>
+    public Guid EventSessionId { get; private set; }
 
-    /// <summary>The Catalog general-admission section id this allocation maps to (stable across services).</summary>
-    public Guid CatalogSectionId { get; private set; }
+    /// <summary>
+    /// The event the performance belongs to. Denormalised for the same reason as on
+    /// <see cref="InventoryItem"/>: the per-buyer limit is counted across the whole run.
+    /// </summary>
+    public Guid CatalogEventId { get; private set; }
 
-    /// <summary>Price tier name (from the Catalog seat map).</summary>
-    public string PriceTier { get; private set; } = default!;
+    /// <summary>The Venue admission-area id this pool maps to (stable across services).</summary>
+    public Guid AdmissionAreaId { get; private set; }
 
-    /// <summary>Price per admission in minor currency units (e.g. cents).</summary>
+    /// <summary>The Catalog ticket type these admissions are sold as.</summary>
+    public Guid TicketTypeId { get; private set; }
+
+    /// <summary>Price per admission in minor currency units, snapshotted at publish time.</summary>
     public long PriceMinor { get; private set; }
 
     /// <summary>Total number of admissions sellable in this section.</summary>
@@ -69,25 +81,34 @@ public sealed class GeneralAdmissionAllocation
 
     /// <summary>Creates a general-admission allocation with nothing held or sold yet.</summary>
     /// <param name="tenantId">Owning tenant.</param>
-    /// <param name="eventId">The event.</param>
-    /// <param name="catalogSectionId">The Catalog general-admission section id.</param>
-    /// <param name="priceTier">Price tier name.</param>
-    /// <param name="priceMinor">Price per admission in minor units.</param>
+    /// <param name="eventSessionId">The performance.</param>
+    /// <param name="catalogEventId">The event the performance belongs to.</param>
+    /// <param name="admissionAreaId">The Venue admission-area id.</param>
+    /// <param name="ticketTypeId">The ticket type these admissions are sold as.</param>
+    /// <param name="priceMinor">Price per admission in minor units, at publish time.</param>
     /// <param name="totalCapacity">Total number of admissions sellable (positive).</param>
     /// <returns>A new <see cref="GeneralAdmissionAllocation"/>.</returns>
     public static GeneralAdmissionAllocation Create(
         Guid tenantId,
-        Guid eventId,
-        Guid catalogSectionId,
-        string priceTier,
+        Guid eventSessionId,
+        Guid catalogEventId,
+        Guid admissionAreaId,
+        Guid ticketTypeId,
         long priceMinor,
         int totalCapacity)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
         ArgumentOutOfRangeException.ThrowIfNegative(priceMinor);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(totalCapacity);
 
-        return new GeneralAdmissionAllocation(Guid.CreateVersion7(), tenantId, eventId, catalogSectionId, priceTier, priceMinor, totalCapacity);
+        return new GeneralAdmissionAllocation(
+            Guid.CreateVersion7(),
+            tenantId,
+            eventSessionId,
+            catalogEventId,
+            admissionAreaId,
+            ticketTypeId,
+            priceMinor,
+            totalCapacity);
     }
 
     /// <summary>Holds <paramref name="quantity"/> admissions, if enough remain.</summary>
@@ -98,7 +119,7 @@ public sealed class GeneralAdmissionAllocation
         if (quantity > RemainingCapacity)
         {
             throw new InvalidOperationException(
-                $"Cannot hold {quantity} admissions in section {CatalogSectionId}; only {RemainingCapacity} remain.");
+                $"Cannot hold {quantity} admissions in area {AdmissionAreaId}; only {RemainingCapacity} remain.");
         }
 
         HeldCount += quantity;
@@ -113,7 +134,7 @@ public sealed class GeneralAdmissionAllocation
         if (quantity > HeldCount)
         {
             throw new InvalidOperationException(
-                $"Cannot release {quantity} admissions in section {CatalogSectionId}; only {HeldCount} are held.");
+                $"Cannot release {quantity} admissions in area {AdmissionAreaId}; only {HeldCount} are held.");
         }
 
         HeldCount -= quantity;
@@ -128,7 +149,7 @@ public sealed class GeneralAdmissionAllocation
         if (quantity > HeldCount)
         {
             throw new InvalidOperationException(
-                $"Cannot mark {quantity} admissions sold in section {CatalogSectionId}; only {HeldCount} are held.");
+                $"Cannot mark {quantity} admissions sold in area {AdmissionAreaId}; only {HeldCount} are held.");
         }
 
         HeldCount -= quantity;
@@ -147,7 +168,7 @@ public sealed class GeneralAdmissionAllocation
         if (quantity > SoldCount)
         {
             throw new InvalidOperationException(
-                $"Cannot release {quantity} sold admissions in section {CatalogSectionId}; only {SoldCount} are sold.");
+                $"Cannot release {quantity} sold admissions in area {AdmissionAreaId}; only {SoldCount} are sold.");
         }
 
         SoldCount -= quantity;

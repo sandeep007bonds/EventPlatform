@@ -354,6 +354,53 @@ def check_local_usings(path, code, findings):
                              'using directive in a file — add it to GlobalUsings.cs instead'))
 
 
+DOC_VOID_TAGS = ('see', 'seealso', 'paramref', 'typeparamref', 'inheritdoc', 'br')
+
+
+def check_doc_xml(path, raw, findings):
+    """CS1570 — a doc comment block must be well-formed XML.
+
+    The cheap half of well-formedness only: every opening tag is closed by the
+    matching name, in order. That is the mistake people actually make — editing a
+    <summary> into a <remarks> and leaving the old closer behind, or closing an
+    outer tag before an inner one. Attribute syntax and entity escaping are left to
+    the compiler; guessing at those would fire on prose that compiles fine.
+    """
+    lines = raw.split('\n')
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip().startswith('///'):
+            index += 1
+            continue
+        start = index
+        block = []
+        while index < len(lines) and lines[index].strip().startswith('///'):
+            block.append(lines[index].strip()[3:])
+            index += 1
+
+        stack = []
+        for closing, name, self_closing in re.findall(
+                r'<(/?)([A-Za-z][\w.-]*)(?:\s[^<>]*?)?(/?)>', '\n'.join(block)):
+            if self_closing or name.lower() in DOC_VOID_TAGS:
+                continue
+            if not closing:
+                stack.append(name)
+            elif not stack:
+                findings.append((path, start + 1, 'CS1570',
+                                 f'</{name}> with no matching opening tag'))
+                break
+            elif stack[-1] != name:
+                findings.append((path, start + 1, 'CS1570',
+                                 f'</{name}> closes an open <{stack[-1]}>'))
+                break
+            else:
+                stack.pop()
+        else:
+            if stack:
+                findings.append((path, start + 1, 'CS1570',
+                                 f'unclosed <{stack[-1]}> in a doc comment'))
+
+
 def check_pinned_versions(path, raw, findings):
     """Central Package Management — versions belong in Directory.Packages.props."""
     for number, line in enumerate(raw.split('\n'), start=1):
@@ -403,6 +450,7 @@ def main():
         check_sa1506(normalized, raw, findings)
         check_sa1516(normalized, raw, findings)
         check_param_tags(normalized, raw, code, findings)
+        check_doc_xml(normalized, raw, findings)
         check_local_usings(normalized, code, findings)
 
     # Arity needs every declaration in view, so it only runs on a full-tree pass.

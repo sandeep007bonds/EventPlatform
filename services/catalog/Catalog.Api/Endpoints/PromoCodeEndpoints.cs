@@ -58,7 +58,7 @@ public static class PromoCodeEndpoints
             request.IsPublic,
             request.MaxRedemptions,
             request.MaxRedemptionsPerBuyer,
-            request.PriceTiers ?? []);
+            request.TicketTypeIds ?? []);
 
         var result = await sender.Send(command, cancellationToken);
 

@@ -1,4 +1,5 @@
 global using EventPlatform.Contracts;
+global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Contracts.Inventory;
 global using Inventory.Application.Abstractions;
 global using Inventory.Application.Blocking;

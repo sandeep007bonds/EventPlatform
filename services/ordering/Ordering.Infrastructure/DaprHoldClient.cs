@@ -37,7 +37,7 @@ internal sealed class DaprHoldClient : IHoldClient
                 line.SeatId,
                 line.GeneralAdmissionAllocationId,
                 line.Quantity,
-                line.PriceTier,
+                line.TicketTypeId,
                 line.UnitPriceMinor,
                 line.PriceMinor))
             .ToList();
@@ -46,6 +46,7 @@ internal sealed class DaprHoldClient : IHoldClient
             hold.HoldId,
             hold.TenantId,
             hold.CatalogEventId,
+            hold.EventSessionId,
             hold.UserId,
             hold.Status,
             hold.ExpiresAt,

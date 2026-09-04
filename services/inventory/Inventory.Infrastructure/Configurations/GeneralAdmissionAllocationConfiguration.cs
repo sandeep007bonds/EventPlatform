@@ -11,9 +11,12 @@ internal sealed class GeneralAdmissionAllocationConfiguration : IEntityTypeConfi
         builder.HasKey(a => a.Id);
 
         builder.Property(a => a.TenantId).IsRequired();
-        builder.Property(a => a.PriceTier).HasMaxLength(50).IsRequired();
+        builder.Property(a => a.TicketTypeId).IsRequired();
+        builder.Property(a => a.CatalogEventId).IsRequired();
         builder.Property(a => a.Version).IsConcurrencyToken();
 
-        builder.HasIndex(a => new { a.EventId, a.CatalogSectionId }).IsUnique();
+        // One area can be sold under more than one ticket type, and each of those is its own pool
+        // to count — so the type is part of the key, not just the area (ADR-0039).
+        builder.HasIndex(a => new { a.EventSessionId, a.AdmissionAreaId, a.TicketTypeId }).IsUnique();
     }
 }

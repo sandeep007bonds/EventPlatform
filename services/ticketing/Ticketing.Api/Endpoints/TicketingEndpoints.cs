@@ -20,9 +20,9 @@ public static class TicketingEndpoints
         // Dapr pub/sub: warm the local scan cache when Catalog publishes an event — the check-in
         // window and every gate-restricted seat/allocation, resolved once so ScanTicketAsync never
         // needs a live cross-service call (ADR-0025).
-        app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
-            .WithTopic("pubsub", nameof(EventPublished))
-            .WithName("OnEventPublished")
+        app.MapPost("/integration/catalog/event-session-published", OnEventSessionPublishedAsync)
+            .WithTopic("pubsub", nameof(EventSessionPublished))
+            .WithName("OnEventSessionPublished")
             .AllowAnonymous()
             .ExcludeFromDescription();
 
@@ -46,8 +46,8 @@ public static class TicketingEndpoints
             .RequireAuthenticatedCaller();
 
         // Organizer-only: the whole event's tickets, and admitting someone at the door.
-        app.MapGet("/v1/events/{eventId:guid}/tickets", GetEventTicketsAsync)
-            .WithName("GetEventTickets")
+        app.MapGet("/v1/sessions/{eventSessionId:guid}/tickets", GetSessionTicketsAsync)
+            .WithName("GetSessionTickets")
             .WithTags("Tickets")
             .RequireOrganizer();
 
@@ -78,6 +78,7 @@ public static class TicketingEndpoints
             @event.TenantId,
             @event.OrderId,
             @event.CatalogEventId,
+            @event.EventSessionId,
             @event.UserId,
             @event.Lines,
             @event.BuyerEmail,
@@ -97,15 +98,17 @@ public static class TicketingEndpoints
         return Results.Ok();
     }
 
-    private static async Task<IResult> OnEventPublishedAsync(
-        EventPublished @event,
-        EventScanContextProvisioningService provisioning,
+    private static async Task<IResult> OnEventSessionPublishedAsync(
+        EventSessionPublished @event,
+        SessionScanContextProvisioningService provisioning,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var provisioned = await provisioning.ProvisionAsync(
             @event.TenantId,
-            @event.CatalogEventId,
+            @event.EventSessionId,
+            @event.SeatMapId,
+            @event.SeatMapVersionNumber,
             @event.DoorsOpenAt,
             @event.StartsAt,
             @event.EndsAt,
@@ -114,11 +117,11 @@ public static class TicketingEndpoints
         var logger = loggerFactory.CreateLogger("Ticketing.ScanContext");
         if (provisioned)
         {
-            logger.LogInformation("Warmed scan cache for event {EventId}.", @event.CatalogEventId);
+            logger.LogInformation("Warmed scan cache for performance {EventSessionId}.", @event.EventSessionId);
         }
         else
         {
-            logger.LogInformation("Event {EventId} scan cache already warmed; skipped.", @event.CatalogEventId);
+            logger.LogInformation("Performance {EventSessionId} scan cache already warmed; skipped.", @event.EventSessionId);
         }
 
         // Ack so Dapr does not redeliver; provisioning is idempotent if it does.
@@ -180,8 +183,8 @@ public static class TicketingEndpoints
         return Results.Ok(Map(ticket));
     }
 
-    private static async Task<IResult> GetEventTicketsAsync(
-        Guid eventId,
+    private static async Task<IResult> GetSessionTicketsAsync(
+        Guid eventSessionId,
         ITenantContext tenant,
         ITicketRepository repository,
         CancellationToken cancellationToken)
@@ -191,7 +194,7 @@ public static class TicketingEndpoints
             return Results.Unauthorized();
         }
 
-        var tickets = await repository.GetByEventAsync(tenant.TenantId.Value, eventId, cancellationToken);
+        var tickets = await repository.GetBySessionAsync(tenant.TenantId.Value, eventSessionId, cancellationToken);
         var response = tickets.Select(Map).ToList();
         return Results.Ok(response);
     }
@@ -200,7 +203,7 @@ public static class TicketingEndpoints
         ScanTicketRequest request,
         ITenantContext tenant,
         ITicketRepository repository,
-        IEventScanContextRepository scanContexts,
+        ISessionScanContextRepository scanContexts,
         CancellationToken cancellationToken)
     {
         if (tenant.TenantId is null)
@@ -214,16 +217,17 @@ public static class TicketingEndpoints
             return Results.NotFound(new { message = "No ticket matches that token." });
         }
 
-        // Same 404 shape as an unknown token — a wrong-event scan shouldn't reveal the token is
-        // valid for some other event.
-        if (ticket.CatalogEventId != request.EventId)
+        // Same 404 shape as an unknown token — a wrong-performance scan shouldn't reveal the token
+        // is valid for some other night. Matched on the performance, not the event: a three-night
+        // run's Friday ticket must not open Saturday's doors.
+        if (ticket.EventSessionId != request.EventSessionId)
         {
-            return Results.NotFound(new { message = "This ticket is not for the selected event." });
+            return Results.NotFound(new { message = "This ticket is not for the selected performance." });
         }
 
         // Every read below is local to Ticketing's own database — no cross-service call — because
         // the scan cache was already warmed once, at publish time (ADR-0025).
-        var scanContext = await scanContexts.GetContextAsync(request.EventId, cancellationToken);
+        var scanContext = await scanContexts.GetContextAsync(request.EventSessionId, cancellationToken);
         if (scanContext is not null && !scanContext.IsWithinCheckInWindow(DateTimeOffset.UtcNow))
         {
             return Results.Conflict(new { message = "Outside the event's check-in window." });
@@ -319,6 +323,7 @@ public static class TicketingEndpoints
             ticket.Id,
             ticket.OrderId,
             ticket.CatalogEventId,
+            ticket.EventSessionId,
             ticket.SeatId,
             ticket.GeneralAdmissionAllocationId,
             ticket.Token,

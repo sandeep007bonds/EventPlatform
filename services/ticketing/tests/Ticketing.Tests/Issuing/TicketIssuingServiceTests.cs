@@ -127,6 +127,7 @@ public sealed class TicketIssuingServiceTests
             tenantId: Guid.CreateVersion7(),
             orderId: Guid.CreateVersion7(),
             catalogEventId: Guid.CreateVersion7(),
+            eventSessionId: Guid.CreateVersion7(),
             userId: Guid.CreateVersion7(),
             lines,
             buyerEmail,

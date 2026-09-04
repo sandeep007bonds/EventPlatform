@@ -14,7 +14,7 @@ namespace Ordering.Application.Abstractions;
 /// <param name="IsActive">Whether the organizer has retired the code.</param>
 /// <param name="MaxRedemptions">Total redemption cap, if any.</param>
 /// <param name="MaxRedemptionsPerBuyer">Per-buyer redemption cap, if any.</param>
-/// <param name="PriceTiers">Tiers the code is restricted to. Empty means every tier.</param>
+/// <param name="TicketTypeIds">Ticket types the code is restricted to. Empty means every type.</param>
 public sealed record PromoCodeDefinition(
     Guid Id,
     string Code,
@@ -25,4 +25,4 @@ public sealed record PromoCodeDefinition(
     bool IsActive,
     int? MaxRedemptions,
     int? MaxRedemptionsPerBuyer,
-    IReadOnlyList<string> PriceTiers);
+    IReadOnlyList<Guid> TicketTypeIds);

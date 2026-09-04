@@ -12,7 +12,7 @@ public static class DependencyInjection
 
         services.AddScoped<TicketIssuingService>();
         services.AddScoped<TicketVoidingService>();
-        services.AddScoped<EventScanContextProvisioningService>();
+        services.AddScoped<SessionScanContextProvisioningService>();
 
         return services;
     }

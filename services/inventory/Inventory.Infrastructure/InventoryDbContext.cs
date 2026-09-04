@@ -17,8 +17,8 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
     /// <summary>The general-admission capacity pools table.</summary>
     public DbSet<GeneralAdmissionAllocation> GeneralAdmissionAllocations => Set<GeneralAdmissionAllocation>();
 
-    /// <summary>The per-event settings table (currently just the enforced booking cutoff).</summary>
-    public DbSet<EventInventorySettings> EventInventorySettings => Set<EventInventorySettings>();
+    /// <summary>The per-performance settings table — selling window, buyer limit, queue, pause.</summary>
+    public DbSet<SessionInventorySettings> SessionInventorySettings => Set<SessionInventorySettings>();
 
     /// <inheritdoc />
     public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();

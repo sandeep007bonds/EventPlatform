@@ -57,10 +57,10 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task ManyBuyersRacingForOneSeat_ExactlyOneWins()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var seatId = Guid.CreateVersion7();
 
-        var results = await RaceAsync(_ => TryHoldSeatsAsync(eventId, [seatId]));
+        var results = await RaceAsync(_ => TryHoldSeatsAsync(eventSessionId, [seatId]));
 
         results.Count(result => result.Success).ShouldBe(1);
         results.Where(result => !result.Success)
@@ -72,10 +72,10 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task MoreBuyersThanSeats_NoMoreThanTheSeatsAreSold()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var seatIds = Enumerable.Range(0, 5).Select(_ => Guid.CreateVersion7()).ToList();
 
-        var results = await RaceAsync(attempt => TryHoldSeatsAsync(eventId, [seatIds[attempt % seatIds.Count]]));
+        var results = await RaceAsync(attempt => TryHoldSeatsAsync(eventSessionId, [seatIds[attempt % seatIds.Count]]));
 
         results.Count(result => result.Success).ShouldBe(seatIds.Count);
     }
@@ -86,7 +86,7 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task WhenTwoMultiSeatHoldsOverlap_TheLoserHoldsNothing()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var shared = Guid.CreateVersion7();
         var onlyMine = Guid.CreateVersion7();
         var onlyYours = Guid.CreateVersion7();
@@ -95,14 +95,14 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
         var second = Guid.CreateVersion7();
         var results = await RaceAsync(
             attempt => attempt % 2 == 0
-                ? TryHoldSeatsAsync(eventId, [shared, onlyMine], first)
-                : TryHoldSeatsAsync(eventId, [shared, onlyYours], second));
+                ? TryHoldSeatsAsync(eventSessionId, [shared, onlyMine], first)
+                : TryHoldSeatsAsync(eventSessionId, [shared, onlyYours], second));
 
         results.Count(result => result.Success).ShouldBe(1);
 
         // Whichever hold lost, its exclusive seat must still be free for someone else to take.
-        var loserExclusiveSeat = await TryHoldSeatsAsync(eventId, [onlyMine]);
-        var otherExclusiveSeat = await TryHoldSeatsAsync(eventId, [onlyYours]);
+        var loserExclusiveSeat = await TryHoldSeatsAsync(eventSessionId, [onlyMine]);
+        var otherExclusiveSeat = await TryHoldSeatsAsync(eventSessionId, [onlyYours]);
         (loserExclusiveSeat.Success ^ otherExclusiveSeat.Success).ShouldBeTrue(
             "exactly one of the two exclusive seats belongs to the winning hold and is taken; " +
             "the loser's must have been left untouched");
@@ -111,30 +111,48 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task ReleasingAHold_PutsTheSeatBackInPlay()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var seatId = Guid.CreateVersion7();
         var holdId = Guid.CreateVersion7();
 
-        (await TryHoldSeatsAsync(eventId, [seatId], holdId)).Success.ShouldBeTrue();
-        (await TryHoldSeatsAsync(eventId, [seatId])).Success.ShouldBeFalse();
+        (await TryHoldSeatsAsync(eventSessionId, [seatId], holdId)).Success.ShouldBeTrue();
+        (await TryHoldSeatsAsync(eventSessionId, [seatId])).Success.ShouldBeFalse();
 
-        await holdStore.ReleaseAsync(eventId, holdId, [seatId], CancellationToken.None);
+        await holdStore.ReleaseAsync(eventSessionId, holdId, [seatId], CancellationToken.None);
 
-        (await TryHoldSeatsAsync(eventId, [seatId])).Success.ShouldBeTrue();
+        (await TryHoldSeatsAsync(eventSessionId, [seatId])).Success.ShouldBeTrue();
     }
 
     [Fact]
     public async Task ASoldSeat_StaysSoldEvenAfterItsHoldIsReleased()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var seatId = Guid.CreateVersion7();
         var holdId = Guid.CreateVersion7();
 
-        (await TryHoldSeatsAsync(eventId, [seatId], holdId)).Success.ShouldBeTrue();
-        await holdStore.MarkSoldAsync(eventId, holdId, [seatId], CancellationToken.None);
-        await holdStore.ReleaseAsync(eventId, holdId, [seatId], CancellationToken.None);
+        (await TryHoldSeatsAsync(eventSessionId, [seatId], holdId)).Success.ShouldBeTrue();
+        await holdStore.MarkSoldAsync(eventSessionId, holdId, [seatId], CancellationToken.None);
+        await holdStore.ReleaseAsync(eventSessionId, holdId, [seatId], CancellationToken.None);
 
-        (await TryHoldSeatsAsync(eventId, [seatId])).Success.ShouldBeFalse();
+        (await TryHoldSeatsAsync(eventSessionId, [seatId])).Success.ShouldBeFalse();
+    }
+
+    // The failure mode the grain change (ADR-0039) introduced, and the reason every Redis key is
+    // now scoped to the performance. A seat id is a *Venue* seat — the same physical chair on
+    // Friday and on Saturday — so a key scoped to the event would make holding A1 for one night
+    // mark it taken for the whole run. That is not an oversell, so nothing else in this file would
+    // catch it: it silently stops selling seats that are free.
+    [Fact]
+    public async Task HoldingASeatForOnePerformance_LeavesTheSameSeatFreeForAnother()
+    {
+        var fridayId = Guid.CreateVersion7();
+        var saturdayId = Guid.CreateVersion7();
+        var seatId = Guid.CreateVersion7();
+
+        (await TryHoldSeatsAsync(fridayId, [seatId])).Success.ShouldBeTrue();
+
+        (await TryHoldSeatsAsync(saturdayId, [seatId])).Success.ShouldBeTrue(
+            "the same seat on a different night is different inventory");
     }
 
     // The counter-based half of no-oversell, under the same contention. A decrement that read and
@@ -142,13 +160,13 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task ManyBuyersRacingForLimitedGeneralAdmission_NeverExceedTheCapacity()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var allocationId = Guid.CreateVersion7();
         const int capacity = 7;
         await holdStore.InitializeGeneralAdmissionCapacityAsync(
-            eventId, allocationId, capacity, CancellationToken.None);
+            eventSessionId, allocationId, capacity, CancellationToken.None);
 
-        var results = await RaceAsync(_ => TryHoldAdmissionsAsync(eventId, allocationId, quantity: 1));
+        var results = await RaceAsync(_ => TryHoldAdmissionsAsync(eventSessionId, allocationId, quantity: 1));
 
         results.Count(result => result.Success).ShouldBe(capacity);
         results.Where(result => !result.Success)
@@ -160,13 +178,13 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task GeneralAdmissionRespectsRequestedQuantity_NotJustRequestCount()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var allocationId = Guid.CreateVersion7();
         const int capacity = 7;
         await holdStore.InitializeGeneralAdmissionCapacityAsync(
-            eventId, allocationId, capacity, CancellationToken.None);
+            eventSessionId, allocationId, capacity, CancellationToken.None);
 
-        var results = await RaceAsync(_ => TryHoldAdmissionsAsync(eventId, allocationId, quantity: 2));
+        var results = await RaceAsync(_ => TryHoldAdmissionsAsync(eventSessionId, allocationId, quantity: 2));
 
         // 7 capacity, 2 per buyer -> 3 winners, and one admission left stranded.
         results.Count(result => result.Success).ShouldBe(capacity / 2);
@@ -175,18 +193,18 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
     [Fact]
     public async Task RequestingMoreAdmissionsThanTheSectionHolds_IsRejected()
     {
-        var eventId = Guid.CreateVersion7();
+        var eventSessionId = Guid.CreateVersion7();
         var allocationId = Guid.CreateVersion7();
         await holdStore.InitializeGeneralAdmissionCapacityAsync(
-            eventId, allocationId, totalCapacity: 3, CancellationToken.None);
+            eventSessionId, allocationId, totalCapacity: 3, CancellationToken.None);
 
-        var result = await TryHoldAdmissionsAsync(eventId, allocationId, quantity: 4);
+        var result = await TryHoldAdmissionsAsync(eventSessionId, allocationId, quantity: 4);
 
         result.Success.ShouldBeFalse();
         result.ConflictAllocationId.ShouldBe(allocationId);
 
         // And the failed attempt must not have eaten into the capacity on its way out.
-        (await TryHoldAdmissionsAsync(eventId, allocationId, quantity: 3)).Success.ShouldBeTrue();
+        (await TryHoldAdmissionsAsync(eventSessionId, allocationId, quantity: 3)).Success.ShouldBeTrue();
     }
 
     // Starts every attempt and releases them at once. Without the gate the tasks would trickle out
@@ -209,20 +227,20 @@ public sealed class RedisNoOversellTests : IAsyncLifetime
         return await Task.WhenAll(racers);
     }
 
-    private Task<HoldStoreResult> TryHoldSeatsAsync(Guid eventId, Guid[] seatIds, Guid? holdId = null) =>
+    private Task<HoldStoreResult> TryHoldSeatsAsync(Guid eventSessionId, Guid[] seatIds, Guid? holdId = null) =>
         holdStore.TryHoldAsync(
-            eventId,
+            eventSessionId,
             holdId ?? Guid.CreateVersion7(),
             seatIds,
             TimeSpan.FromMinutes(2),
             CancellationToken.None);
 
     private Task<GeneralAdmissionHoldStoreResult> TryHoldAdmissionsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid allocationId,
         int quantity) =>
         holdStore.TryHoldGeneralAdmissionAsync(
-            eventId,
+            eventSessionId,
             Guid.CreateVersion7(),
             [(allocationId, quantity)],
             TimeSpan.FromMinutes(2),

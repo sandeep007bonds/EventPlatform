@@ -1,10 +1,16 @@
 namespace Inventory.Domain;
 
 /// <summary>
-/// The Inventory system-of-record for a single sellable seat. Postgres is the authority for
-/// availability; Redis is the fast gate on the hot path. <see cref="Version"/> is an optimistic
-/// concurrency token so a lost race in Postgres is the final rejecter of oversell.
+/// The Inventory system-of-record for one sellable seat at one performance. Postgres is the
+/// authority for availability; Redis is the fast gate on the hot path. <see cref="Version"/> is an
+/// optimistic concurrency token so a lost race in Postgres is the final rejecter of oversell.
 /// </summary>
+/// <remarks>
+/// Keyed by <b>performance</b>, not by event: seat A1 on Friday and seat A1 on Saturday are two
+/// independent things to sell, and the unique index says so (ADR-0039). The seat id belongs to a
+/// pinned Venue seat-map version, which is immutable — so what this row points at cannot move under
+/// it.
+/// </remarks>
 public sealed class InventoryItem
 {
     // Parameterless ctor for EF Core materialization.
@@ -12,15 +18,24 @@ public sealed class InventoryItem
     {
     }
 
-    private InventoryItem(Guid id, Guid tenantId, Guid eventId, Guid seatId, string priceTier, long priceMinor)
+    private InventoryItem(
+        Guid id,
+        Guid tenantId,
+        Guid eventSessionId,
+        Guid catalogEventId,
+        Guid seatId,
+        Guid ticketTypeId,
+        long priceMinor,
+        InventoryStatus status)
     {
         Id = id;
         TenantId = tenantId;
-        EventId = eventId;
+        EventSessionId = eventSessionId;
+        CatalogEventId = catalogEventId;
         SeatId = seatId;
-        PriceTier = priceTier;
+        TicketTypeId = ticketTypeId;
         PriceMinor = priceMinor;
-        Status = InventoryStatus.Available;
+        Status = status;
     }
 
     /// <summary>Unique inventory-item id (UUID v7 — time-sortable).</summary>
@@ -29,16 +44,31 @@ public sealed class InventoryItem
     /// <summary>Owning tenant (organizer).</summary>
     public Guid TenantId { get; private set; }
 
-    /// <summary>The event this seat belongs to.</summary>
-    public Guid EventId { get; private set; }
+    /// <summary>The performance this seat is sellable for.</summary>
+    public Guid EventSessionId { get; private set; }
 
-    /// <summary>The Catalog seat id this item maps to (stable across services).</summary>
+    /// <summary>
+    /// The event the performance belongs to. Denormalised on purpose: the per-buyer ticket limit is
+    /// counted across the whole run, and without this every such check would be a join.
+    /// </summary>
+    public Guid CatalogEventId { get; private set; }
+
+    /// <summary>The Venue seat id this item maps to (stable across services).</summary>
     public Guid SeatId { get; private set; }
 
-    /// <summary>Price tier name (from the Catalog seat map).</summary>
-    public string PriceTier { get; private set; } = default!;
+    /// <summary>
+    /// The Catalog ticket type this seat is sold as, resolved from the performance's allocation map.
+    /// </summary>
+    public Guid TicketTypeId { get; private set; }
 
-    /// <summary>Price in minor currency units (e.g. cents).</summary>
+    /// <summary>
+    /// Price in minor currency units, snapshotted when the performance was published.
+    /// </summary>
+    /// <remarks>
+    /// A copy, not a reference: it lets a hold be quoted without a call to Catalog. Ordering
+    /// re-derives what is actually charged from the order's own snapshot, so nothing treats this as
+    /// the live price.
+    /// </remarks>
     public long PriceMinor { get; private set; }
 
     /// <summary>Current availability status.</summary>
@@ -47,19 +77,39 @@ public sealed class InventoryItem
     /// <summary>Optimistic-concurrency token; incremented on every status change.</summary>
     public int Version { get; private set; }
 
-    /// <summary>Creates an available inventory item for a seat.</summary>
+    /// <summary>Creates an inventory item for a seat.</summary>
     /// <param name="tenantId">Owning tenant.</param>
-    /// <param name="eventId">The event.</param>
-    /// <param name="seatId">The Catalog seat id.</param>
-    /// <param name="priceTier">Price tier name.</param>
-    /// <param name="priceMinor">Price in minor units.</param>
-    /// <returns>A new <see cref="InventoryItem"/> in <see cref="InventoryStatus.Available"/>.</returns>
-    public static InventoryItem Create(Guid tenantId, Guid eventId, Guid seatId, string priceTier, long priceMinor)
+    /// <param name="eventSessionId">The performance.</param>
+    /// <param name="catalogEventId">The event the performance belongs to.</param>
+    /// <param name="seatId">The Venue seat id.</param>
+    /// <param name="ticketTypeId">The ticket type this seat is sold as.</param>
+    /// <param name="priceMinor">Price in minor units, at publish time.</param>
+    /// <param name="sellable">
+    /// Whether the seat can ever be sold. A Venue seat marked non-sellable — dead space, a camera
+    /// position — is provisioned <see cref="InventoryStatus.Blocked"/> rather than skipped, so the
+    /// map still renders complete and the seat is visibly unavailable instead of absent.
+    /// </param>
+    /// <returns>A new <see cref="InventoryItem"/>.</returns>
+    public static InventoryItem Create(
+        Guid tenantId,
+        Guid eventSessionId,
+        Guid catalogEventId,
+        Guid seatId,
+        Guid ticketTypeId,
+        long priceMinor,
+        bool sellable = true)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(priceTier);
         ArgumentOutOfRangeException.ThrowIfNegative(priceMinor);
 
-        return new InventoryItem(Guid.CreateVersion7(), tenantId, eventId, seatId, priceTier, priceMinor);
+        return new InventoryItem(
+            Guid.CreateVersion7(),
+            tenantId,
+            eventSessionId,
+            catalogEventId,
+            seatId,
+            ticketTypeId,
+            priceMinor,
+            sellable ? InventoryStatus.Available : InventoryStatus.Blocked);
     }
 
     /// <summary>Transitions an available seat to held.</summary>

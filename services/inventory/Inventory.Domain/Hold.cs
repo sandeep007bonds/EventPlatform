@@ -17,11 +17,18 @@ public sealed class Hold
     {
     }
 
-    private Hold(Guid id, Guid tenantId, Guid eventId, Guid userId, DateTimeOffset expiresAt)
+    private Hold(
+        Guid id,
+        Guid tenantId,
+        Guid eventSessionId,
+        Guid catalogEventId,
+        Guid userId,
+        DateTimeOffset expiresAt)
     {
         Id = id;
         TenantId = tenantId;
-        EventId = eventId;
+        EventSessionId = eventSessionId;
+        CatalogEventId = catalogEventId;
         UserId = userId;
         ExpiresAt = expiresAt;
         Status = HoldStatus.Active;
@@ -34,8 +41,14 @@ public sealed class Hold
     /// <summary>Owning tenant (organizer).</summary>
     public Guid TenantId { get; private set; }
 
-    /// <summary>The event the held inventory belongs to.</summary>
-    public Guid EventId { get; private set; }
+    /// <summary>The performance the held inventory belongs to.</summary>
+    public Guid EventSessionId { get; private set; }
+
+    /// <summary>
+    /// The event that performance belongs to. Carried so the per-buyer ticket limit can be counted
+    /// across the whole run rather than resetting every night.
+    /// </summary>
+    public Guid CatalogEventId { get; private set; }
 
     /// <summary>The buyer holding the inventory.</summary>
     public Guid UserId { get; private set; }
@@ -60,7 +73,8 @@ public sealed class Hold
 
     /// <summary>Creates an active hold over the given inventory items and/or general-admission quantities.</summary>
     /// <param name="tenantId">Owning tenant.</param>
-    /// <param name="eventId">The event.</param>
+    /// <param name="eventSessionId">The performance.</param>
+    /// <param name="catalogEventId">The event that performance belongs to.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="expiresAt">When the hold expires (UTC).</param>
     /// <param name="inventoryItemIds">The held inventory-item ids (reserved seats), if any.</param>
@@ -69,7 +83,8 @@ public sealed class Hold
     /// <exception cref="InvalidOperationException">Neither collection contains any items.</exception>
     public static Hold Create(
         Guid tenantId,
-        Guid eventId,
+        Guid eventSessionId,
+        Guid catalogEventId,
         Guid userId,
         DateTimeOffset expiresAt,
         IEnumerable<Guid> inventoryItemIds,
@@ -78,7 +93,7 @@ public sealed class Hold
         ArgumentNullException.ThrowIfNull(inventoryItemIds);
         ArgumentNullException.ThrowIfNull(generalAdmissionSelections);
 
-        var hold = new Hold(Guid.CreateVersion7(), tenantId, eventId, userId, expiresAt);
+        var hold = new Hold(Guid.CreateVersion7(), tenantId, eventSessionId, catalogEventId, userId, expiresAt);
         foreach (var itemId in inventoryItemIds)
         {
             hold._items.Add(new HoldItem(hold.Id, itemId));

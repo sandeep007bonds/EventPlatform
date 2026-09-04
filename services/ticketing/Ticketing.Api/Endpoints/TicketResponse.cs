@@ -4,6 +4,7 @@ namespace Ticketing.Api.Endpoints;
 /// <param name="Id">Ticket id.</param>
 /// <param name="OrderId">The order the ticket was issued for.</param>
 /// <param name="CatalogEventId">The show/event the seat belongs to.</param>
+/// <param name="EventSessionId">The performance this ticket admits to — which night it is for.</param>
 /// <param name="SeatId">The seat the ticket admits, if this ticket is for a reserved seat.</param>
 /// <param name="GeneralAdmissionAllocationId">The allocation the ticket admits, if this ticket is general admission.</param>
 /// <param name="Token">Opaque scan token encoded in the QR code.</param>
@@ -14,6 +15,7 @@ public sealed record TicketResponse(
     Guid Id,
     Guid OrderId,
     Guid CatalogEventId,
+    Guid EventSessionId,
     Guid? SeatId,
     Guid? GeneralAdmissionAllocationId,
     string Token,

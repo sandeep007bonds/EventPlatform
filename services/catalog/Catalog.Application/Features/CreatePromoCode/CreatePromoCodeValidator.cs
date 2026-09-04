@@ -41,6 +41,6 @@ public sealed class CreatePromoCodeValidator : AbstractValidator<CreatePromoCode
             .GreaterThan(0)
             .When(command => command.MaxRedemptionsPerBuyer is not null);
 
-        RuleForEach(command => command.PriceTiers).NotEmpty().MaximumLength(50);
+        RuleForEach(command => command.TicketTypeIds).NotEmpty();
     }
 }

@@ -1,15 +1,15 @@
 namespace Ticketing.Infrastructure;
 
-/// <summary>EF Core implementation of <see cref="IEventScanContextRepository"/>.</summary>
+/// <summary>EF Core implementation of <see cref="ISessionScanContextRepository"/>.</summary>
 /// <param name="dbContext">The Ticketing database context.</param>
-internal sealed class EventScanContextRepository(TicketingDbContext dbContext) : IEventScanContextRepository
+internal sealed class SessionScanContextRepository(TicketingDbContext dbContext) : ISessionScanContextRepository
 {
     /// <inheritdoc />
-    public Task<bool> ExistsForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.EventScanContexts.AnyAsync(c => c.EventId == eventId, cancellationToken);
+    public Task<bool> ExistsForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.SessionScanContexts.AnyAsync(c => c.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
-    public void AddContext(EventScanContext context) => dbContext.EventScanContexts.Add(context);
+    public void AddContext(SessionScanContext context) => dbContext.SessionScanContexts.Add(context);
 
     /// <inheritdoc />
     public void AddSeatGates(IEnumerable<SeatEntryGate> assignments) => dbContext.SeatEntryGates.AddRange(assignments);
@@ -18,8 +18,8 @@ internal sealed class EventScanContextRepository(TicketingDbContext dbContext) :
     public void AddGaAllocationGates(IEnumerable<GaAllocationGate> assignments) => dbContext.GaAllocationGates.AddRange(assignments);
 
     /// <inheritdoc />
-    public Task<EventScanContext?> GetContextAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.EventScanContexts.AsNoTracking().FirstOrDefaultAsync(c => c.EventId == eventId, cancellationToken);
+    public Task<SessionScanContext?> GetContextAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.SessionScanContexts.AsNoTracking().FirstOrDefaultAsync(c => c.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
     public async Task<Guid?> GetGateForSeatAsync(Guid seatId, CancellationToken cancellationToken)

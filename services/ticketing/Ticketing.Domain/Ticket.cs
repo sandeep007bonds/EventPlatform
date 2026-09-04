@@ -17,6 +17,7 @@ public sealed class Ticket
         Guid tenantId,
         Guid orderId,
         Guid catalogEventId,
+        Guid eventSessionId,
         Guid? seatId,
         Guid? generalAdmissionAllocationId,
         Guid userId,
@@ -26,6 +27,7 @@ public sealed class Ticket
         TenantId = tenantId;
         OrderId = orderId;
         CatalogEventId = catalogEventId;
+        EventSessionId = eventSessionId;
         SeatId = seatId;
         GeneralAdmissionAllocationId = generalAdmissionAllocationId;
         UserId = userId;
@@ -45,6 +47,12 @@ public sealed class Ticket
 
     /// <summary>The show/event the seat belongs to.</summary>
     public Guid CatalogEventId { get; private set; }
+
+    /// <summary>
+    /// The performance this ticket admits to. The event alone stopped being enough the moment one
+    /// event could run several nights (ADR-0039) — this is what a scanner checks against.
+    /// </summary>
+    public Guid EventSessionId { get; private set; }
 
     /// <summary>The seat the ticket admits, if this ticket is for a reserved seat.</summary>
     public Guid? SeatId { get; private set; }
@@ -71,6 +79,7 @@ public sealed class Ticket
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The order.</param>
     /// <param name="catalogEventId">The show/event.</param>
+    /// <param name="eventSessionId">The performance the ticket admits to.</param>
     /// <param name="seatId">The seat admitted, if this ticket is for a reserved seat.</param>
     /// <param name="generalAdmissionAllocationId">The allocation admitted, if this ticket is general admission.</param>
     /// <param name="userId">The ticket holder.</param>
@@ -81,6 +90,7 @@ public sealed class Ticket
         Guid tenantId,
         Guid orderId,
         Guid catalogEventId,
+        Guid eventSessionId,
         Guid? seatId,
         Guid? generalAdmissionAllocationId,
         Guid userId,

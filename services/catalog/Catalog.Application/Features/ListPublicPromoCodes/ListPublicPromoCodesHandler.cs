@@ -24,7 +24,7 @@ internal sealed class ListPublicPromoCodesHandler(IPromoCodeRepository repositor
                 p.Description,
                 p.DiscountType,
                 p.DiscountValue,
-                p.Tiers.Select(t => t.PriceTier).ToList()))
+                p.Tiers.Select(t => t.TicketTypeId).ToList()))
             .ToList();
     }
 }

@@ -6,6 +6,7 @@ namespace Ordering.Api.Endpoints;
 /// <param name="TotalMinor">Order total in minor currency units.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
+/// <param name="EventSessionId">The performance — which night this order is for.</param>
 /// <param name="CreatedAt">When the order was created (UTC).</param>
 public sealed record OrderSummaryResponse(
     Guid Id,
@@ -13,4 +14,5 @@ public sealed record OrderSummaryResponse(
     long TotalMinor,
     string Currency,
     Guid CatalogEventId,
+    Guid EventSessionId,
     DateTimeOffset CreatedAt);

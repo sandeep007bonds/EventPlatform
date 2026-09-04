@@ -23,8 +23,8 @@ public static class DependencyInjection
             .UseNpgsql(connectionString)
             .UseAuditFields(sp));
         services.AddScoped<ITicketRepository, TicketRepository>();
-        services.AddScoped<IEventScanContextRepository, EventScanContextRepository>();
-        services.AddScoped<ICatalogEventClient, DaprCatalogEventClient>();
+        services.AddScoped<ISessionScanContextRepository, SessionScanContextRepository>();
+        services.AddScoped<IVenueGateMapClient, DaprVenueGateMapClient>();
         services.AddScoped<IInventoryGaClient, DaprInventoryGaClient>();
         services.AddOutbox<TicketingDbContext>();
 

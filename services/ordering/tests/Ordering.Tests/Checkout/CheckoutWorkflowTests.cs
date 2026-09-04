@@ -12,7 +12,9 @@ public sealed class CheckoutWorkflowTests
     private static readonly Guid HoldId = Guid.Parse("22222222-2222-2222-2222-222222222222");
     private static readonly Guid OrderId = Guid.Parse("33333333-3333-3333-3333-333333333333");
     private static readonly Guid TenantId = Guid.Parse("44444444-4444-4444-4444-444444444444");
-    private static readonly Guid EventId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+    private static readonly Guid CatalogEventId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+    private static readonly Guid EventSessionId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+    private static readonly Guid TicketTypeId = Guid.Parse("77777777-7777-7777-7777-777777777777");
     private static readonly DateTime Now = new(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
 
     [Fact]
@@ -226,12 +228,13 @@ public sealed class CheckoutWorkflowTests
         new(
             HoldId,
             TenantId,
-            EventId,
+            CatalogEventId,
+            EventSessionId,
             userId ?? UserId,
             status,
             expiresAt ?? Now.AddMinutes(2),
             1000,
-            [new HoldLineSnapshot(Guid.NewGuid(), Guid.NewGuid(), null, 1, "A", 1000, 1000)]);
+            [new HoldLineSnapshot(Guid.NewGuid(), Guid.NewGuid(), null, 1, TicketTypeId, 1000, 1000)]);
 
     private static WorkflowContext CreateContext()
     {

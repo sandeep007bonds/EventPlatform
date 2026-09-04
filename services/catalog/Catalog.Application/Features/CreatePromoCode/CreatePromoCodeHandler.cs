@@ -40,7 +40,7 @@ internal sealed class CreatePromoCodeHandler(
             request.IsPublic,
             request.MaxRedemptions,
             request.MaxRedemptionsPerBuyer,
-            request.PriceTiers);
+            request.TicketTypeIds);
 
         promoCodeRepository.Add(promoCode);
         await promoCodeRepository.SaveChangesAsync(cancellationToken);

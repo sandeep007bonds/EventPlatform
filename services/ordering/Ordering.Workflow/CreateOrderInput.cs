@@ -6,6 +6,7 @@ namespace Ordering.Workflow;
 /// <param name="HoldId">The hold being purchased.</param>
 /// <param name="IdempotencyKey">Idempotency key.</param>
 /// <param name="CatalogEventId">The show/event.</param>
+/// <param name="EventSessionId">The performance the seats belong to.</param>
 /// <param name="Lines">The held seats and their prices.</param>
 /// <param name="BuyerEmail">The buyer's email, for ticket delivery.</param>
 /// <param name="OrderId">
@@ -29,6 +30,7 @@ public sealed record CreateOrderInput(
     Guid HoldId,
     string IdempotencyKey,
     Guid CatalogEventId,
+    Guid EventSessionId,
     IReadOnlyList<HoldLineSnapshot> Lines,
     string BuyerEmail,
     Guid OrderId,

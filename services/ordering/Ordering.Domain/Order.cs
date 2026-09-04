@@ -18,6 +18,7 @@ public sealed class Order
         Guid tenantId,
         Guid userId,
         Guid catalogEventId,
+        Guid eventSessionId,
         Guid holdId,
         string currency,
         string idempotencyKey,
@@ -27,6 +28,7 @@ public sealed class Order
         TenantId = tenantId;
         UserId = userId;
         CatalogEventId = catalogEventId;
+        EventSessionId = eventSessionId;
         HoldId = holdId;
         Currency = currency;
         IdempotencyKey = idempotencyKey;
@@ -44,8 +46,14 @@ public sealed class Order
     /// <summary>The buyer.</summary>
     public Guid UserId { get; private set; }
 
-    /// <summary>The show/event the seats belong to.</summary>
+    /// <summary>The show/event the seats belong to — what promo codes, tax and fees come from.</summary>
     public Guid CatalogEventId { get; private set; }
+
+    /// <summary>
+    /// The performance the seats belong to. The event alone is not enough to say which night this
+    /// order is for once a run has more than one (ADR-0039).
+    /// </summary>
+    public Guid EventSessionId { get; private set; }
 
     /// <summary>The hold this order was created from.</summary>
     public Guid HoldId { get; private set; }
@@ -152,6 +160,7 @@ public sealed class Order
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="catalogEventId">The show/event.</param>
+    /// <param name="eventSessionId">The performance the seats belong to.</param>
     /// <param name="holdId">The hold being purchased.</param>
     /// <param name="currency">ISO 4217 currency code.</param>
     /// <param name="idempotencyKey">Idempotency key (unique per tenant).</param>
@@ -172,6 +181,7 @@ public sealed class Order
         Guid tenantId,
         Guid userId,
         Guid catalogEventId,
+        Guid eventSessionId,
         Guid holdId,
         string currency,
         string idempotencyKey,
@@ -188,7 +198,16 @@ public sealed class Order
         ArgumentException.ThrowIfNullOrWhiteSpace(idempotencyKey);
         ArgumentNullException.ThrowIfNull(lines);
 
-        var order = new Order(id, tenantId, userId, catalogEventId, holdId, currency, idempotencyKey, buyerEmail);
+        var order = new Order(
+            id,
+            tenantId,
+            userId,
+            catalogEventId,
+            eventSessionId,
+            holdId,
+            currency,
+            idempotencyKey,
+            buyerEmail);
 
         // Materialised once: the specs are needed both to build the lines and to price them, and
         // the caller may hand us a lazily-evaluated sequence.

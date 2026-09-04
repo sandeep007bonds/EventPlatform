@@ -13,6 +13,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
     /// <param name="tenantId">Owning tenant.</param>
     /// <param name="orderId">The confirmed order.</param>
     /// <param name="catalogEventId">The show/event.</param>
+    /// <param name="eventSessionId">The performance the tickets admit to.</param>
     /// <param name="userId">The ticket holder.</param>
     /// <param name="lines">The purchased lines — reserved seats and/or general-admission quantities.</param>
     /// <param name="buyerEmail">The buyer's email, for ticket delivery — see <see cref="OrderTicketsIssued"/>.</param>
@@ -22,6 +23,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
         Guid tenantId,
         Guid orderId,
         Guid catalogEventId,
+        Guid eventSessionId,
         Guid userId,
         IReadOnlyList<OrderLineSummary> lines,
         string? buyerEmail,
@@ -41,6 +43,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
                     tenantId,
                     orderId,
                     catalogEventId,
+                    eventSessionId,
                     line.SeatId,
                     line.GeneralAdmissionAllocationId,
                     userId,
@@ -54,6 +57,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
                     ticket.Id,
                     orderId,
                     catalogEventId,
+                    eventSessionId,
                     line.SeatId,
                     line.GeneralAdmissionAllocationId,
                     userId));
@@ -68,6 +72,7 @@ public sealed class TicketIssuingService(ITicketRepository tickets, IEventPublis
             tenantId,
             orderId,
             catalogEventId,
+            eventSessionId,
             userId,
             buyerEmail,
             issued.Select(ticket => new IssuedTicketSummary(

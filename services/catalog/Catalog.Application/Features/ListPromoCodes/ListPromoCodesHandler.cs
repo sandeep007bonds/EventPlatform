@@ -39,6 +39,6 @@ internal sealed class ListPromoCodesHandler(
             p.MaxRedemptionsPerBuyer,
             p.IsActive,
             p.CreatedAt,
-            p.Tiers.Select(t => t.PriceTier).ToList())).ToList();
+            p.Tiers.Select(t => t.TicketTypeId).ToList())).ToList();
     }
 }

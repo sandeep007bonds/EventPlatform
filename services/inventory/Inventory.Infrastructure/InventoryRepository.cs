@@ -8,27 +8,27 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
     public void AddRange(IEnumerable<InventoryItem> items) => dbContext.InventoryItems.AddRange(items);
 
     /// <inheritdoc />
-    public Task<bool> ExistsForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.EventInventorySettings.AnyAsync(s => s.EventId == eventId, cancellationToken);
+    public Task<bool> ExistsForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.SessionInventorySettings.AnyAsync(s => s.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
-    public Task<int> CountForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.InventoryItems.CountAsync(i => i.EventId == eventId, cancellationToken);
+    public Task<int> CountForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.InventoryItems.CountAsync(i => i.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<InventoryItem>> ListForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<InventoryItem>> ListForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
         await dbContext.InventoryItems
             .AsNoTracking()
-            .Where(i => i.EventId == eventId)
+            .Where(i => i.EventSessionId == eventSessionId)
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<InventoryItem>> GetItemsBySeatsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyCollection<Guid> seatIds,
         CancellationToken cancellationToken) =>
         await dbContext.InventoryItems
-            .Where(i => i.EventId == eventId && seatIds.Contains(i.SeatId))
+            .Where(i => i.EventSessionId == eventSessionId && seatIds.Contains(i.SeatId))
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
@@ -59,38 +59,38 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<Guid>> GetEventIdsWithActiveInventoryAsync(CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<Guid>> GetSessionIdsWithActiveInventoryAsync(CancellationToken cancellationToken) =>
         await dbContext.InventoryItems
             .Where(i => i.Status == InventoryStatus.Held || i.Status == InventoryStatus.Sold || i.Status == InventoryStatus.Blocked)
-            .Select(i => i.EventId)
+            .Select(i => i.EventSessionId)
             .Distinct()
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<SeatReconciliationState>> GetReconciliationStateAsync(
-        Guid eventId,
+        Guid eventSessionId,
         CancellationToken cancellationToken)
     {
         // Sold seats are permanent — no hold, no TTL.
         var sold = await dbContext.InventoryItems
-            .Where(i => i.EventId == eventId && i.Status == InventoryStatus.Sold)
-            .Select(i => new SeatReconciliationState(eventId, i.SeatId, SeatCondition.Sold, null, null))
+            .Where(i => i.EventSessionId == eventSessionId && i.Status == InventoryStatus.Sold)
+            .Select(i => new SeatReconciliationState(eventSessionId, i.SeatId, SeatCondition.Sold, null, null))
             .ToListAsync(cancellationToken);
 
         // Blocked seats are organizer-set and not time-limited — no hold, no TTL.
         var blocked = await dbContext.InventoryItems
-            .Where(i => i.EventId == eventId && i.Status == InventoryStatus.Blocked)
-            .Select(i => new SeatReconciliationState(eventId, i.SeatId, SeatCondition.Blocked, null, null))
+            .Where(i => i.EventSessionId == eventSessionId && i.Status == InventoryStatus.Blocked)
+            .Select(i => new SeatReconciliationState(eventSessionId, i.SeatId, SeatCondition.Blocked, null, null))
             .ToListAsync(cancellationToken);
 
         // Held seats join through their active hold to recover the hold id and expiry (the TTL).
         var held = await (
             from item in dbContext.InventoryItems
-            where item.EventId == eventId && item.Status == InventoryStatus.Held
+            where item.EventSessionId == eventSessionId && item.Status == InventoryStatus.Held
             join holdItem in dbContext.Set<HoldItem>() on item.Id equals holdItem.InventoryItemId
             join hold in dbContext.Holds on holdItem.HoldId equals hold.Id
             where hold.Status == HoldStatus.Active
-            select new SeatReconciliationState(eventId, item.SeatId, SeatCondition.Held, hold.Id, hold.ExpiresAt))
+            select new SeatReconciliationState(eventSessionId, item.SeatId, SeatCondition.Held, hold.Id, hold.ExpiresAt))
             .ToListAsync(cancellationToken);
 
         return [.. sold, .. blocked, .. held];
@@ -125,8 +125,8 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
         dbContext.GeneralAdmissionAllocations.AddRange(allocations);
 
     /// <inheritdoc />
-    public Task<int> CountGeneralAdmissionAllocationsForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.GeneralAdmissionAllocations.CountAsync(a => a.EventId == eventId, cancellationToken);
+    public Task<int> CountGeneralAdmissionAllocationsForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.GeneralAdmissionAllocations.CountAsync(a => a.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
     public async Task<IReadOnlyList<GeneralAdmissionAllocation>> GetGeneralAdmissionAllocationsByIdsAsync(
@@ -137,27 +137,29 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public async Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForEventAsync(Guid eventId, CancellationToken cancellationToken) =>
+    public async Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
         await dbContext.GeneralAdmissionAllocations
             .AsNoTracking()
-            .Where(a => a.EventId == eventId)
+            .Where(a => a.EventSessionId == eventSessionId)
             .ToListAsync(cancellationToken);
 
     /// <inheritdoc />
-    public Task<EventInventorySettings?> GetEventInventorySettingsAsync(Guid eventId, CancellationToken cancellationToken) =>
-        dbContext.EventInventorySettings.FirstOrDefaultAsync(s => s.EventId == eventId, cancellationToken);
+    public Task<SessionInventorySettings?> GetSessionInventorySettingsAsync(Guid eventSessionId, CancellationToken cancellationToken) =>
+        dbContext.SessionInventorySettings.FirstOrDefaultAsync(s => s.EventSessionId == eventSessionId, cancellationToken);
 
     /// <inheritdoc />
-    public void AddEventInventorySettings(EventInventorySettings settings) =>
-        dbContext.EventInventorySettings.Add(settings);
+    public void AddSessionInventorySettings(SessionInventorySettings settings) =>
+        dbContext.SessionInventorySettings.Add(settings);
 
     /// <inheritdoc />
-    public async Task<int> GetBuyerCommittedQuantityAsync(Guid eventId, Guid userId, CancellationToken cancellationToken)
+    public async Task<int> GetBuyerCommittedQuantityAsync(Guid catalogEventId, Guid userId, CancellationToken cancellationToken)
     {
+        // Matched on the event, not the performance: the limit spans the whole run, so a buyer's
+        // Friday and Saturday holds count together.
         var seatCount = await (
             from holdItem in dbContext.Set<HoldItem>()
             join hold in dbContext.Holds on holdItem.HoldId equals hold.Id
-            where hold.EventId == eventId
+            where hold.CatalogEventId == catalogEventId
                 && hold.UserId == userId
                 && (hold.Status == HoldStatus.Active || hold.Status == HoldStatus.Converted)
             select holdItem)
@@ -166,7 +168,7 @@ internal sealed class InventoryRepository(InventoryDbContext dbContext) : IInven
         var gaQuantity = await (
             from gaItem in dbContext.Set<HoldGeneralAdmissionItem>()
             join hold in dbContext.Holds on gaItem.HoldId equals hold.Id
-            where hold.EventId == eventId
+            where hold.CatalogEventId == catalogEventId
                 && hold.UserId == userId
                 && (hold.Status == HoldStatus.Active || hold.Status == HoldStatus.Converted)
             select gaItem.Quantity)

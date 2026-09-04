@@ -2,21 +2,21 @@ namespace Ticketing.Application.Abstractions;
 
 /// <summary>
 /// Persistence abstraction for the local, warm-once-per-event scan cache
-/// (<see cref="EventScanContext"/>, <see cref="SeatEntryGate"/>, <see cref="GaAllocationGate"/>) —
+/// (<see cref="SessionScanContext"/>, <see cref="SeatEntryGate"/>, <see cref="GaAllocationGate"/>) —
 /// what makes <c>ScanTicketAsync</c> a purely local read, with no live cross-service call.
 /// Implemented in the Infrastructure layer so the Application layer stays free of EF Core.
 /// </summary>
-public interface IEventScanContextRepository
+public interface ISessionScanContextRepository
 {
     /// <summary>Returns whether the event has already been provisioned (dedupe for at-least-once delivery of <c>EventPublished</c>).</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <param name="eventSessionId">The event id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns><see langword="true"/> if the event already has a scan context.</returns>
-    Task<bool> ExistsForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<bool> ExistsForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken);
 
     /// <summary>Registers the scan context row for an event to be persisted.</summary>
     /// <param name="context">The scan context to add.</param>
-    void AddContext(EventScanContext context);
+    void AddContext(SessionScanContext context);
 
     /// <summary>Registers new seat-to-gate assignments to be persisted.</summary>
     /// <param name="assignments">The assignments to add.</param>
@@ -27,10 +27,10 @@ public interface IEventScanContextRepository
     void AddGaAllocationGates(IEnumerable<GaAllocationGate> assignments);
 
     /// <summary>Gets an event's scan context, or <see langword="null"/> if it hasn't been provisioned yet.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <param name="eventSessionId">The event id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The scan context, or <see langword="null"/>.</returns>
-    Task<EventScanContext?> GetContextAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<SessionScanContext?> GetContextAsync(Guid eventSessionId, CancellationToken cancellationToken);
 
     /// <summary>Gets the entry gate a reserved seat's section is restricted to, if any.</summary>
     /// <param name="seatId">The Catalog seat id.</param>

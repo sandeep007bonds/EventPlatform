@@ -63,12 +63,12 @@ buys from many organizers over time (ADR-0022).
    Sync between services:  Dapr service invocation (by app-id)
 ```
 
-**Nine services**, each owning exactly one database and never reading another's
+**Ten services**, each owning exactly one database and never reading another's
 tables — only its HTTP API (sync) or its published events (async).
 
 | Service | One-line job |
 |---|---|
-| **catalog** | Events, tours, seat maps, pricing, entry gates. The source of truth for *what is being sold*. |
+| **catalog** | Events, their performances, tours, ticket types, promo codes, tax and fees. The source of truth for *what is being sold, and when*. |
 | **inventory** | Seats and general-admission capacity: holds, no-oversell, block/unblock. The source of truth for *what is still available*. |
 | **ordering** | Checkout. Runs the saga that turns a hold into a paid, confirmed order. |
 | **payments** | Money. Stripe integration, idempotency, refunds, reconciliation. |
@@ -91,18 +91,20 @@ Plus **gateway** (`:5090`, YARP — the only thing a browser talks to) and
 | Capability | Where |
 |---|---|
 | Register an organization (creates the tenant + first account) | identity |
-| Create an event: title, dates, inline location, currency | catalog |
-| Group events into a **tour** — multiple cities/dates under one heading, each leg independently sellable | catalog |
+| Create an event: title, currency, and its first performance | catalog |
+| Add **more performances** — several nights of one event, each with its own times, booking cutoff and seat map | catalog |
+| Group events into a **tour** — multiple cities under one heading, each leg independently sellable | catalog |
 | Rich detail: description, category, banner image, video embed, age restriction, contact + social links | catalog + media |
-| Define a seat map: **reserved** sections (individually addressable seats) and/or **general-admission** sections (capacity only) — the two can mix in one event | catalog |
-| Edit seat-map sections after definition (add / replace / delete by name) | catalog |
-| Define **entry gates** and restrict a section to one | catalog |
-| Set an on-sale time, a booking cutoff, and a max-tickets-per-buyer limit | catalog → inventory |
-| Publish an event (provisions inventory across services) | catalog |
-| **Pause and resume sales** manually, without unpublishing | catalog → inventory |
+| Create a **venue** and a seat map: **reserved** sections (individually addressable seats) and/or **admission areas** (capacity only) — the two can mix, and the map is reusable across events | venue |
+| Revise a seat map by publishing a **new version**; performances already selling keep the version they pinned | venue |
+| Define **entry gates** on the venue and restrict a section to one | venue |
+| **Allocate** each block of a performance's map to a ticket type — per performance, so Friday's Lower Tier can be Gold while Saturday's is Premium | catalog |
+| Set an on-sale time and a max-tickets-per-buyer limit for the run, and a booking cutoff per performance | catalog → inventory |
+| Publish an event, or one late-added performance (provisions inventory across services) | catalog |
+| **Pause and resume sales** manually, for one performance or the whole run, without unpublishing | catalog → inventory |
 | Turn on a **virtual waiting room** and tune its admission rate | catalog → queue |
 | Block / unblock individual seats (holds, comps, damage) | inventory |
-| See live per-seat status, including who has been checked in | inventory + ticketing |
+| See live per-seat status per performance, including who has been checked in | inventory + ticketing |
 | View orders for the tenant | ordering |
 | **Scan tickets at the gate**, by camera or hardware scanner, gate-aware | ticketing |
 
@@ -111,7 +113,7 @@ Plus **gateway** (`:5090`, YARP — the only thing a browser talks to) and
 | Capability | Where |
 |---|---|
 | Browse published events anonymously — no login to look | catalog |
-| See full event detail, seat map and live availability, anonymously | catalog + inventory |
+| See full event detail, pick a performance, and see its seat map and live availability, anonymously | catalog + venue + inventory |
 | Join a waiting room when the event requires one | queue |
 | Pick reserved seats and/or GA quantities, mixed in one selection | inventory |
 | **Log in only at the point of holding seats** — phone + OTP, no upfront wall | identity |
@@ -141,13 +143,18 @@ Plus **gateway** (`:5090`, YARP — the only thing a browser talks to) and
 
 ```
 1. Browse           GET /api/catalog/v1/events                    anonymous
-2. Event detail     GET .../events/{id}  + /seatmap  + inventory  anonymous
-3. Queue?           event.requiresQueue → /events/{id}/queue      anonymous
+2. Event detail     GET .../events/{id} + .../sessions            anonymous
+                    Pick a performance if the run has more than one
+3. Queue?           event.requiresQueue → /events/{slug}/queue    anonymous
                     POST .../queue/join → position, then poll
                     until admitted → HMAC admission token
-4. Pick seats       GET .../inventory/seats  (live per-seat status)
+                    (one token admits the buyer to the whole on-sale,
+                     not to one night)
+4. Pick seats       GET /api/inventory/v1/sessions/{eventSessionId}
+                        /inventory/seats  (live per-seat status)
 5. Hold selection   ← IDENTITY GATE: OTP modal appears here, not before
-                    POST /api/inventory/v1/holds  { seats, gaQuantities,
+                    POST /api/inventory/v1/holds  { eventSessionId, seats,
+                                                    gaQuantities,
                                                     queueAdmissionToken? }
                     → 201 holdId, expires in ~2 min
 6. Checkout         POST /api/ordering/v1/checkout { holdId, buyerEmail }
@@ -175,41 +182,51 @@ want something.
 1. Register/login   POST /api/identity/v1/organizers/register
                     → creates Tenant + OrganizerAccount, returns a token
                       carrying role=organizer and tenant_id
-2. Create           /admin/events/new — one page, one or many legs.
+2. Venue + map      /admin/venues — create the venue and its gates, draw a
+                    seat map, publish a version. Reusable across events;
+                    versions are immutable once published (ADR-0038).
+3. Create           /admin/events/new — one page, one or many legs.
                     Adding a second leg turns it into a tour.
-3. Enrich           Upload a banner (media), add description, category,
+4. Enrich           Upload a banner (media), add description, category,
                     contact/social, age restriction, video
-4. Seat map         Reserved sections (rows × seats) and/or GA sections
-                    (capacity). Optionally bind sections to entry gates.
-5. Rules            On-sale time, booking cutoff, max tickets per buyer,
-                    waiting room on/off
-6. Publish          POST .../events/{id}/publish
-                    → EventPublished fans out:
+5. Performances     One row per night: times, doors, booking cutoff, and
+                    the venue + published seat-map version it uses.
+                    Then allocate every block to a ticket type — Friday's
+                    Lower Tier can be Gold while Saturday's is Premium.
+6. Rules            On-sale time, max tickets per buyer, waiting room
+                    on/off — all decided for the whole run
+7. Publish          POST .../events/{id}/publish  (all performances, or
+                    POST .../sessions/{id}/publish for a late addition)
+                    → EventPublished           → queue provisions settings
+                      EventSessionPublished    → one per performance:
                       inventory  provisions seats + GA allocations + settings
-                      ticketing  warms its scan cache
-                      queue      provisions queue settings
-7. Monitor          Seat panel (live status), tenant order list
-                    Pause/resume sales at any time
-8. Doors            /admin/scan — pick event + gate, scan by camera or
-                    hardware wedge scanner
+                      ticketing  warms that night's scan cache
+8. Monitor          Seat panel (live status) per performance, tenant order
+                    list. Pause/resume sales for one night or the whole run.
+9. Doors            /admin/scan — pick event, then tonight's performance,
+                    then a gate; scan by camera or hardware wedge scanner
 ```
 
 ### Gate staff: scanning
 
 ```
-POST /api/ticketing/v1/tickets/scan  { token, eventId, gateId? }
+POST /api/ticketing/v1/tickets/scan  { token, eventSessionId, gateId? }
 
-  404  unknown token — or a token for a different event
-       (same response deliberately: a wrong-event scan must not
-        reveal that the token is valid somewhere else)
-  409  outside the check-in window · wrong gate · already used · void
+  404  unknown token — or a token for a different performance
+       (same response deliberately: presenting Friday's ticket on
+        Saturday must not reveal that it is valid on another night)
+  409  outside this performance's check-in window · wrong gate ·
+       already used · void
   200  checked in — CheckedInAt stamped, seat turns a distinct colour
        in the organizer's seat panel
 ```
 
-Every check is a **local** read. Ticketing warms an event's window and gate
-rules into its own database when the event publishes, so a turnstile at peak
-does zero cross-service calls (ADR-0025).
+The scan is validated against the **performance**, not the event (ADR-0039) —
+the check-in window is a different pair of instants every night.
+
+Every check is a **local** read. Ticketing warms a performance's window and gate
+rules into its own database when that performance publishes, so a turnstile at
+peak does zero cross-service calls (ADR-0025).
 
 ---
 
@@ -230,9 +247,12 @@ lost if the write succeeded, and cannot be sent if it didn't.
 
 | Event | Published by | Consumed by |
 |---|---|---|
-| `EventPublished` | catalog | inventory (provision), ticketing (warm scan cache), queue (provision) |
-| `EventSalesPaused` / `EventSalesResumed` | catalog | inventory |
+| `EventPublished` | catalog | queue (provision) — event-level facts only, since a waiting room gates the on-sale, not one night |
+| `EventSessionPublished` | catalog | inventory (provision), ticketing (warm scan cache) — one per performance |
+| `EventSessionCancelled` | catalog | *(no consumer yet)* |
+| `EventSalesPaused` / `EventSalesResumed` | catalog | inventory — both carry an `EventSessionId`; an event-wide pause fans out to one message per performance |
 | `EventUpdated` | catalog | *(no consumer yet)* |
+| `VenueCreated` · `SeatMapPublished` | venue | *(no consumer yet)* |
 | `SeatHeld` · `SeatReleased` · `SeatSold` · `SeatBlocked` · `SeatUnblocked` | inventory | *(no consumer yet — audit/analytics hooks)* |
 | `PaymentCaptured` · `PaymentFailed` | payments | ordering (resumes the waiting saga) |
 | `PaymentRefunded` | payments | *(no consumer yet)* |
@@ -313,11 +333,11 @@ reconciles anything the TTL let lapse.
 
 | Service | Owns | Key API | Publishes | Consumes |
 |---|---|---|---|---|
-| **catalog** | `Event` (+ social links), `EventGroup` (+ social links), `SeatMap`, `Seat`, `GeneralAdmissionSection`, `EntryGate` | `POST/GET /v1/events` · `GET /v1/events/{id}` · `POST/PUT/DELETE .../seatmap[/sections]` · `PUT .../details` · `POST .../publish` · `POST .../pause-sales`,`.../resume-sales` · `/v1/event-groups` · `.../entry-gates` | `EventPublished`, `EventSalesPaused`, `EventSalesResumed`, `EventUpdated` | — |
-| **inventory** | `InventoryItem`, `GeneralAdmissionAllocation`, `EventInventorySettings`, `Hold`, `HoldItem`, `HoldGeneralAdmissionItem`, `LedgerEntry` (+ Redis) | `POST /v1/holds` · `GET/DELETE /v1/holds/{id}` · `GET .../inventory[/seats|/general-admission]` · `POST .../inventory/block`,`/unblock` · *internal:* `/holds/{id}/convert`,`/release`,`/extend`,`/cancel` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventPublished`, `EventSalesPaused`, `EventSalesResumed` |
+| **catalog** | `Event` (+ social links), `EventSession`, `SessionAllocation`, `EventGroup` (+ social links), `TicketType`, `PromoCode`, `PolicyDocument` | `POST/GET /v1/events` · `GET /v1/events/{id}`,`/by-slug/{slug}` · `POST .../publish` · `PUT .../selling-rules`,`/presentation`,`/slug` · `POST .../pause-sales`,`.../resume-sales` · `GET/POST /v1/events/{id}/sessions` · `PUT/DELETE .../sessions/{eventSessionId}` · `PUT .../seat-map`,`.../allocations` · `POST .../publish`,`/cancel`,`/pause-sales`,`/resume-sales` · `/v1/event-groups` · `.../ticket-types`,`.../promo-codes`,`.../policies` | `EventPublished`, `EventSessionPublished`, `EventSessionCancelled`, `EventSalesPaused`, `EventSalesResumed`, `EventUpdated` | — |
+| **inventory** | `InventoryItem`, `GeneralAdmissionAllocation`, `SessionInventorySettings`, `Hold`, `HoldItem`, `HoldGeneralAdmissionItem`, `LedgerEntry` (+ Redis) | `POST /v1/holds` · `GET/DELETE /v1/holds/{id}` · `GET /v1/sessions/{eventSessionId}/inventory[/seats|/general-admission]` · `POST .../inventory/block`,`/unblock` · *internal:* `/holds/{id}/convert`,`/release`,`/extend`,`/cancel` | `SeatHeld`, `SeatReleased`, `SeatSold`, `SeatBlocked`, `SeatUnblocked` | `EventSessionPublished`, `EventSalesPaused`, `EventSalesResumed` |
 | **ordering** | `Order`, `OrderLine` (+ workflow state) | `POST /v1/checkout` · `GET /v1/orders[?mine|?forTenant]` · `GET /v1/orders/{id}` · `POST /v1/orders/{id}/payment/sync` · `POST /v1/orders/{id}/cancel` | `OrderConfirmed` | `PaymentCaptured`, `PaymentFailed` |
 | **payments** | `Payment`, `ProcessedWebhookEvent` | *internal:* `POST /v1/payments/intents` · `POST /v1/payments/{orderId}/sync` · `POST /v1/payments/refund` · *public:* `POST /v1/payments/webhooks/stripe` | `PaymentCaptured`, `PaymentFailed`, `PaymentRefunded` | — |
-| **ticketing** | `Ticket`, scan cache (`EventScanContext`, gate assignments) | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}[/qrcode]` · `GET /v1/events/{id}/tickets` · `POST /v1/tickets/scan` · *internal:* `.../tickets/void` | `TicketIssued`, `OrderTicketsIssued` | `OrderConfirmed`, `EventPublished` |
+| **ticketing** | `Ticket`, scan cache (`SessionScanContext`, gate assignments) | `GET /v1/orders/{id}/tickets` · `GET /v1/tickets/{id}[/qrcode]` · `GET /v1/sessions/{eventSessionId}/tickets` · `POST /v1/tickets/scan` · *internal:* `.../tickets/void` | `TicketIssued`, `OrderTicketsIssued` | `OrderConfirmed`, `EventSessionPublished` |
 | **identity** | `PhoneVerification`, `BuyerAccount`, `Tenant`, `OrganizerAccount`, `SigningKey` | `POST /v1/otp/request`,`/verify` · `POST /v1/organizers/register`,`/login` · `/.well-known/openid-configuration`, `/jwks.json` | — | — |
 | **queue** | `QueueSettings` (+ Redis waiting room) | `POST .../queue/join` · `GET .../queue/status` · `GET/PUT .../queue/settings` | — | `EventPublished` |
 | **venue** | `Venue`, `VenueGate`, `VenueFacility`, `SeatMap`, `SeatMapVersion`, `VenueSection`, `SeatRow`, `Seat`, `AdmissionArea`, `SeatMapElement` | `POST/GET/PUT /v1/venues[/{id}]` · `POST .../activate`,`.../archive`,`.../gates`,`.../facilities` · `POST/GET .../seat-maps` · `GET /v1/seat-maps/{id}[?version=]` · `POST .../versions` · `PUT .../draft/layout` · `POST .../publish` | `VenueCreated`, `SeatMapPublished` | — |
@@ -402,7 +422,7 @@ Honest list; these are decisions or debts, not surprises.
 
 | Gap | Status |
 |---|---|
-| Test **depth** is uneven across services | Closed as an existence gap — all nine services have `tests/`. Inventory's no-oversell path is now exercised against a real Redis (Testcontainers); Catalog and Ticketing are thinner. Still no end-to-end saga test against a real Dapr sidecar |
+| Test **depth** is uneven across services | Closed as an existence gap — all ten services have `tests/`. Inventory's no-oversell path is now exercised against a real Redis (Testcontainers); Catalog and Ticketing are thinner. Still no end-to-end saga test against a real Dapr sidecar |
 | No end-to-end verification of the deployed topology | Terraform, manifests and the SPA image are validated only by `terraform validate` + `kustomize build` in CI, which prove they are well-formed, not that they work. **Argo CD sync phase/wave ordering is invisible to both** — the first real deploy found the migrate Jobs deadlocked as `PreSync` hooks waiting on a SecretProviderClass the main sync had not created (ADR-0029, Consequences). Nothing short of a real sync against a real cluster catches that class of defect |
 | Ticket QR payload is the raw opaque token, not signed or expiring | Tracked; fine while tokens are 128-bit random and single-use |
 | Queue admission tokens are not one-time-use | Holds are independently capacity- and limit-checked, so the queue only paces access |

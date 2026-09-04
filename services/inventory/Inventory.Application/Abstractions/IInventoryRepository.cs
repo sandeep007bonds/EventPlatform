@@ -4,6 +4,13 @@ namespace Inventory.Application.Abstractions;
 /// Persistence abstraction for <see cref="InventoryItem"/>. Implemented in the Infrastructure
 /// layer so the Application layer stays free of EF Core.
 /// </summary>
+/// <remarks>
+/// Almost everything here is keyed by <b>performance</b>, because that is what has inventory
+/// (ADR-0039). The one deliberate exception is
+/// <see cref="GetBuyerCommittedQuantityAsync"/>, which counts across the whole event — a per-buyer
+/// limit that reset every night would let one buyer take the cap three times over on a three-night
+/// run, which is the behaviour the limit exists to prevent.
+/// </remarks>
 public interface IInventoryRepository
 {
     /// <summary>Registers new inventory items to be persisted.</summary>
@@ -11,34 +18,35 @@ public interface IInventoryRepository
     void AddRange(IEnumerable<InventoryItem> items);
 
     /// <summary>
-    /// Returns whether the event has already been provisioned (dedupe for at-least-once delivery of
-    /// <c>EventPublished</c>). Backed by <see cref="EventInventorySettings"/> rather than seat count,
-    /// since an event made entirely of general-admission sections may provision zero seats.
+    /// Returns whether the performance has already been provisioned (dedupe for at-least-once
+    /// delivery of <c>EventSessionPublished</c>). Backed by <see cref="SessionInventorySettings"/>
+    /// rather than a seat count, since a performance sold entirely as general admission provisions
+    /// zero seats.
     /// </summary>
-    /// <param name="eventId">The event id.</param>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns><see langword="true"/> if the event already has inventory.</returns>
-    Task<bool> ExistsForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    /// <returns><see langword="true"/> if the performance already has inventory.</returns>
+    Task<bool> ExistsForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken);
 
-    /// <summary>Counts the inventory items for an event.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Counts the inventory items for a performance.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The number of inventory items.</returns>
-    Task<int> CountForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<int> CountForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken);
 
-    /// <summary>Lists all inventory items for an event, with their current status.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Lists all inventory items for a performance, with their current status.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The event's inventory items.</returns>
-    Task<IReadOnlyList<InventoryItem>> ListForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    /// <returns>The performance's inventory items.</returns>
+    Task<IReadOnlyList<InventoryItem>> ListForSessionAsync(Guid eventSessionId, CancellationToken cancellationToken);
 
-    /// <summary>Loads the tracked inventory items for the given seats of an event.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Loads the tracked inventory items for the given seats of a performance.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="seatIds">The seat ids.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The matching inventory items (tracked).</returns>
     Task<IReadOnlyList<InventoryItem>> GetItemsBySeatsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyCollection<Guid> seatIds,
         CancellationToken cancellationToken);
 
@@ -66,20 +74,23 @@ public interface IInventoryRepository
         int batchSize,
         CancellationToken cancellationToken);
 
-    /// <summary>Gets the ids of events that currently have any held or sold inventory (for reconciliation).</summary>
+    /// <summary>
+    /// Gets the ids of performances that currently have any held or sold inventory (for
+    /// reconciliation).
+    /// </summary>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The distinct event ids with non-available inventory.</returns>
-    Task<IReadOnlyList<Guid>> GetEventIdsWithActiveInventoryAsync(CancellationToken cancellationToken);
+    /// <returns>The distinct performance ids with non-available inventory.</returns>
+    Task<IReadOnlyList<Guid>> GetSessionIdsWithActiveInventoryAsync(CancellationToken cancellationToken);
 
     /// <summary>
-    /// Reads the authoritative non-available seat states (held/sold) for an event, so the Redis fast
-    /// gate can be rebuilt after a restart or flush.
+    /// Reads the authoritative non-available seat states (held/sold) for a performance, so the Redis
+    /// fast gate can be rebuilt after a restart or flush.
     /// </summary>
-    /// <param name="eventId">The event id.</param>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The held and sold seat states for the event.</returns>
+    /// <returns>The held and sold seat states for the performance.</returns>
     Task<IReadOnlyList<SeatReconciliationState>> GetReconciliationStateAsync(
-        Guid eventId,
+        Guid eventSessionId,
         CancellationToken cancellationToken);
 
     /// <summary>Registers a new hold to be persisted.</summary>
@@ -107,11 +118,13 @@ public interface IInventoryRepository
     /// <param name="allocations">The allocations to add.</param>
     void AddGeneralAdmissionAllocations(IEnumerable<GeneralAdmissionAllocation> allocations);
 
-    /// <summary>Counts the general-admission allocations for an event.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Counts the general-admission allocations for a performance.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The number of general-admission allocations.</returns>
-    Task<int> CountGeneralAdmissionAllocationsForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    Task<int> CountGeneralAdmissionAllocationsForSessionAsync(
+        Guid eventSessionId,
+        CancellationToken cancellationToken);
 
     /// <summary>Loads the tracked general-admission allocations with the given ids.</summary>
     /// <param name="allocationIds">The allocation ids.</param>
@@ -121,31 +134,36 @@ public interface IInventoryRepository
         IReadOnlyCollection<Guid> allocationIds,
         CancellationToken cancellationToken);
 
-    /// <summary>Returns every general-admission allocation for an event.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Returns every general-admission allocation for a performance.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The event's general-admission allocations.</returns>
-    Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForEventAsync(Guid eventId, CancellationToken cancellationToken);
+    /// <returns>The performance's general-admission allocations.</returns>
+    Task<IReadOnlyList<GeneralAdmissionAllocation>> ListGeneralAdmissionForSessionAsync(
+        Guid eventSessionId,
+        CancellationToken cancellationToken);
 
-    /// <summary>Loads the event inventory settings for an event, if provisioned.</summary>
-    /// <param name="eventId">The event id.</param>
+    /// <summary>Loads a performance's inventory settings, if it has been provisioned.</summary>
+    /// <param name="eventSessionId">The performance id.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The settings, or <see langword="null"/> if the event has no settings row yet.</returns>
-    Task<EventInventorySettings?> GetEventInventorySettingsAsync(Guid eventId, CancellationToken cancellationToken);
+    /// <returns>The settings, or <see langword="null"/> if there is no settings row yet.</returns>
+    Task<SessionInventorySettings?> GetSessionInventorySettingsAsync(
+        Guid eventSessionId,
+        CancellationToken cancellationToken);
 
-    /// <summary>Registers a new event inventory settings row to be persisted.</summary>
+    /// <summary>Registers a new performance inventory settings row to be persisted.</summary>
     /// <param name="settings">The settings to add.</param>
-    void AddEventInventorySettings(EventInventorySettings settings);
+    void AddSessionInventorySettings(SessionInventorySettings settings);
 
     /// <summary>
-    /// Sums a buyer's already-committed quantity for an event — seats plus general-admission
-    /// quantities — across their <see cref="HoldStatus.Active"/> and <see cref="HoldStatus.Converted"/>
-    /// holds. Used to enforce <see cref="EventInventorySettings.MaxTicketsPerBuyer"/> before a new
-    /// hold is placed. Released holds are excluded — that quantity has freed back up.
+    /// Sums a buyer's already-committed quantity for an <b>event</b> — seats plus general-admission
+    /// quantities — across their <see cref="HoldStatus.Active"/> and
+    /// <see cref="HoldStatus.Converted"/> holds, for every performance of the run. Used to enforce
+    /// <see cref="SessionInventorySettings.MaxTicketsPerBuyer"/> before a new hold is placed.
+    /// Released holds are excluded — that quantity has freed back up.
     /// </summary>
-    /// <param name="eventId">The event id.</param>
+    /// <param name="catalogEventId">The event id — not the performance id, deliberately.</param>
     /// <param name="userId">The buyer.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
-    /// <returns>The buyer's total already-committed quantity for the event.</returns>
-    Task<int> GetBuyerCommittedQuantityAsync(Guid eventId, Guid userId, CancellationToken cancellationToken);
+    /// <returns>The buyer's total already-committed quantity across the event.</returns>
+    Task<int> GetBuyerCommittedQuantityAsync(Guid catalogEventId, Guid userId, CancellationToken cancellationToken);
 }

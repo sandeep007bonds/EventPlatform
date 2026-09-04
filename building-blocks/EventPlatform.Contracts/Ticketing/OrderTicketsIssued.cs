@@ -9,6 +9,11 @@ namespace EventPlatform.Contracts.Ticketing;
 /// <param name="TenantId">The tenant (organizer) the tickets belong to.</param>
 /// <param name="OrderId">The order the tickets were issued for.</param>
 /// <param name="CatalogEventId">The show/event the tickets admit to.</param>
+/// <param name="EventSessionId">
+/// The performance the seats belong to — the grain inventory, orders and tickets are keyed by
+/// (ADR-0039). <see cref="CatalogEventId"/> travels alongside it because the per-buyer ticket
+/// limit is counted across the whole run.
+/// </param>
 /// <param name="UserId">The ticket holder.</param>
 /// <param name="BuyerEmail">The email address the buyer provided at checkout for ticket delivery, if any.</param>
 /// <param name="Tickets">Every ticket minted for the order.</param>
@@ -18,6 +23,7 @@ public sealed record OrderTicketsIssued(
     Guid TenantId,
     Guid OrderId,
     Guid CatalogEventId,
+    Guid EventSessionId,
     Guid UserId,
     string? BuyerEmail,
     IReadOnlyList<IssuedTicketSummary> Tickets) : IntegrationEvent(EventId, OccurredAt, TenantId);

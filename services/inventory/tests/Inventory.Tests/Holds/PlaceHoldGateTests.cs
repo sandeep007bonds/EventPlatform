@@ -7,7 +7,8 @@ namespace Inventory.Tests.Holds;
 // a rejected request should cost nothing under the load these gates exist to survive.
 public sealed class PlaceHoldGateTests
 {
-    private static readonly Guid EventId = Guid.CreateVersion7();
+    private static readonly Guid EventSessionId = Guid.CreateVersion7();
+    private static readonly Guid CatalogEventId = Guid.CreateVersion7();
     private static readonly Guid UserId = Guid.CreateVersion7();
     private static readonly Guid SeatId = Guid.CreateVersion7();
 
@@ -22,22 +23,22 @@ public sealed class PlaceHoldGateTests
         var result = await PlaceHoldAsync(seatIds: []);
 
         result.Outcome.ShouldBe(PlaceHoldOutcome.SeatNotFound);
-        await inventory.DidNotReceive().GetEventInventorySettingsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
+        await inventory.DidNotReceive().GetSessionInventorySettingsAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task AnEventInventoryHasNeverBeenProvisionedFor_IsNotFound()
+    public async Task APerformanceInventoryHasNeverBeenProvisionedFor_IsNotFound()
     {
         GivenSettings(null);
 
         var result = await PlaceHoldAsync();
 
-        result.Outcome.ShouldBe(PlaceHoldOutcome.EventNotFound);
+        result.Outcome.ShouldBe(PlaceHoldOutcome.SessionNotFound);
         await ShouldNotHaveReachedTheFastGate();
     }
 
     [Fact]
-    public async Task AnEventWithSalesPaused_IsRejected()
+    public async Task APerformanceWithSalesPaused_IsRejected()
     {
         var settings = GivenSettings(CreateSettings());
         settings!.SetSalesPaused(true);
@@ -118,6 +119,23 @@ public sealed class PlaceHoldGateTests
         await ShouldHaveGoneOnToLoadInventory();
     }
 
+    // The one gate that is deliberately *not* keyed on the performance (ADR-0039). A limit counted
+    // per night would let a buyer take the cap once on Friday and again on Saturday, which is
+    // exactly what "four tickets per person" exists to stop — so this asserts the id that goes to
+    // the query, not just that some query happened.
+    [Fact]
+    public async Task TheBuyerLimitIsCountedAcrossTheEvent_NotThisPerformance()
+    {
+        GivenSettings(CreateSettings(maxTicketsPerBuyer: 4));
+
+        await PlaceHoldAsync();
+
+        await inventory.Received(1)
+            .GetBuyerCommittedQuantityAsync(CatalogEventId, UserId, Arg.Any<CancellationToken>());
+        await inventory.DidNotReceive()
+            .GetBuyerCommittedQuantityAsync(EventSessionId, UserId, Arg.Any<CancellationToken>());
+    }
+
     [Fact]
     public async Task WithNoBuyerLimitConfigured_TheBuyersHistoryIsNotEvenQueried()
     {
@@ -133,7 +151,7 @@ public sealed class PlaceHoldGateTests
     public async Task OnAQueuedEvent_AHoldWithNoAdmissionToken_IsRejected()
     {
         GivenSettings(CreateSettings(requiresQueue: true));
-        queueTokens.IsValid(null, EventId, Arg.Any<DateTimeOffset>()).Returns(false);
+        queueTokens.IsValid(null, CatalogEventId, Arg.Any<DateTimeOffset>()).Returns(false);
 
         var result = await PlaceHoldAsync(queueAdmissionToken: null);
 
@@ -145,7 +163,7 @@ public sealed class PlaceHoldGateTests
     public async Task OnAQueuedEvent_AValidAdmissionToken_OpensTheGate()
     {
         GivenSettings(CreateSettings(requiresQueue: true));
-        queueTokens.IsValid("admitted", EventId, Arg.Any<DateTimeOffset>()).Returns(true);
+        queueTokens.IsValid("admitted", CatalogEventId, Arg.Any<DateTimeOffset>()).Returns(true);
 
         var result = await PlaceHoldAsync(queueAdmissionToken: "admitted");
 
@@ -166,27 +184,29 @@ public sealed class PlaceHoldGateTests
         queueTokens.DidNotReceive().IsValid(Arg.Any<string?>(), Arg.Any<Guid>(), Arg.Any<DateTimeOffset>());
     }
 
-    private static EventInventorySettings CreateSettings(
+    private static SessionInventorySettings CreateSettings(
         DateTimeOffset? bookingEndsAt = null,
         int? maxTicketsPerBuyer = null,
         DateTimeOffset? onSaleAt = null,
         bool requiresQueue = false) =>
-        EventInventorySettings.Create(
-            EventId,
+        SessionInventorySettings.Create(
+            EventSessionId,
+            CatalogEventId,
             tenantId: Guid.CreateVersion7(),
             bookingEndsAt,
             maxTicketsPerBuyer,
             onSaleAt,
             requiresQueue);
 
-    private EventInventorySettings? GivenSettings(EventInventorySettings? settings)
+    private SessionInventorySettings? GivenSettings(SessionInventorySettings? settings)
     {
-        inventory.GetEventInventorySettingsAsync(EventId, Arg.Any<CancellationToken>()).Returns(settings);
+        inventory.GetSessionInventorySettingsAsync(EventSessionId, Arg.Any<CancellationToken>()).Returns(settings);
         return settings;
     }
 
+    // Counted against the event, not the performance — see the test below that pins that difference.
     private void GivenBuyerAlreadyCommitted(int quantity) =>
-        inventory.GetBuyerCommittedQuantityAsync(EventId, UserId, Arg.Any<CancellationToken>()).Returns(quantity);
+        inventory.GetBuyerCommittedQuantityAsync(CatalogEventId, UserId, Arg.Any<CancellationToken>()).Returns(quantity);
 
     // The gates run before any inventory is loaded, so reaching this call is what "the gate opened"
     // means. The request still fails afterwards (no seats are stubbed), which is deliberate: these
@@ -220,7 +240,7 @@ public sealed class PlaceHoldGateTests
 
         return await service.PlaceHoldAsync(
             UserId,
-            EventId,
+            EventSessionId,
             seatIds ?? [SeatId],
             generalAdmissionSelections ?? [],
             queueAdmissionToken,

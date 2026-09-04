@@ -8,6 +8,11 @@ namespace EventPlatform.Contracts.Inventory;
 /// <param name="TenantId">The tenant (organizer) the hold belonged to.</param>
 /// <param name="HoldId">The released hold id.</param>
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
+/// <param name="EventSessionId">
+/// The performance the seats belong to — the grain inventory, orders and tickets are keyed by
+/// (ADR-0039). <see cref="CatalogEventId"/> travels alongside it because the per-buyer ticket
+/// limit is counted across the whole run.
+/// </param>
 /// <param name="SeatIds">The released seat ids.</param>
 public sealed record SeatReleased(
     Guid EventId,
@@ -15,4 +20,5 @@ public sealed record SeatReleased(
     Guid TenantId,
     Guid HoldId,
     Guid CatalogEventId,
+    Guid EventSessionId,
     IReadOnlyList<Guid> SeatIds) : IntegrationEvent(EventId, OccurredAt, TenantId);

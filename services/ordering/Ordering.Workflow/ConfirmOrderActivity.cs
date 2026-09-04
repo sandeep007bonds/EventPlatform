@@ -23,6 +23,7 @@ public sealed class ConfirmOrderActivity(IOrderRepository orders, IEventPublishe
             input.TenantId,
             order.Id,
             input.CatalogEventId,
+            input.EventSessionId,
             input.UserId,
             order.TotalMinor,
             order.Currency,

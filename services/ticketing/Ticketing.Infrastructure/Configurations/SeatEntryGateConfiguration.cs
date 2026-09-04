@@ -10,9 +10,9 @@ internal sealed class SeatEntryGateConfiguration : IEntityTypeConfiguration<Seat
 
         builder.HasKey(g => g.SeatId);
 
-        builder.Property(g => g.EventId).IsRequired();
+        builder.Property(g => g.EventSessionId).IsRequired();
         builder.Property(g => g.EntryGateId).IsRequired();
 
-        builder.HasIndex(g => g.EventId);
+        builder.HasIndex(g => g.EventSessionId);
     }
 }

@@ -63,13 +63,13 @@ internal sealed class InventoryReconciler(
         }
 
         var repository = scope.ServiceProvider.GetRequiredService<IInventoryRepository>();
-        var eventIds = await repository.GetEventIdsWithActiveInventoryAsync(cancellationToken);
+        var eventIds = await repository.GetSessionIdsWithActiveInventoryAsync(cancellationToken);
 
         var now = DateTimeOffset.UtcNow;
         var restored = 0;
-        foreach (var eventId in eventIds)
+        foreach (var eventSessionId in eventIds)
         {
-            var states = await repository.GetReconciliationStateAsync(eventId, cancellationToken);
+            var states = await repository.GetReconciliationStateAsync(eventSessionId, cancellationToken);
             if (states.Count == 0)
             {
                 continue;

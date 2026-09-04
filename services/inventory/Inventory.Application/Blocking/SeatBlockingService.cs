@@ -16,14 +16,14 @@ public sealed class SeatBlockingService(
 {
     /// <summary>Blocks the requested seats, all-or-nothing.</summary>
     /// <param name="tenantId">The caller's tenant — seats belonging to another tenant are treated as not found.</param>
-    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="eventSessionId">The performance the seats belong to.</param>
     /// <param name="seatIds">The seats to block.</param>
     /// <param name="reason">Optional organizer-supplied reason, carried on the published event.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The block result.</returns>
     public async Task<BlockSeatsResult> BlockAsync(
         Guid tenantId,
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyList<Guid> seatIds,
         string? reason,
         CancellationToken cancellationToken)
@@ -34,7 +34,7 @@ public sealed class SeatBlockingService(
             return BlockSeatsResult.SeatNotFound();
         }
 
-        var items = await inventory.GetItemsBySeatsAsync(eventId, distinctSeatIds, cancellationToken);
+        var items = await inventory.GetItemsBySeatsAsync(eventSessionId, distinctSeatIds, cancellationToken);
         if (items.Count != distinctSeatIds.Count || items.Any(item => item.TenantId != tenantId))
         {
             return BlockSeatsResult.SeatNotFound();
@@ -60,7 +60,8 @@ public sealed class SeatBlockingService(
             Guid.CreateVersion7(),
             DateTimeOffset.UtcNow,
             tenantId,
-            eventId,
+            items[0].CatalogEventId,
+            eventSessionId,
             distinctSeatIds,
             reason));
 
@@ -70,19 +71,19 @@ public sealed class SeatBlockingService(
         }
 
         // Postgres committed (the authority); now reflect it in the Redis fast gate.
-        await holdStore.BlockAsync(eventId, distinctSeatIds, cancellationToken);
+        await holdStore.BlockAsync(eventSessionId, distinctSeatIds, cancellationToken);
         return BlockSeatsResult.Blocked();
     }
 
     /// <summary>Unblocks the requested seats, all-or-nothing.</summary>
     /// <param name="tenantId">The caller's tenant — seats belonging to another tenant are treated as not found.</param>
-    /// <param name="eventId">The event the seats belong to.</param>
+    /// <param name="eventSessionId">The performance the seats belong to.</param>
     /// <param name="seatIds">The seats to unblock.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The unblock outcome.</returns>
     public async Task<UnblockSeatsOutcome> UnblockAsync(
         Guid tenantId,
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyList<Guid> seatIds,
         CancellationToken cancellationToken)
     {
@@ -92,7 +93,7 @@ public sealed class SeatBlockingService(
             return UnblockSeatsOutcome.SeatNotFound;
         }
 
-        var items = await inventory.GetItemsBySeatsAsync(eventId, distinctSeatIds, cancellationToken);
+        var items = await inventory.GetItemsBySeatsAsync(eventSessionId, distinctSeatIds, cancellationToken);
         if (items.Count != distinctSeatIds.Count || items.Any(item => item.TenantId != tenantId))
         {
             return UnblockSeatsOutcome.SeatNotFound;
@@ -113,14 +114,20 @@ public sealed class SeatBlockingService(
 
         inventory.AddLedgerEntries(ledger);
 
-        events.Enqueue(new SeatUnblocked(Guid.CreateVersion7(), DateTimeOffset.UtcNow, tenantId, eventId, distinctSeatIds));
+        events.Enqueue(new SeatUnblocked(
+            Guid.CreateVersion7(),
+            DateTimeOffset.UtcNow,
+            tenantId,
+            items[0].CatalogEventId,
+            eventSessionId,
+            distinctSeatIds));
 
         if (!await inventory.TrySaveChangesAsync(cancellationToken))
         {
             return UnblockSeatsOutcome.Conflict;
         }
 
-        await holdStore.UnblockAsync(eventId, distinctSeatIds, cancellationToken);
+        await holdStore.UnblockAsync(eventSessionId, distinctSeatIds, cancellationToken);
         return UnblockSeatsOutcome.Unblocked;
     }
 }

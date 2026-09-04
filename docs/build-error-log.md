@@ -25,6 +25,7 @@ attempt and the wrong version looked plausible.
 | **SA1516** | Expanding a one-line field into a chained initializer left the next field flush against `.Build();` | Element following a **multi-line** element with no blank line. StyleCop allows consecutive single-line fields, so the naive reading reports 72 violations on a passing tree |
 | **CS1573 / SA1611 / SA1612** | `amountMinor` added to `RefundAsync` without a `<param>`; `QueueStatusResponse` documented its parameters out of order | `<param>` names and order compared against the signature |
 | **CS7036 / CS1729** | `EventPricing` gained `BookingFeePerTicketMinor`; three construction sites were not updated | `new X(...)` argument count against the positional record declaration, **scoped to one compilation** — see below |
+| **CS1570** | `SessionScanContext`'s summary was split into a `<summary>` and a `<remarks>` when it was re-keyed to the performance, and the old `</summary>` closer was left on the end of the new block | Doc-comment tags matched as a stack: a closer that names a different tag than the one still open, a closer with nothing open, or a block that ends with a tag unclosed |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
@@ -42,6 +43,15 @@ scopes lookups to `services/<name>` or `gateways/<name>` plus `building-blocks/`
 references), and stays silent when a name resolves to more than one arity in view rather than
 picking one. Verified both ways: zero findings on the passing tree, and still catches a genuine
 three-argument call to a six-parameter record in the same project.
+
+The CS1570 rule checks **only tag balance**, and that limit is the calibration. Attribute syntax and
+entity escaping are the compiler's job: `<`/`&` appear in doc prose that compiles, and a rule that
+guessed at them would fire on correct code. Tags that never close (`<see>`, `<paramref>`,
+`<inheritdoc>`, `<br/>`, and anything self-closing) are skipped rather than pushed. Verified on the
+passing tree (zero findings across 850 files) and against three constructed failures — the closer
+naming the wrong tag, a block ending with `<summary>` still open, and crossed nesting
+(`<b>…<i>…</b></i>`) — all three caught, and a file exercising `<para>`, `<list>`, `<see langword>`
+and `<br/>` stayed silent.
 
 ## Not detectable without semantic analysis
 

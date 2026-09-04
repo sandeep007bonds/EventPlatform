@@ -1,83 +1,110 @@
 namespace Inventory.Application.Provisioning;
 
 /// <summary>
-/// Generates seat and general-admission inventory for a published event by reading its Catalog
-/// seat map, and records the event's enforced booking cutoff. Idempotent: re-provisioning an event
-/// that already has a settings row is a no-op, so at-least-once delivery of <c>EventPublished</c>
-/// is safe.
+/// Generates inventory for one published performance by reading its pinned Venue seat-map version
+/// and joining it to the performance's allocation map.
 /// </summary>
+/// <remarks>
+/// Idempotent: a performance that already has a settings row is a no-op, so at-least-once delivery
+/// of <c>EventSessionPublished</c> is safe.
+/// <para>
+/// The join is by <b>code</b>. Venue says which seats exist and which block each is in; Catalog says
+/// which ticket type each block sells as and at what price. Neither service knows both, and the
+/// code is the only thing they agree on — which is why it is stable across renames by design.
+/// </para>
+/// </remarks>
 /// <param name="inventory">The inventory repository.</param>
-/// <param name="seatMaps">The Catalog seat-map client.</param>
+/// <param name="seatMaps">The Venue seat-map client.</param>
 /// <param name="holdStore">The Redis fast gate, used to initialize general-admission capacity counters.</param>
 public sealed class InventoryProvisioningService(
     IInventoryRepository inventory,
     ISeatMapClient seatMaps,
     IHoldStore holdStore)
 {
-    /// <summary>Provisions inventory for an event, unless it already exists.</summary>
-    /// <param name="tenantId">Owning tenant.</param>
-    /// <param name="eventId">The published event.</param>
-    /// <param name="bookingEndsAt">The event's enforced booking cutoff (UTC), if any.</param>
-    /// <param name="maxTicketsPerBuyer">The event's per-buyer ticket limit, if any.</param>
-    /// <param name="onSaleAt">The event's enforced on-sale start (UTC), if any.</param>
-    /// <param name="requiresQueue">Whether a Queue admission token is required at hold time.</param>
+    /// <summary>Provisions inventory for a performance, unless it already exists.</summary>
+    /// <param name="request">Everything the published performance announced.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>The provisioning result.</returns>
     public async Task<ProvisioningResult> ProvisionAsync(
-        Guid tenantId,
-        Guid eventId,
-        DateTimeOffset? bookingEndsAt,
-        int? maxTicketsPerBuyer,
-        DateTimeOffset? onSaleAt,
-        bool requiresQueue,
+        ProvisionSessionRequest request,
         CancellationToken cancellationToken)
     {
-        if (await inventory.ExistsForEventAsync(eventId, cancellationToken))
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (await inventory.ExistsForSessionAsync(request.EventSessionId, cancellationToken))
         {
             return new ProvisioningResult(Provisioned: false, SeatCount: 0, GeneralAdmissionAllocationCount: 0);
         }
 
-        var seatMap = await seatMaps.GetSeatMapAsync(eventId, cancellationToken);
+        var seatMap = await seatMaps.GetSeatMapAsync(request.SeatMapId, request.SeatMapVersionNumber, cancellationToken);
+        var allocationsByCode = request.Allocations.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
-        var items = seatMap.Seats
-            .Select(seat => InventoryItem.Create(
-                tenantId,
-                eventId,
+        var items = new List<InventoryItem>();
+        foreach (var seat in seatMap.Seats)
+        {
+            // A seat in a block nobody allocated is skipped rather than guessed at. Catalog refuses
+            // to publish a performance with an unallocated block, so reaching this means the two
+            // services disagree — and inventing a price would turn that into a wrong sale.
+            if (!allocationsByCode.TryGetValue(seat.SectionCode, out var allocation))
+            {
+                continue;
+            }
+
+            items.Add(InventoryItem.Create(
+                request.TenantId,
+                request.EventSessionId,
+                request.CatalogEventId,
                 seat.SeatId,
-                seat.PriceTier,
-                ToMinor(seat.PriceAmount)))
-            .ToList();
+                allocation.TicketTypeId,
+                allocation.PriceMinor,
+                seat.IsSellable));
+        }
+
         inventory.AddRange(items);
 
-        var allocations = seatMap.GeneralAdmissionSections
-            .Select(section => GeneralAdmissionAllocation.Create(
-                tenantId,
-                eventId,
-                section.SectionId,
-                section.PriceTier,
-                ToMinor(section.PriceAmount),
-                section.Capacity))
-            .ToList();
-        inventory.AddGeneralAdmissionAllocations(allocations);
+        var pools = new List<GeneralAdmissionAllocation>();
+        foreach (var area in seatMap.AdmissionAreas)
+        {
+            if (!allocationsByCode.TryGetValue(area.Code, out var allocation))
+            {
+                continue;
+            }
 
-        inventory.AddEventInventorySettings(
-            EventInventorySettings.Create(eventId, tenantId, bookingEndsAt, maxTicketsPerBuyer, onSaleAt, requiresQueue));
+            pools.Add(GeneralAdmissionAllocation.Create(
+                request.TenantId,
+                request.EventSessionId,
+                request.CatalogEventId,
+                area.AdmissionAreaId,
+                allocation.TicketTypeId,
+                allocation.PriceMinor,
+                area.Capacity));
+        }
+
+        inventory.AddGeneralAdmissionAllocations(pools);
+
+        inventory.AddSessionInventorySettings(SessionInventorySettings.Create(
+            request.EventSessionId,
+            request.CatalogEventId,
+            request.TenantId,
+            request.BookingEndsAt,
+            request.MaxTicketsPerBuyer,
+            request.OnSaleAt,
+            request.RequiresQueue));
 
         await inventory.SaveChangesAsync(cancellationToken);
 
-        foreach (var allocation in allocations)
+        foreach (var pool in pools)
         {
             await holdStore.InitializeGeneralAdmissionCapacityAsync(
-                eventId,
-                allocation.Id,
-                allocation.TotalCapacity,
+                request.EventSessionId,
+                pool.Id,
+                pool.TotalCapacity,
                 cancellationToken);
         }
 
-        return new ProvisioningResult(Provisioned: true, SeatCount: items.Count, GeneralAdmissionAllocationCount: allocations.Count);
+        return new ProvisioningResult(
+            Provisioned: true,
+            SeatCount: items.Count,
+            GeneralAdmissionAllocationCount: pools.Count);
     }
-
-    // Assumes a 2-decimal currency (see tracker T-currency): refine per ISO 4217 exponent later.
-    private static long ToMinor(decimal amount) =>
-        (long)Math.Round(amount * 100m, MidpointRounding.AwayFromZero);
 }

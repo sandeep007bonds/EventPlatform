@@ -15,7 +15,7 @@ namespace Catalog.Application.Features.CreatePromoCode;
 /// <param name="IsPublic">Whether buyers see the code listed at checkout rather than having to type it.</param>
 /// <param name="MaxRedemptions">Total redemption cap; <see langword="null"/> for unlimited.</param>
 /// <param name="MaxRedemptionsPerBuyer">Per-buyer redemption cap; <see langword="null"/> for unlimited.</param>
-/// <param name="PriceTiers">Price tiers to restrict the code to. Empty applies it to every tier.</param>
+/// <param name="TicketTypeIds">Ticket types to restrict the code to. Empty applies it to every type.</param>
 public sealed record CreatePromoCodeCommand(
     Guid EventId,
     Guid TenantId,
@@ -28,4 +28,4 @@ public sealed record CreatePromoCodeCommand(
     bool IsPublic,
     int? MaxRedemptions,
     int? MaxRedemptionsPerBuyer,
-    IReadOnlyList<string> PriceTiers) : IRequest<CreatePromoCodeResult>;
+    IReadOnlyList<Guid> TicketTypeIds) : IRequest<CreatePromoCodeResult>;

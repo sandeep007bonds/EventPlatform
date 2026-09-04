@@ -109,7 +109,7 @@ public sealed class PromoCode
     public DateTimeOffset CreatedAt { get; private set; }
 
     /// <summary>
-    /// The price tiers this code applies to. **Empty means every tier** — see
+    /// The ticket types this code applies to. **Empty means every type** — see
     /// <see cref="PromoCodeTier"/>.
     /// </summary>
     public IReadOnlyCollection<PromoCodeTier> Tiers => _tiers;
@@ -126,7 +126,7 @@ public sealed class PromoCode
     /// <param name="isPublic">Whether the code is listed to buyers rather than typed in.</param>
     /// <param name="maxRedemptions">Total redemption cap, or <see langword="null"/> for unlimited.</param>
     /// <param name="maxRedemptionsPerBuyer">Per-buyer cap, or <see langword="null"/> for unlimited.</param>
-    /// <param name="priceTiers">Tiers to restrict to. Empty or <see langword="null"/> applies to all tiers.</param>
+    /// <param name="ticketTypeIds">Ticket types to restrict to. Empty or <see langword="null"/> applies to all of them.</param>
     /// <returns>A new <see cref="PromoCode"/>.</returns>
     public static PromoCode Create(
         Guid eventId,
@@ -140,7 +140,7 @@ public sealed class PromoCode
         bool isPublic,
         int? maxRedemptions,
         int? maxRedemptionsPerBuyer,
-        IEnumerable<string>? priceTiers)
+        IEnumerable<Guid>? ticketTypeIds)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(code);
 
@@ -198,13 +198,11 @@ public sealed class PromoCode
             maxRedemptions,
             maxRedemptionsPerBuyer);
 
-        // Distinct: a duplicated tier would double nothing (eligibility is a set membership test)
+        // Distinct: a duplicated type would double nothing (eligibility is a set membership test)
         // but would show up twice in the organizer's own listing, which reads as a bug.
-        foreach (var tier in (priceTiers ?? []).Where(t => !string.IsNullOrWhiteSpace(t))
-                     .Select(t => t.Trim())
-                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var ticketTypeId in (ticketTypeIds ?? []).Where(id => id != Guid.Empty).Distinct())
         {
-            promoCode._tiers.Add(new PromoCodeTier(Guid.CreateVersion7(), promoCode.Id, tier));
+            promoCode._tiers.Add(new PromoCodeTier(Guid.CreateVersion7(), promoCode.Id, ticketTypeId));
         }
 
         return promoCode;

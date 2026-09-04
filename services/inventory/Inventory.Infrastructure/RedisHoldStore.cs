@@ -132,7 +132,7 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
     /// <inheritdoc />
     public async Task<HoldStoreResult> TryHoldAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid holdId,
         IReadOnlyList<Guid> seatIds,
         TimeSpan ttl,
@@ -140,14 +140,14 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var keys = HoldKeys(eventId, seatIds);
+        var keys = HoldKeys(eventSessionId, seatIds);
 
         var values = new List<RedisValue>
         {
             holdId.ToString("N"),
             (int)ttl.TotalSeconds,
-            HoldKey(eventId, holdId),
-            HoldSeatsKey(eventId, holdId),
+            HoldKey(eventSessionId, holdId),
+            HoldSeatsKey(eventSessionId, holdId),
         };
         values.AddRange(seatIds.Select(seatId => (RedisValue)seatId.ToString("N")));
 
@@ -166,18 +166,18 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
     /// <inheritdoc />
     public async Task ReleaseAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid holdId,
         IReadOnlyList<Guid> seatIds,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseScript, HoldKeys(eventSessionId, seatIds), HoldArgs(eventSessionId, holdId));
     }
 
     /// <inheritdoc />
-    public async Task ExtendAsync(Guid eventId, Guid holdId, TimeSpan ttl, CancellationToken cancellationToken)
+    public async Task ExtendAsync(Guid eventSessionId, Guid holdId, TimeSpan ttl, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -186,52 +186,52 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         // KeyExpireAsync on a key that doesn't exist for this hold (e.g. an all-GA hold has no
         // HoldSeatsKey) is a safe no-op, so no need to branch on which kinds of items the hold has.
         var db = redis.GetDatabase();
-        await db.KeyExpireAsync(HoldKey(eventId, holdId), ttl);
-        await db.KeyExpireAsync(HoldSeatsKey(eventId, holdId), ttl);
-        await db.KeyExpireAsync(GaHoldItemsKey(eventId, holdId), ttl);
+        await db.KeyExpireAsync(HoldKey(eventSessionId, holdId), ttl);
+        await db.KeyExpireAsync(HoldSeatsKey(eventSessionId, holdId), ttl);
+        await db.KeyExpireAsync(GaHoldItemsKey(eventSessionId, holdId), ttl);
     }
 
     /// <inheritdoc />
     public async Task MarkSoldAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid holdId,
         IReadOnlyList<Guid> seatIds,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        await redis.GetDatabase().ScriptEvaluateAsync(MarkSoldScript, HoldKeys(eventId, seatIds), HoldArgs(eventId, holdId));
+        await redis.GetDatabase().ScriptEvaluateAsync(MarkSoldScript, HoldKeys(eventSessionId, seatIds), HoldArgs(eventSessionId, holdId));
     }
 
     /// <inheritdoc />
-    public async Task ReleaseSoldAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    public async Task ReleaseSoldAsync(Guid eventSessionId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseSoldScript, HoldKeys(eventId, seatIds), Array.Empty<RedisValue>());
+        await redis.GetDatabase().ScriptEvaluateAsync(ReleaseSoldScript, HoldKeys(eventSessionId, seatIds), Array.Empty<RedisValue>());
     }
 
     /// <inheritdoc />
-    public async Task BlockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    public async Task BlockAsync(Guid eventSessionId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var db = redis.GetDatabase();
         foreach (var seatId in seatIds)
         {
-            await db.StringSetAsync(SeatKey(eventId, seatId), "B");
+            await db.StringSetAsync(SeatKey(eventSessionId, seatId), "B");
         }
     }
 
     /// <inheritdoc />
-    public async Task UnblockAsync(Guid eventId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
+    public async Task UnblockAsync(Guid eventSessionId, IReadOnlyList<Guid> seatIds, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var db = redis.GetDatabase();
         foreach (var seatId in seatIds)
         {
-            await db.KeyDeleteAsync(SeatKey(eventId, seatId));
+            await db.KeyDeleteAsync(SeatKey(eventSessionId, seatId));
         }
     }
 
@@ -254,7 +254,7 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         var db = redis.GetDatabase();
         foreach (var state in states)
         {
-            var seatKey = SeatKey(state.EventId, state.SeatId);
+            var seatKey = SeatKey(state.EventSessionId, state.SeatId);
             if (state.Condition == SeatCondition.Sold)
             {
                 await db.StringSetAsync(seatKey, "S");
@@ -277,9 +277,9 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
             var seatValue = state.SeatId.ToString("N");
             await db.StringSetAsync(seatKey, "H:" + holdId.ToString("N"));
-            await db.StringSetAsync(HoldKey(state.EventId, holdId), "1", ttl);
-            await db.SetAddAsync(HoldSeatsKey(state.EventId, holdId), seatValue);
-            await db.KeyExpireAsync(HoldSeatsKey(state.EventId, holdId), ttl);
+            await db.StringSetAsync(HoldKey(state.EventSessionId, holdId), "1", ttl);
+            await db.SetAddAsync(HoldSeatsKey(state.EventSessionId, holdId), seatValue);
+            await db.KeyExpireAsync(HoldSeatsKey(state.EventSessionId, holdId), ttl);
         }
     }
 
@@ -292,18 +292,18 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
     /// <inheritdoc />
     public async Task InitializeGeneralAdmissionCapacityAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid allocationId,
         int totalCapacity,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await redis.GetDatabase().StringSetAsync(CapacityKey(eventId, allocationId), totalCapacity);
+        await redis.GetDatabase().StringSetAsync(CapacityKey(eventSessionId, allocationId), totalCapacity);
     }
 
     /// <inheritdoc />
     public async Task<GeneralAdmissionHoldStoreResult> TryHoldGeneralAdmissionAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid holdId,
         IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
         TimeSpan ttl,
@@ -312,15 +312,15 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var keys = selections
-            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .Select(selection => (RedisKey)CapacityKey(eventSessionId, selection.AllocationId))
             .ToArray();
 
         var values = new List<RedisValue>
         {
             holdId.ToString("N"),
             (int)ttl.TotalSeconds,
-            HoldKey(eventId, holdId),
-            GaHoldItemsKey(eventId, holdId),
+            HoldKey(eventSessionId, holdId),
+            GaHoldItemsKey(eventSessionId, holdId),
         };
         values.AddRange(selections.Select(selection => (RedisValue)selection.Quantity));
         values.AddRange(selections.Select(selection => (RedisValue)selection.AllocationId.ToString("N")));
@@ -341,7 +341,7 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
 
     /// <inheritdoc />
     public async Task ReleaseGeneralAdmissionAsync(
-        Guid eventId,
+        Guid eventSessionId,
         Guid holdId,
         IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
         CancellationToken cancellationToken)
@@ -349,59 +349,59 @@ internal sealed class RedisHoldStore(IConnectionMultiplexer redis) : IHoldStore
         cancellationToken.ThrowIfCancellationRequested();
 
         var keys = selections
-            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .Select(selection => (RedisKey)CapacityKey(eventSessionId, selection.AllocationId))
             .ToArray();
 
-        var values = new List<RedisValue> { GaHoldItemsKey(eventId, holdId) };
+        var values = new List<RedisValue> { GaHoldItemsKey(eventSessionId, holdId) };
         values.AddRange(selections.Select(selection => (RedisValue)selection.Quantity));
 
         await redis.GetDatabase().ScriptEvaluateAsync(ReleaseGeneralAdmissionScript, keys, values.ToArray());
     }
 
     /// <inheritdoc />
-    public async Task MarkGeneralAdmissionSoldAsync(Guid eventId, Guid holdId, CancellationToken cancellationToken)
+    public async Task MarkGeneralAdmissionSoldAsync(Guid eventSessionId, Guid holdId, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var values = new RedisValue[] { GaHoldItemsKey(eventId, holdId) };
+        var values = new RedisValue[] { GaHoldItemsKey(eventSessionId, holdId) };
         await redis.GetDatabase().ScriptEvaluateAsync(MarkGeneralAdmissionSoldScript, Array.Empty<RedisKey>(), values);
     }
 
     /// <inheritdoc />
     public async Task ReleaseSoldGeneralAdmissionAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyList<(Guid AllocationId, int Quantity)> selections,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
         var keys = selections
-            .Select(selection => (RedisKey)CapacityKey(eventId, selection.AllocationId))
+            .Select(selection => (RedisKey)CapacityKey(eventSessionId, selection.AllocationId))
             .ToArray();
         var values = selections.Select(selection => (RedisValue)selection.Quantity).ToArray();
 
         await redis.GetDatabase().ScriptEvaluateAsync(ReleaseSoldGeneralAdmissionScript, keys, values);
     }
 
-    private static RedisKey[] HoldKeys(Guid eventId, IReadOnlyList<Guid> seatIds) =>
-        seatIds.Select(seatId => (RedisKey)SeatKey(eventId, seatId)).ToArray();
+    private static RedisKey[] HoldKeys(Guid eventSessionId, IReadOnlyList<Guid> seatIds) =>
+        seatIds.Select(seatId => (RedisKey)SeatKey(eventSessionId, seatId)).ToArray();
 
-    private static RedisValue[] HoldArgs(Guid eventId, Guid holdId) =>
+    private static RedisValue[] HoldArgs(Guid eventSessionId, Guid holdId) =>
         new RedisValue[]
         {
             holdId.ToString("N"),
-            HoldKey(eventId, holdId),
-            HoldSeatsKey(eventId, holdId),
+            HoldKey(eventSessionId, holdId),
+            HoldSeatsKey(eventSessionId, holdId),
         };
 
-    private static string SeatKey(Guid eventId, Guid seatId) => $"inv:{eventId:N}:seat:{seatId:N}";
+    private static string SeatKey(Guid eventSessionId, Guid seatId) => $"inv:{eventSessionId:N}:seat:{seatId:N}";
 
-    private static string HoldKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}";
+    private static string HoldKey(Guid eventSessionId, Guid holdId) => $"inv:{eventSessionId:N}:hold:{holdId:N}";
 
-    private static string HoldSeatsKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}:seats";
+    private static string HoldSeatsKey(Guid eventSessionId, Guid holdId) => $"inv:{eventSessionId:N}:hold:{holdId:N}:seats";
 
-    private static string CapacityKey(Guid eventId, Guid allocationId) =>
-        $"inv:{eventId:N}:ga:{allocationId:N}:remaining";
+    private static string CapacityKey(Guid eventSessionId, Guid allocationId) =>
+        $"inv:{eventSessionId:N}:ga:{allocationId:N}:remaining";
 
-    private static string GaHoldItemsKey(Guid eventId, Guid holdId) => $"inv:{eventId:N}:hold:{holdId:N}:ga";
+    private static string GaHoldItemsKey(Guid eventSessionId, Guid holdId) => $"inv:{eventSessionId:N}:hold:{holdId:N}:ga";
 }

@@ -9,6 +9,11 @@ namespace EventPlatform.Contracts.Ordering;
 /// <param name="TenantId">The tenant (organizer) the order belongs to.</param>
 /// <param name="OrderId">The confirmed order id.</param>
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
+/// <param name="EventSessionId">
+/// The performance the seats belong to — the grain inventory, orders and tickets are keyed by
+/// (ADR-0039). <see cref="CatalogEventId"/> travels alongside it because the per-buyer ticket
+/// limit is counted across the whole run.
+/// </param>
 /// <param name="UserId">The buyer.</param>
 /// <param name="TotalMinor">Order total in minor currency units.</param>
 /// <param name="Currency">Pricing currency (ISO 4217).</param>
@@ -20,6 +25,7 @@ public sealed record OrderConfirmed(
     Guid TenantId,
     Guid OrderId,
     Guid CatalogEventId,
+    Guid EventSessionId,
     Guid UserId,
     long TotalMinor,
     string Currency,

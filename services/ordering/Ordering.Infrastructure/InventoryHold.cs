@@ -4,6 +4,11 @@ namespace Ordering.Infrastructure;
 /// <param name="HoldId">The hold id.</param>
 /// <param name="TenantId">Owning tenant.</param>
 /// <param name="CatalogEventId">The show/event the seats belong to.</param>
+/// <param name="EventSessionId">
+/// The performance the seats belong to. <see cref="CatalogEventId"/> travels with it because
+/// promo codes, tax and fees are the event's, while inventory and tickets are the
+/// performance's (ADR-0039).
+/// </param>
 /// <param name="UserId">The buyer who owns the hold.</param>
 /// <param name="Status">Hold status name.</param>
 /// <param name="ExpiresAt">When the hold expires (UTC).</param>
@@ -13,6 +18,7 @@ internal sealed record InventoryHold(
     Guid HoldId,
     Guid TenantId,
     Guid CatalogEventId,
+    Guid EventSessionId,
     Guid UserId,
     string Status,
     DateTimeOffset ExpiresAt,

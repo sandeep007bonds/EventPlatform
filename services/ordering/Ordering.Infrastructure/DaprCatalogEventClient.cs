@@ -74,6 +74,6 @@ internal sealed class DaprCatalogEventClient : ICatalogEventClient
                 promoCode.IsActive,
                 promoCode.MaxRedemptions,
                 promoCode.MaxRedemptionsPerBuyer,
-                promoCode.PriceTiers ?? []);
+                promoCode.TicketTypeIds ?? []);
     }
 }

@@ -11,7 +11,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleOrderConfirmed_AlreadyProcessed_IsNoOp()
     {
-        var @event = new OrderConfirmed(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1000, "USD", []);
+        var @event = new OrderConfirmed(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1000, "USD", []);
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(true);
 
         await CreateHandler().HandleOrderConfirmedAsync(@event, CancellationToken.None);
@@ -23,7 +23,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleOrderConfirmed_NoRecipientResolved_RecordsSkippedAndMarksProcessed()
     {
-        var @event = new OrderConfirmed(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1000, "USD", []);
+        var @event = new OrderConfirmed(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), 1000, "USD", []);
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(false);
         recipients.ResolveAsync(@event.UserId, Arg.Any<CancellationToken>()).Returns((RecipientContact?)null);
 
@@ -37,7 +37,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleTicketIssued_NoRecipientResolved_RecordsSkippedWithTicketIssuedTemplateKey()
     {
-        var @event = new TicketIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
+        var @event = new TicketIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, Guid.NewGuid());
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(false);
         recipients.ResolveAsync(@event.UserId, Arg.Any<CancellationToken>()).Returns((RecipientContact?)null);
 
@@ -49,7 +49,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleOrderTicketsIssued_AlreadyProcessed_IsNoOp()
     {
-        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "buyer@example.com", []);
+        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "buyer@example.com", []);
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(true);
 
         await CreateHandler().HandleOrderTicketsIssuedAsync(@event, CancellationToken.None);
@@ -61,7 +61,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     [Fact]
     public async Task HandleOrderTicketsIssued_NoBuyerEmail_RecordsSkippedAndMarksProcessed()
     {
-        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, []);
+        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), null, []);
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(false);
 
         await CreateHandler().HandleOrderTicketsIssuedAsync(@event, CancellationToken.None);
@@ -76,7 +76,7 @@ public sealed class IntegrationEventNotificationHandlerTests
     public async Task HandleOrderTicketsIssued_WithBuyerEmail_SendsCombinedEmailAndRecordsSent()
     {
         var tickets = new[] { new IssuedTicketSummary(Guid.NewGuid(), Guid.NewGuid(), null, "TOKEN1") };
-        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "buyer@example.com", tickets);
+        var @event = new OrderTicketsIssued(Guid.NewGuid(), DateTimeOffset.UtcNow, Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "buyer@example.com", tickets);
         notifications.HasProcessedEventAsync(@event.EventId, Arg.Any<CancellationToken>()).Returns(false);
         templates.GetAsync(TemplateKeys.OrderTickets, Arg.Any<CancellationToken>())
             .Returns(new NotificationTemplate(TemplateKeys.OrderTickets, "subject template", "body template"));

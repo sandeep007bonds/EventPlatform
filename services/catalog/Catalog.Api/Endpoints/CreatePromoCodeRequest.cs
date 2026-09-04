@@ -15,7 +15,7 @@ namespace Catalog.Api.Endpoints;
 /// <param name="IsPublic">Whether buyers see this code listed at checkout instead of typing it.</param>
 /// <param name="MaxRedemptions">Total redemption cap; omit for unlimited.</param>
 /// <param name="MaxRedemptionsPerBuyer">Per-buyer redemption cap; omit for unlimited.</param>
-/// <param name="PriceTiers">
+/// <param name="TicketTypeIds">
 /// Price-tier names the code applies to, matching the seat map's section tiers. Omit or send an
 /// empty list to discount every tier.
 /// </param>
@@ -29,4 +29,4 @@ public sealed record CreatePromoCodeRequest(
     bool IsPublic = false,
     int? MaxRedemptions = null,
     int? MaxRedemptionsPerBuyer = null,
-    IReadOnlyList<string>? PriceTiers = null);
+    IReadOnlyList<Guid>? TicketTypeIds = null);

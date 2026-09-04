@@ -19,7 +19,7 @@ public sealed class HoldService(
 {
     /// <summary>Places a hold over the requested seats and/or general-admission quantities.</summary>
     /// <param name="userId">The buyer.</param>
-    /// <param name="eventId">The event the inventory belongs to.</param>
+    /// <param name="eventSessionId">The event the inventory belongs to.</param>
     /// <param name="seatIds">The requested seat ids, if any.</param>
     /// <param name="generalAdmissionSelections">The requested (allocation id, quantity) pairs, if any.</param>
     /// <param name="queueAdmissionToken">
@@ -30,7 +30,7 @@ public sealed class HoldService(
     /// <returns>The place-hold result.</returns>
     public async Task<PlaceHoldResult> PlaceHoldAsync(
         Guid userId,
-        Guid eventId,
+        Guid eventSessionId,
         IReadOnlyList<Guid> seatIds,
         IReadOnlyList<(Guid AllocationId, int Quantity)> generalAdmissionSelections,
         string? queueAdmissionToken,
@@ -48,10 +48,10 @@ public sealed class HoldService(
             return PlaceHoldResult.Failed(PlaceHoldOutcome.SeatNotFound);
         }
 
-        var settings = await inventory.GetEventInventorySettingsAsync(eventId, cancellationToken);
+        var settings = await inventory.GetSessionInventorySettingsAsync(eventSessionId, cancellationToken);
         if (settings is null)
         {
-            return PlaceHoldResult.Failed(PlaceHoldOutcome.EventNotFound);
+            return PlaceHoldResult.Failed(PlaceHoldOutcome.SessionNotFound);
         }
 
         if (settings.SalesPaused)
@@ -72,14 +72,22 @@ public sealed class HoldService(
         if (settings.MaxTicketsPerBuyer is { } maxTicketsPerBuyer)
         {
             var requestedQuantity = distinctSeatIds.Count + gaSelections.Sum(selection => selection.Quantity);
-            var alreadyCommitted = await inventory.GetBuyerCommittedQuantityAsync(eventId, userId, cancellationToken);
+            // Counted across the event, not this performance: a limit that reset every night would
+            // let one buyer take the cap three times over on a three-night run.
+            var alreadyCommitted = await inventory.GetBuyerCommittedQuantityAsync(
+                settings.CatalogEventId,
+                userId,
+                cancellationToken);
             if (alreadyCommitted + requestedQuantity > maxTicketsPerBuyer)
             {
                 return PlaceHoldResult.Failed(PlaceHoldOutcome.BuyerLimitExceeded);
             }
         }
 
-        if (settings.RequiresQueue && !queueAdmissionTokenValidator.IsValid(queueAdmissionToken, eventId, DateTimeOffset.UtcNow))
+        // The admission token is minted per event, because the waiting room gates the on-sale and an
+        // on-sale covers the whole run — so it is checked against the event, not the performance.
+        if (settings.RequiresQueue
+            && !queueAdmissionTokenValidator.IsValid(queueAdmissionToken, settings.CatalogEventId, DateTimeOffset.UtcNow))
         {
             return PlaceHoldResult.Failed(PlaceHoldOutcome.QueueAdmissionRequired);
         }
@@ -87,7 +95,7 @@ public sealed class HoldService(
         var items = new List<InventoryItem>();
         if (distinctSeatIds.Count > 0)
         {
-            items = (await inventory.GetItemsBySeatsAsync(eventId, distinctSeatIds, cancellationToken)).ToList();
+            items = (await inventory.GetItemsBySeatsAsync(eventSessionId, distinctSeatIds, cancellationToken)).ToList();
             if (items.Count != distinctSeatIds.Count)
             {
                 return PlaceHoldResult.Failed(PlaceHoldOutcome.SeatNotFound);
@@ -126,7 +134,7 @@ public sealed class HoldService(
         // 1) Redis fast gate: atomic check-and-set across the seat keys and/or GA capacity counters.
         if (distinctSeatIds.Count > 0)
         {
-            var seatGate = await holdStore.TryHoldAsync(eventId, holdId, distinctSeatIds, options.Ttl, cancellationToken);
+            var seatGate = await holdStore.TryHoldAsync(eventSessionId, holdId, distinctSeatIds, options.Ttl, cancellationToken);
             if (!seatGate.Success)
             {
                 return PlaceHoldResult.Conflict(seatGate.ConflictSeatId);
@@ -135,12 +143,12 @@ public sealed class HoldService(
 
         if (gaSelections.Count > 0)
         {
-            var gaGate = await holdStore.TryHoldGeneralAdmissionAsync(eventId, holdId, gaSelections, options.Ttl, cancellationToken);
+            var gaGate = await holdStore.TryHoldGeneralAdmissionAsync(eventSessionId, holdId, gaSelections, options.Ttl, cancellationToken);
             if (!gaGate.Success)
             {
                 if (distinctSeatIds.Count > 0)
                 {
-                    await holdStore.ReleaseAsync(eventId, holdId, distinctSeatIds, cancellationToken);
+                    await holdStore.ReleaseAsync(eventSessionId, holdId, distinctSeatIds, cancellationToken);
                 }
 
                 return PlaceHoldResult.Conflict(conflictSeatId: null, conflictAllocationId: gaGate.ConflictAllocationId);
@@ -166,7 +174,7 @@ public sealed class HoldService(
 
         var hold = Hold.Create(
             settings.TenantId,
-            eventId,
+            eventSessionId,
             userId,
             expiresAt,
             items.Select(item => item.Id),
@@ -179,7 +187,8 @@ public sealed class HoldService(
             DateTimeOffset.UtcNow,
             settings.TenantId,
             hold.Id,
-            eventId,
+            settings.CatalogEventId,
+            eventSessionId,
             userId,
             expiresAt,
             distinctSeatIds));
@@ -192,12 +201,12 @@ public sealed class HoldService(
         // Lost the race in Postgres — undo the Redis gate so the seats/capacity free up immediately.
         if (distinctSeatIds.Count > 0)
         {
-            await holdStore.ReleaseAsync(eventId, holdId, distinctSeatIds, cancellationToken);
+            await holdStore.ReleaseAsync(eventSessionId, holdId, distinctSeatIds, cancellationToken);
         }
 
         if (gaSelections.Count > 0)
         {
-            await holdStore.ReleaseGeneralAdmissionAsync(eventId, holdId, gaSelections, cancellationToken);
+            await holdStore.ReleaseGeneralAdmissionAsync(eventSessionId, holdId, gaSelections, cancellationToken);
         }
 
         return PlaceHoldResult.Conflict(null);
@@ -255,7 +264,7 @@ public sealed class HoldService(
 
         var lines = new List<HoldLineView>();
         lines.AddRange(items.Select(item =>
-            new HoldLineView(item.Id, item.SeatId, null, 1, item.PriceTier, item.PriceMinor, item.PriceMinor)));
+            new HoldLineView(item.Id, item.SeatId, null, 1, item.TicketTypeId, item.PriceMinor, item.PriceMinor)));
         lines.AddRange(hold.GeneralAdmissionItems.Select(gaItem =>
         {
             var allocation = allocationsById[gaItem.GeneralAdmissionAllocationId];
@@ -264,7 +273,7 @@ public sealed class HoldService(
                 null,
                 allocation.Id,
                 gaItem.Quantity,
-                allocation.PriceTier,
+                allocation.TicketTypeId,
                 allocation.PriceMinor,
                 allocation.PriceMinor * gaItem.Quantity);
         }));
@@ -272,7 +281,7 @@ public sealed class HoldService(
         return new HoldView(
             hold.Id,
             hold.TenantId,
-            hold.EventId,
+            hold.EventSessionId,
             hold.UserId,
             hold.Status.ToString(),
             hold.ExpiresAt,
@@ -345,7 +354,8 @@ public sealed class HoldService(
             DateTimeOffset.UtcNow,
             hold.TenantId,
             hold.Id,
-            hold.EventId,
+            hold.CatalogEventId,
+            hold.EventSessionId,
             orderId,
             seatIds));
 
@@ -356,12 +366,12 @@ public sealed class HoldService(
 
         if (seatIds.Count > 0)
         {
-            await holdStore.MarkSoldAsync(hold.EventId, holdId, seatIds, cancellationToken);
+            await holdStore.MarkSoldAsync(hold.EventSessionId, holdId, seatIds, cancellationToken);
         }
 
         if (hold.GeneralAdmissionItems.Count > 0)
         {
-            await holdStore.MarkGeneralAdmissionSoldAsync(hold.EventId, holdId, cancellationToken);
+            await holdStore.MarkGeneralAdmissionSoldAsync(hold.EventSessionId, holdId, cancellationToken);
         }
 
         return ConvertHoldOutcome.Converted;
@@ -436,7 +446,8 @@ public sealed class HoldService(
                 DateTimeOffset.UtcNow,
                 hold.TenantId,
                 hold.Id,
-                hold.EventId,
+                hold.CatalogEventId,
+                hold.EventSessionId,
                 releasedSeatIds));
         }
 
@@ -447,12 +458,12 @@ public sealed class HoldService(
 
         if (releasedSeatIds.Count > 0)
         {
-            await holdStore.ReleaseSoldAsync(hold.EventId, releasedSeatIds, cancellationToken);
+            await holdStore.ReleaseSoldAsync(hold.EventSessionId, releasedSeatIds, cancellationToken);
         }
 
         if (releasedGaSelections.Count > 0)
         {
-            await holdStore.ReleaseSoldGeneralAdmissionAsync(hold.EventId, releasedGaSelections, cancellationToken);
+            await holdStore.ReleaseSoldGeneralAdmissionAsync(hold.EventSessionId, releasedGaSelections, cancellationToken);
         }
 
         return CancelSoldOutcome.Cancelled;
@@ -514,7 +525,7 @@ public sealed class HoldService(
         await inventory.SaveChangesAsync(cancellationToken);
 
         // Postgres committed first (the authority); now extend the Redis bookkeeping TTLs to match.
-        await holdStore.ExtendAsync(hold.EventId, hold.Id, options.PaymentExtensionTtl, cancellationToken);
+        await holdStore.ExtendAsync(hold.EventSessionId, hold.Id, options.PaymentExtensionTtl, cancellationToken);
 
         return hold.ExpiresAt;
     }
@@ -572,7 +583,8 @@ public sealed class HoldService(
             DateTimeOffset.UtcNow,
             hold.TenantId,
             hold.Id,
-            hold.EventId,
+            hold.CatalogEventId,
+            hold.EventSessionId,
             seatIds));
 
         if (!await inventory.TrySaveChangesAsync(cancellationToken))
@@ -583,12 +595,12 @@ public sealed class HoldService(
         // Postgres committed (the authority); now clear the Redis gate.
         if (seatIds.Count > 0)
         {
-            await holdStore.ReleaseAsync(hold.EventId, hold.Id, seatIds, cancellationToken);
+            await holdStore.ReleaseAsync(hold.EventSessionId, hold.Id, seatIds, cancellationToken);
         }
 
         if (gaReleases.Count > 0)
         {
-            await holdStore.ReleaseGeneralAdmissionAsync(hold.EventId, hold.Id, gaReleases, cancellationToken);
+            await holdStore.ReleaseGeneralAdmissionAsync(hold.EventSessionId, hold.Id, gaReleases, cancellationToken);
         }
 
         return true;

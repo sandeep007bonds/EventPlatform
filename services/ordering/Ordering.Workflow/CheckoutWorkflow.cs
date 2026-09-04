@@ -65,7 +65,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
                 line.SeatId,
                 line.GeneralAdmissionAllocationId,
                 line.Quantity,
-                line.PriceTier,
+                line.TicketTypeId,
                 line.UnitPriceMinor,
                 line.PriceMinor))
             .ToList();
@@ -102,6 +102,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
                 input.HoldId,
                 input.IdempotencyKey,
                 hold.CatalogEventId,
+                hold.EventSessionId,
                 hold.Lines,
                 input.BuyerEmail,
                 input.OrderId,
@@ -254,7 +255,7 @@ public sealed class CheckoutWorkflow : Workflow<CheckoutWorkflowInput, CheckoutW
             .ToList();
         await context.CallActivityAsync<bool>(
             nameof(ConfirmOrderActivity),
-            new ConfirmInput(order.OrderId, hold.TenantId, hold.CatalogEventId, input.UserId, lines));
+            new ConfirmInput(order.OrderId, hold.TenantId, hold.CatalogEventId, hold.EventSessionId, input.UserId, lines));
 
         return new CheckoutWorkflowResult(nameof(CheckoutOutcome.Confirmed), order.OrderId);
     }

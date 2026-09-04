@@ -17,7 +17,7 @@ namespace Catalog.Application.Features.ListPromoCodes;
 /// <param name="MaxRedemptionsPerBuyer">Per-buyer redemption cap, if any.</param>
 /// <param name="IsActive">Whether the code has been deactivated.</param>
 /// <param name="CreatedAt">When the code was created.</param>
-/// <param name="PriceTiers">Tiers the code is restricted to. Empty means every tier.</param>
+/// <param name="TicketTypeIds">Ticket types the code is restricted to. Empty means every type.</param>
 public sealed record PromoCodeResponse(
     Guid Id,
     Guid EventId,
@@ -32,4 +32,4 @@ public sealed record PromoCodeResponse(
     int? MaxRedemptionsPerBuyer,
     bool IsActive,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<string> PriceTiers);
+    IReadOnlyList<Guid> TicketTypeIds);

@@ -24,6 +24,6 @@ internal sealed class GetPromoCodeByCodeHandler(IPromoCodeRepository repository)
                 promoCode.IsActive,
                 promoCode.MaxRedemptions,
                 promoCode.MaxRedemptionsPerBuyer,
-                promoCode.Tiers.Select(t => t.PriceTier).ToList());
+                promoCode.Tiers.Select(t => t.TicketTypeId).ToList());
     }
 }

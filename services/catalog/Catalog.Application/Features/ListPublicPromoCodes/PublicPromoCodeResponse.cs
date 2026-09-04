@@ -9,10 +9,10 @@ namespace Catalog.Application.Features.ListPublicPromoCodes;
 /// <param name="Description">Short description of the offer, shown next to the code.</param>
 /// <param name="DiscountType">Percentage or fixed amount.</param>
 /// <param name="DiscountValue">Percentage in (0, 100], or a flat amount in major currency units.</param>
-/// <param name="PriceTiers">Tiers the code applies to. Empty means every tier.</param>
+/// <param name="TicketTypeIds">Ticket types the code applies to. Empty means every type.</param>
 public sealed record PublicPromoCodeResponse(
     string Code,
     string? Description,
     DiscountType DiscountType,
     decimal DiscountValue,
-    IReadOnlyList<string> PriceTiers);
+    IReadOnlyList<Guid> TicketTypeIds);

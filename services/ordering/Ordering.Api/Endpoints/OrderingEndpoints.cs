@@ -158,7 +158,7 @@ public static class OrderingEndpoints
                 line.SeatId,
                 line.GeneralAdmissionAllocationId,
                 line.Quantity,
-                line.PriceTier,
+                line.TicketTypeId,
                 line.UnitPriceMinor,
                 line.PriceMinor))
             .ToList();
@@ -361,7 +361,14 @@ public static class OrderingEndpoints
 
         var (items, totalCount) = await orders.ListAsync(tenantId, userId, page, pageSize, cancellationToken);
         var summaries = items
-            .Select(o => new OrderSummaryResponse(o.Id, o.Status.ToString(), o.TotalMinor, o.Currency, o.CatalogEventId, o.CreatedAt))
+            .Select(o => new OrderSummaryResponse(
+                o.Id,
+                o.Status.ToString(),
+                o.TotalMinor,
+                o.Currency,
+                o.CatalogEventId,
+                o.EventSessionId,
+                o.CreatedAt))
             .ToList();
 
         return Results.Ok(new OrderListResponse(summaries, page, pageSize, totalCount));
@@ -418,6 +425,7 @@ public static class OrderingEndpoints
             order.PromoCodeText,
             order.Currency,
             order.CatalogEventId,
+            order.EventSessionId,
             order.HoldId,
             lines,
             isBuyer ? order.PaymentClientSecret : null);

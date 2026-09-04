@@ -45,6 +45,14 @@ is named `Ordering` so the type never clashes with its namespace.
   can send a single combined ticket-delivery email (ADR-0021). Not derived
   from any JWT claim — buyers won't necessarily authenticate via a flow that
   carries an email claim (see the deferred Identity/OTP work).
+- **An order names a performance and an event, and needs both (ADR-0039).**
+  `Order.EventSessionId` is what the buyer actually bought — the night, the
+  inventory, the tickets and the scan all hang off it. `Order.CatalogEventId`
+  stays alongside it because two things are decided for the whole run rather
+  than for one night: a promo code is defined per event, and the per-buyer
+  ticket cap is counted across every performance of it. Neither can be derived
+  from the other here without a call to Catalog, so both are carried on the
+  hold snapshot and stamped on the order.
 - **Polymorphic order lines:** `OrderLine`/`OrderLineSpec` are widened with
   nullable fields rather than split into separate seat/GA types — a line is
   either a reserved seat (`InventoryItemId`/`SeatId` set, `Quantity` always 1)
@@ -109,8 +117,12 @@ is named `Ordering` so the type never clashes with its namespace.
   `POST /v1/checkout/quote` preview and `CheckoutWorkflow`'s own re-check — so a quoted price and a
   charged price can never come from two different code paths. The saga **re-evaluates from
   scratch**; a code that lapsed in between fails the checkout with `CheckoutOutcome.PromoCodeInvalid`
-  (409) rather than quietly charging full price. `OrderLine.PriceTier` (carried from the hold
-  snapshot, which already had it) is what makes tier-scoped codes possible.
+  (409) rather than quietly charging full price. `OrderLine.TicketTypeId` (carried from the hold
+  snapshot, which gets it from Inventory, which got it from the performance's `SessionAllocation`
+  map) is what makes type-scoped codes possible. It replaced a free-text price-tier name that was a
+  string doing identity's work: it matched only because the comparison happened to be
+  case-insensitive, it silently stopped matching the moment a type was renamed, and it joined to
+  nothing.
 - **Cross-service calls** go through ports: `IHoldClient` (Inventory),
   `IPaymentClient` (Payments), and `ITicketClient` (Ticketing), all via Dapr
   service invocation.
@@ -161,7 +173,7 @@ dapr run --app-id ordering \
 ```
 
 Run Catalog and Inventory too (same Dapr setup) so the saga can invoke Inventory
-by app-id.
+by app-id and price a promo code against Catalog.
 
 ## Do not
 

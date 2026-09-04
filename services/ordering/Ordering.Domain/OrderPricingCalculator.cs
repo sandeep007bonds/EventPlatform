@@ -133,6 +133,6 @@ public static class OrderPricingCalculator
     /// human-entered name on both sides.
     /// </summary>
     private static bool AppliesTo(OrderLineSpec line, PromoCodeTerms terms) =>
-        terms.PriceTiers.Count == 0
-        || terms.PriceTiers.Contains(line.PriceTier, StringComparer.OrdinalIgnoreCase);
+        terms.TicketTypeIds.Count == 0
+        || terms.TicketTypeIds.Contains(line.TicketTypeId, StringComparer.OrdinalIgnoreCase);
 }

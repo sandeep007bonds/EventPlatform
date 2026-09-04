@@ -57,7 +57,7 @@ public sealed class PromoCodeEvaluator(ICatalogEventClient catalog, IOrderReposi
         var terms = new PromoCodeTerms(
             ParseDiscountType(definition.DiscountType),
             definition.DiscountValue,
-            definition.PriceTiers);
+            definition.TicketTypeIds);
 
         // Checked before the redemption counts so a code that is scoped to tiers this buyer isn't
         // even holding gets the accurate message, rather than a misleading "sold out".

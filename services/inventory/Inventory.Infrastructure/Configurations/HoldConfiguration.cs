@@ -13,7 +13,13 @@ internal sealed class HoldConfiguration : IEntityTypeConfiguration<Hold>
         builder.Property(h => h.TenantId).IsRequired();
         builder.Property(h => h.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
 
-        builder.HasIndex(h => new { h.EventId, h.Status });
+        builder.Property(h => h.CatalogEventId).IsRequired();
+
+        builder.HasIndex(h => new { h.EventSessionId, h.Status });
+
+        // The per-buyer limit is counted across the whole event, so that query filters on the
+        // denormalised event id and needs its own index.
+        builder.HasIndex(h => new { h.CatalogEventId, h.UserId, h.Status });
         builder.HasIndex(h => h.ExpiresAt);
 
         builder.HasMany(h => h.Items)

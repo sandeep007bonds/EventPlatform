@@ -10,16 +10,18 @@ public static class InventoryEndpoints
     {
         ArgumentNullException.ThrowIfNull(app);
 
-        // Dapr pub/sub: provision seat inventory when Catalog publishes an event.
+        // Dapr pub/sub: provision inventory when Catalog takes a performance on sale. One message
+        // per performance, not per event — inventory is keyed by performance (ADR-0039).
         // AllowAnonymous deliberately: the Dapr sidecar delivers with no user token, and a
         // denied subscriber fails by going quiet rather than erroring.
-        app.MapPost("/integration/catalog/event-published", OnEventPublishedAsync)
-            .WithTopic("pubsub", nameof(EventPublished))
-            .WithName("OnEventPublished")
+        app.MapPost("/integration/catalog/event-session-published", OnEventSessionPublishedAsync)
+            .WithTopic("pubsub", nameof(EventSessionPublished))
+            .WithName("OnEventSessionPublished")
             .AllowAnonymous()
             .ExcludeFromDescription();
 
-        // Dapr pub/sub: an organizer manually paused/resumed sales for a published event.
+        // Dapr pub/sub: an organizer manually paused/resumed sales for a performance. Pausing a
+        // whole event arrives as one of these per performance.
         app.MapPost("/integration/catalog/event-sales-paused", OnEventSalesPausedAsync)
             .WithTopic("pubsub", nameof(EventSalesPaused))
             .WithName("OnEventSalesPaused")
@@ -32,21 +34,21 @@ public static class InventoryEndpoints
             .ExcludeFromDescription();
 
         // Anonymous: remaining-capacity is public storefront data.
-        app.MapGet("/v1/events/{eventId:guid}/inventory", GetInventoryCountAsync)
+        app.MapGet("/v1/sessions/{eventSessionId:guid}/inventory", GetInventoryCountAsync)
             .WithName("GetInventoryCount")
             .AllowAnonymous()
             .WithTags("Inventory");
 
         // Anonymous, same visibility posture as Catalog's public seatmap: buyers need to see which
         // seats are taken before picking one, and organizers need it to render the block/unblock UI.
-        app.MapGet("/v1/events/{eventId:guid}/inventory/seats", GetInventorySeatsAsync)
+        app.MapGet("/v1/sessions/{eventSessionId:guid}/inventory/seats", GetInventorySeatsAsync)
             .WithName("GetInventorySeats")
             .WithTags("Inventory")
             .AllowAnonymous();
 
         // Same anonymous posture as the seat-status endpoint above — a buyer needs the real
         // allocation id (not Catalog's section id) to place a general-admission hold.
-        app.MapGet("/v1/events/{eventId:guid}/inventory/general-admission", GetGeneralAdmissionAllocationsAsync)
+        app.MapGet("/v1/sessions/{eventSessionId:guid}/inventory/general-admission", GetGeneralAdmissionAllocationsAsync)
             .WithName("GetGeneralAdmissionAllocations")
             .WithTags("Inventory")
             .AllowAnonymous();
@@ -54,11 +56,11 @@ public static class InventoryEndpoints
         // Organizer seat blocking (e.g. a kill or a restricted view) — separate from the buyer-facing
         // hold path. The policy establishes the role; the handler still checks the seats belong to
         // the caller's tenant.
-        app.MapPost("/v1/events/{eventId:guid}/inventory/block", BlockSeatsAsync)
+        app.MapPost("/v1/sessions/{eventSessionId:guid}/inventory/block", BlockSeatsAsync)
             .RequireOrganizer()
             .WithName("BlockSeats")
             .WithTags("Inventory");
-        app.MapPost("/v1/events/{eventId:guid}/inventory/unblock", UnblockSeatsAsync)
+        app.MapPost("/v1/sessions/{eventSessionId:guid}/inventory/unblock", UnblockSeatsAsync)
             .RequireOrganizer()
             .WithName("UnblockSeats")
             .WithTags("Inventory");
@@ -223,7 +225,7 @@ public static class InventoryEndpoints
 
         var result = await holds.PlaceHoldAsync(
             userId.Value,
-            request.EventId,
+            request.EventSessionId,
             seatIds,
             gaSelections.Select(selection => (selection.AllocationId, selection.Quantity)).ToList(),
             request.QueueAdmissionToken,
@@ -233,12 +235,12 @@ public static class InventoryEndpoints
         {
             PlaceHoldOutcome.Held =>
                 Results.Created($"/v1/holds/{result.HoldId}", new { holdId = result.HoldId, expiresAt = result.ExpiresAt }),
-            PlaceHoldOutcome.EventNotFound =>
-                Results.NotFound(new { message = "This event has not been provisioned yet." }),
+            PlaceHoldOutcome.SessionNotFound =>
+                Results.NotFound(new { message = "This performance has not been provisioned yet." }),
             PlaceHoldOutcome.SeatNotFound =>
-                Results.NotFound(new { message = "One or more seats do not exist for this event." }),
+                Results.NotFound(new { message = "One or more seats do not exist for this performance." }),
             PlaceHoldOutcome.AllocationNotFound =>
-                Results.NotFound(new { message = "One or more general-admission allocations do not exist for this event." }),
+                Results.NotFound(new { message = "One or more general-admission allocations do not exist for this performance." }),
             PlaceHoldOutcome.Conflict =>
                 Results.Conflict(new
                 {
@@ -286,7 +288,7 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> BlockSeatsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         BlockSeatsRequest request,
         ITenantContext tenant,
         SeatBlockingService blocking,
@@ -302,10 +304,10 @@ public static class InventoryEndpoints
             return Results.BadRequest(new { message = "At least one seat is required." });
         }
 
-        var result = await blocking.BlockAsync(tenant.TenantId.Value, eventId, request.SeatIds, request.Reason, cancellationToken);
+        var result = await blocking.BlockAsync(tenant.TenantId.Value, eventSessionId, request.SeatIds, request.Reason, cancellationToken);
         return result.Outcome switch
         {
-            BlockSeatsOutcome.Blocked => Results.Ok(new { eventId, seatIds = request.SeatIds, status = "Blocked" }),
+            BlockSeatsOutcome.Blocked => Results.Ok(new { eventSessionId, seatIds = request.SeatIds, status = "Blocked" }),
             BlockSeatsOutcome.SeatNotFound =>
                 Results.NotFound(new { message = "One or more seats do not exist for this event." }),
             BlockSeatsOutcome.Conflict =>
@@ -315,7 +317,7 @@ public static class InventoryEndpoints
     }
 
     private static async Task<IResult> UnblockSeatsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         UnblockSeatsRequest request,
         ITenantContext tenant,
         SeatBlockingService blocking,
@@ -331,10 +333,10 @@ public static class InventoryEndpoints
             return Results.BadRequest(new { message = "At least one seat is required." });
         }
 
-        var outcome = await blocking.UnblockAsync(tenant.TenantId.Value, eventId, request.SeatIds, cancellationToken);
+        var outcome = await blocking.UnblockAsync(tenant.TenantId.Value, eventSessionId, request.SeatIds, cancellationToken);
         return outcome switch
         {
-            UnblockSeatsOutcome.Unblocked => Results.Ok(new { eventId, seatIds = request.SeatIds, status = "Available" }),
+            UnblockSeatsOutcome.Unblocked => Results.Ok(new { eventSessionId, seatIds = request.SeatIds, status = "Available" }),
             UnblockSeatsOutcome.SeatNotFound =>
                 Results.NotFound(new { message = "One or more seats do not exist for this event." }),
             UnblockSeatsOutcome.Conflict =>
@@ -352,33 +354,38 @@ public static class InventoryEndpoints
         return Guid.TryParse(value, out var id) ? id : null;
     }
 
-    private static async Task<IResult> OnEventPublishedAsync(
-        EventPublished @event,
+    private static async Task<IResult> OnEventSessionPublishedAsync(
+        EventSessionPublished @event,
         InventoryProvisioningService provisioning,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
         var result = await provisioning.ProvisionAsync(
-            @event.TenantId,
-            @event.CatalogEventId,
-            @event.BookingEndsAt,
-            @event.MaxTicketsPerBuyer,
-            @event.OnSaleAt,
-            @event.RequiresQueue,
+            new ProvisionSessionRequest(
+                @event.TenantId,
+                @event.EventSessionId,
+                @event.CatalogEventId,
+                @event.SeatMapId,
+                @event.SeatMapVersionNumber,
+                @event.BookingEndsAt,
+                @event.OnSaleAt,
+                @event.MaxTicketsPerBuyer,
+                @event.RequiresQueue,
+                @event.Allocations),
             cancellationToken);
 
         var logger = loggerFactory.CreateLogger("Inventory.Provisioning");
         if (result.Provisioned)
         {
             logger.LogInformation(
-                "Provisioned {SeatCount} seats and {AllocationCount} general-admission allocations for event {EventId}.",
+                "Provisioned {SeatCount} seats and {AllocationCount} general-admission pools for performance {EventSessionId}.",
                 result.SeatCount,
                 result.GeneralAdmissionAllocationCount,
-                @event.CatalogEventId);
+                @event.EventSessionId);
         }
         else
         {
-            logger.LogInformation("Event {EventId} already provisioned; skipped.", @event.CatalogEventId);
+            logger.LogInformation("Performance {EventSessionId} already provisioned; skipped.", @event.EventSessionId);
         }
 
         // Ack so Dapr does not redeliver; provisioning is idempotent if it does.
@@ -387,49 +394,49 @@ public static class InventoryEndpoints
 
     private static async Task<IResult> OnEventSalesPausedAsync(
         EventSalesPaused @event,
-        EventSalesToggleService salesToggle,
+        SessionSalesToggleService salesToggle,
         CancellationToken cancellationToken)
     {
-        await salesToggle.SetSalesPausedAsync(@event.CatalogEventId, salesPaused: true, cancellationToken);
+        await salesToggle.SetSalesPausedAsync(@event.EventSessionId, salesPaused: true, cancellationToken);
         return Results.Ok();
     }
 
     private static async Task<IResult> OnEventSalesResumedAsync(
         EventSalesResumed @event,
-        EventSalesToggleService salesToggle,
+        SessionSalesToggleService salesToggle,
         CancellationToken cancellationToken)
     {
-        await salesToggle.SetSalesPausedAsync(@event.CatalogEventId, salesPaused: false, cancellationToken);
+        await salesToggle.SetSalesPausedAsync(@event.EventSessionId, salesPaused: false, cancellationToken);
         return Results.Ok();
     }
 
     private static async Task<IResult> GetInventoryCountAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IInventoryRepository repository,
         CancellationToken cancellationToken)
     {
-        var count = await repository.CountForEventAsync(eventId, cancellationToken);
-        return Results.Ok(new { eventId, seatCount = count });
+        var count = await repository.CountForSessionAsync(eventSessionId, cancellationToken);
+        return Results.Ok(new { eventSessionId, seatCount = count });
     }
 
     private static async Task<IResult> GetInventorySeatsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IInventoryRepository repository,
         CancellationToken cancellationToken)
     {
-        var items = await repository.ListForEventAsync(eventId, cancellationToken);
+        var items = await repository.ListForSessionAsync(eventSessionId, cancellationToken);
         var seats = items.Select(i => new InventorySeatResponse(i.SeatId, i.Status.ToString())).ToList();
         return Results.Ok(seats);
     }
 
     private static async Task<IResult> GetGeneralAdmissionAllocationsAsync(
-        Guid eventId,
+        Guid eventSessionId,
         IInventoryRepository repository,
         CancellationToken cancellationToken)
     {
-        var allocations = await repository.ListGeneralAdmissionForEventAsync(eventId, cancellationToken);
+        var allocations = await repository.ListGeneralAdmissionForSessionAsync(eventSessionId, cancellationToken);
         var response = allocations
-            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.CatalogSectionId, a.RemainingCapacity, a.TotalCapacity, a.HeldCount, a.SoldCount))
+            .Select(a => new GeneralAdmissionAllocationResponse(a.Id, a.AdmissionAreaId, a.RemainingCapacity, a.TotalCapacity, a.HeldCount, a.SoldCount))
             .ToList();
         return Results.Ok(response);
     }
