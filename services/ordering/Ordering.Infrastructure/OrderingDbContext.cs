@@ -3,8 +3,11 @@ namespace Ordering.Infrastructure;
 /// <summary>EF Core database context for the Ordering service (schema <c>ordering</c>).</summary>
 /// <param name="options">The context options.</param>
 public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> options)
-    : DbContext(options), IOutboxDbContext
+    : DbContext(options), IOutboxDbContext, IDeadLetterDbContext
 {
+    /// <inheritdoc />
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
+
     /// <summary>The orders table.</summary>
     public DbSet<Order> Orders => Set<Order>();
 
@@ -19,6 +22,8 @@ public sealed class OrderingDbContext(DbContextOptions<OrderingDbContext> option
         modelBuilder.HasDefaultSchema("ordering");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OrderingDbContext).Assembly);
         modelBuilder.ApplyOutbox();
+
+        modelBuilder.ApplyDeadLetters();
 
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).

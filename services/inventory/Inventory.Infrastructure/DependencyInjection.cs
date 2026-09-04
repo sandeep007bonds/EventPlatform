@@ -42,6 +42,7 @@ public static class DependencyInjection
             new HmacQueueAdmissionTokenValidator(Encoding.UTF8.GetBytes(queueAdmissionHmacKey)));
 
         services.AddOutbox<InventoryDbContext>();
+        services.AddDeadLetters<InventoryDbContext>();
 
         return services;
     }

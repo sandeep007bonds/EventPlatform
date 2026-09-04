@@ -253,6 +253,12 @@ fields on the event, so a consumer's typed binding never had to change (ADR-0040
 id starts at the gateway, is echoed on every response and appears in every ProblemDetails, so a
 buyer can quote it from a failure.
 
+A message a service cannot handle is retried five times (a Dapr resiliency policy — without a cap
+it would be retried forever and never dead-letter), then delivered to that service's own
+`deadletter-<service>` topic, where a drain records it verbatim in `dead_letters` and logs at Error.
+There is no read API for that table yet: it is an operator's view of other tenants' payloads and
+this platform has only organizer and buyer roles.
+
 | Event | Published by | Consumed by |
 |---|---|---|
 | `EventPublished` | catalog | queue (provision) — event-level facts only, since a waiting room gates the on-sale, not one night |

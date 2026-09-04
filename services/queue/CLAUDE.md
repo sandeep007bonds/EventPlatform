@@ -113,6 +113,17 @@ Run Catalog too (same Dapr setup) so `EventPublished` flows. Reuses
 Inventory's Redis instance (`localhost:6380`) under its own `queue:` key
 prefix — no separate Redis container needed locally.
 
+## Dead letters
+
+Every subscription here goes through `.SubscribesTo(topic, DeadLetterTopic)`, which adopts the
+message's correlation chain and names `deadletter-queue` for anything this service cannot handle
+(ADR-0040). Dapr retries five times first — a resiliency policy caps it, without which a poison
+message would be redelivered forever and never reach the dead letter at all.
+
+`OnDeadLetterAsync` drains that topic into the `dead_letters` table and logs at Error. There is no
+read API for it yet: it is an operator's view of message payloads and this platform has no operator
+role.
+
 ## Do not
 
 - Give this service its own independent `Enabled` toggle — `Event.RequiresQueue`

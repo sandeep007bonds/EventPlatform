@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddScoped<ITicketClient, DaprTicketClient>();
         services.AddScoped<ICatalogEventClient, DaprCatalogEventClient>();
         services.AddOutbox<OrderingDbContext>();
+        services.AddDeadLetters<OrderingDbContext>();
 
         return services;
     }

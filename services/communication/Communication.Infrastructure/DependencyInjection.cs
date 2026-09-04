@@ -26,6 +26,10 @@ public static class DependencyInjection
         services.AddDbContext<CommunicationDbContext>((sp, options) => options
             .UseNpgsql(connectionString)
             .UseAuditFields(sp));
+
+        // Subscribes without publishing, so it needs the dead-letter half of the messaging
+        // building block but not the outbox half.
+        services.AddDeadLetters<CommunicationDbContext>();
         services.AddScoped<INotificationRepository, NotificationRepository>();
 
         services.AddSingleton<ITemplateStore, EmbeddedTemplateStore>();

@@ -3,9 +3,35 @@ namespace Ordering.Api.Endpoints;
 /// <summary>Maps the Ordering HTTP endpoints.</summary>
 public static class OrderingEndpoints
 {
+    /// <summary>
+    /// Where this service's undeliverable messages go — one topic per service, not per subscription
+    /// (see <c>SubscribesTo</c>), so there is one drain rather than one per topic.
+    /// </summary>
+    private const string DeadLetterTopic = "deadletter-ordering";
+
     // How long CheckoutAsync polls the Order row for a client secret before falling back to a full
     // blocking wait on the workflow's completion. Generous enough to cover the create-intent +
     // record + extend-hold activities under normal load without making every checkout feel slow.
+
+    private static async Task<IResult> OnDeadLetterAsync(
+        JsonNode? body,
+        DeadLetterDrain drain,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        // Best-effort only. Dapr's delivery headers for a dead letter are not something to depend
+        // on, so this is a hint; the envelope's own EventType is the topic the relay published to
+        // and is what the drain actually falls back on.
+        var topic = http.Request.Headers["Ce-Topic"].FirstOrDefault()
+            ?? http.Request.Headers["topic"].FirstOrDefault();
+
+        await drain.RecordAsync(topic, body, cancellationToken);
+
+        // 200 regardless. A dead letter that fails to record would be retried and then dead-lettered
+        // again, and there is nowhere further to send it — the log and the alert are the escalation.
+        return Results.Ok();
+    }
+
     private static readonly TimeSpan CheckoutPollBudget = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan CheckoutPollInterval = TimeSpan.FromMilliseconds(200);
 
@@ -40,15 +66,23 @@ public static class OrderingEndpoints
         // saga — checkouts would hang rather than fail visibly. Not gateway-routed, so the only
         // caller is the sidecar on localhost.
         app.MapPost("/integration/payments/payment-captured", OnPaymentCapturedAsync)
-            .WithTopic("pubsub", nameof(PaymentCaptured))
-            .WithIntegrationEnvelope()
+            .SubscribesTo(nameof(PaymentCaptured), DeadLetterTopic)
             .WithName("OnPaymentCaptured")
             .AllowAnonymous()
             .ExcludeFromDescription();
         app.MapPost("/integration/payments/payment-failed", OnPaymentFailedAsync)
-            .WithTopic("pubsub", nameof(PaymentFailed))
-            .WithIntegrationEnvelope()
+            .SubscribesTo(nameof(PaymentFailed), DeadLetterTopic)
             .WithName("OnPaymentFailed")
+            .AllowAnonymous()
+            .ExcludeFromDescription();
+
+        // The other half of a dead-letter topic. A topic nobody reads is just a quieter silence
+        // than an infinite retry loop, so this records what could not be handled and says so
+        // loudly. AllowAnonymous for the same reason as every subscriber: the sidecar delivers
+        // with no user token.
+        app.MapPost("/integration/dead-letter", OnDeadLetterAsync)
+            .DrainsDeadLetters(DeadLetterTopic)
+            .WithName("OnDeadLetterOrdering")
             .AllowAnonymous()
             .ExcludeFromDescription();
 

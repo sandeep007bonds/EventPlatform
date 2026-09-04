@@ -5,8 +5,11 @@ namespace Queue.Infrastructure;
 /// publishes an integration event, same posture as Communication/Identity.
 /// </summary>
 /// <param name="options">The context options.</param>
-public sealed class QueueDbContext(DbContextOptions<QueueDbContext> options) : DbContext(options)
+public sealed class QueueDbContext(DbContextOptions<QueueDbContext> options) : DbContext(options), IDeadLetterDbContext
 {
+    /// <inheritdoc />
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
+
     /// <summary>Per-event waiting-room configuration.</summary>
     public DbSet<QueueSettings> QueueSettings => Set<QueueSettings>();
 
@@ -17,6 +20,8 @@ public sealed class QueueDbContext(DbContextOptions<QueueDbContext> options) : D
 
         modelBuilder.HasDefaultSchema("queue");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(QueueDbContext).Assembly);
+
+        modelBuilder.ApplyDeadLetters();
 
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).

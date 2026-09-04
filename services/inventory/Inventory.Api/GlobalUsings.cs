@@ -1,6 +1,8 @@
 global using System.Security.Claims;
+global using System.Text.Json.Nodes;
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Hosting;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Inventory.Api.Endpoints;
 global using Inventory.Application;

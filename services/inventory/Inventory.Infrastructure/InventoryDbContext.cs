@@ -3,8 +3,11 @@ namespace Inventory.Infrastructure;
 /// <summary>EF Core database context for the Inventory service (schema <c>inventory</c>).</summary>
 /// <param name="options">The context options.</param>
 public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> options)
-    : DbContext(options), IOutboxDbContext
+    : DbContext(options), IOutboxDbContext, IDeadLetterDbContext
 {
+    /// <inheritdoc />
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
+
     /// <summary>The inventory items table (system of record for availability).</summary>
     public DbSet<InventoryItem> InventoryItems => Set<InventoryItem>();
 
@@ -31,6 +34,8 @@ public sealed class InventoryDbContext(DbContextOptions<InventoryDbContext> opti
         modelBuilder.HasDefaultSchema("inventory");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(InventoryDbContext).Assembly);
         modelBuilder.ApplyOutbox();
+
+        modelBuilder.ApplyDeadLetters();
 
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).

@@ -77,7 +77,7 @@ The only family v9 titles individually.
 | PLAT-014 | Error model | ✅ | ProblemDetails in `HostingExtensions.cs` and at the gateway. |
 | PLAT-015 | Correlation IDs | ✅ | `ICorrelationContext` (`EventPlatform.Auditing`) beside `IAuditContext`; minted at the gateway, adopted from `X-Correlation-Id`, carried on every outbox row and every published event's envelope, re-adopted by every subscriber, surfaced in ProblemDetails in **all** environments and echoed on every response. ADR-0040. Communication's misnamed `CorrelationId` — which always held the triggering event id — was renamed `CausationId` and now carries both. |
 | PLAT-016 | Idempotency framework | ◐ | Real idempotency exists on the money paths (Ordering checkout, Payments intents, Ticketing issuance), but each rolls its own. v9 wants a shared framework with a `ProcessedCommand` table. Ours is per-service and unverified across services. |
-| PLAT-017 | Outbox framework | ✅ | `building-blocks/EventPlatform.Messaging` — `OutboxMessage`, `OutboxEventPublisher`, `OutboxRelay`, `IOutboxDbContext`. Business state and outbox commit in one local transaction. |
+| PLAT-017 | Outbox framework | ✅ | `building-blocks/EventPlatform.Messaging` — `OutboxMessage`, `OutboxEventPublisher`, `OutboxRelay`, `IOutboxDbContext`. Business state and outbox commit in one local transaction. Each row carries the delivery envelope (ADR-0040). The consuming half is beside it: `DeadLetterMessage`, `DeadLetterDrain`, `IDeadLetterDbContext`, plus a Dapr resiliency policy capping retries — a subscriber needs those without needing an outbox, which is why they are separate. |
 | PLAT-018 | Kafka integration | ⊘ | We use **Dapr pub/sub** (Redis Streams locally, Azure Service Bus in Azure). Same guarantees at the seam that matters — at-least-once with consumer idempotency — and Dapr keeps the broker swappable, so this is reversible rather than lost. ADR-0004/0010. |
 | PLAT-019 | Redis integration | ✅ | Inventory's fast availability gate (never authoritative — matches v9's own rule). |
 | PLAT-020 | MySQL baseline | ⊘ | **PostgreSQL**, database-per-service, EF Core migrations. A stack choice carried alongside v9's design, not a consequence of it. ADR-0003 (ours). |
@@ -402,8 +402,7 @@ given (`DataGrid` + `csv.ts`), which is the honest client-side behaviour and not
 
 ## What the audit says
 
-Three gaps were structural, and everything else queued behind them. **All three are now closed**,
-though the third's dead-letter half is still outstanding.
+Three gaps were structural, and everything else queued behind them. **All three are now closed.**
 
 1. ~~**Venue (VEN-001)**~~ — done. `services/venue` owns venues, gates, facilities and versioned
    seat maps with logical identity separated from graphical layout (ADR-0038). There is no legacy
@@ -423,8 +422,11 @@ though the third's dead-letter half is still outstanding.
    outbox; what is still missing is Audit itself (AUD-001…008), which is a store, a read API,
    redaction and retention, not plumbing.
 
-   The **dead-letter half of this gap is still open**: no subscription has a dead-letter topic and
-   no resiliency policy caps pub/sub retries, so a poison message is redelivered indefinitely.
+   The dead-letter half is closed too: every subscription names a per-service dead-letter topic, a
+   resiliency policy caps retries at five (without which a message never *reaches* the dead letter),
+   and a drain records what could not be handled. There is deliberately **no read API for it yet** —
+   it is an operator's view of other tenants' payloads and this platform has no operator role, so
+   shipping it behind `RequireOrganizer` would leak between tenants. It lands with permissions.
 
 One of the two cheap unblockers is done: **`TicketTypeId` through Inventory (PRICE-010 /
 INV-012)** landed with the re-key, because provisioning had to carry the type anyway. That leaves

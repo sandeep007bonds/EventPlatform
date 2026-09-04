@@ -217,6 +217,17 @@ Run Catalog **and Venue** too (same Dapr setup): `EventSessionPublished` flows
 from Catalog through pub/sub, and provisioning then calls Venue by app-id for
 the pinned seat-map version.
 
+## Dead letters
+
+Every subscription here goes through `.SubscribesTo(topic, DeadLetterTopic)`, which adopts the
+message's correlation chain and names `deadletter-inventory` for anything this service cannot handle
+(ADR-0040). Dapr retries five times first — a resiliency policy caps it, without which a poison
+message would be redelivered forever and never reach the dead letter at all.
+
+`OnDeadLetterAsync` drains that topic into the `dead_letters` table and logs at Error. There is no
+read API for it yet: it is an operator's view of message payloads and this platform has no operator
+role.
+
 ## Do not
 
 - Read another service's database (pull the seat map from **Venue** via Dapr,

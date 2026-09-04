@@ -1,4 +1,4 @@
-# ADR-0040 — Every event says where it came from
+# ADR-0040 — Every event says where it came from, and every failure has somewhere to go
 
 **Status:** Accepted · **Date:** 2026-09-04
 
@@ -20,6 +20,10 @@ moment the question is asked later:
    alignment ledger listed this as the last structural gap.
 4. **A contract could not be changed safely.** With no version on the wire, the only safe way to
    change what an event means is to deploy every producer and consumer together.
+5. **A message that could not be handled was retried forever.** No subscription had a dead-letter
+   topic and no resiliency policy capped retries, so Dapr's default — redeliver indefinitely —
+   applied. One poison message blocks its topic for everything behind it, and the only trace is log
+   noise nobody is watching.
 
 ## Decision
 
@@ -84,6 +88,38 @@ tenancy, so a forged one can only muddle a trail the forger already appears in. 
 is replaced rather than rejected — failing a checkout over a malformed diagnostic header would be
 the worse trade.
 
+### And a dead letter goes somewhere
+
+Every subscription now names a dead-letter topic, **one per service rather than one per topic**.
+Dapr delivers a dead letter back to the app that failed, so per-service means one drain endpoint per
+service instead of one per subscription — and the message's own envelope already says which topic it
+came from.
+
+Both halves of a subscription are applied by a single `SubscribesTo(topic, deadLetterTopic)` call,
+because they are only useful together and each fails silently alone. `check-endpoint-conventions.py`
+rejects a bare `.WithTopic(...)` for the same reason.
+
+Two things make this real rather than decorative:
+
+- **A resiliency policy caps retries** (`platform/dapr/components/resiliency.yaml`). Without it
+  Dapr retries forever and a message never *reaches* the dead-letter topic — the DLQ would exist and
+  never receive anything. Five attempts over roughly ten seconds: long enough to ride out a service
+  still starting or a database not yet accepting connections, short enough that a genuinely poisoned
+  message stops blocking the topic.
+- **A drain reads the topic.** `DeadLetterDrain` records the message verbatim — envelope, payload,
+  correlation, causation — and logs at Error. A dead-letter topic nobody reads is just a quieter
+  silence than an infinite retry loop.
+
+The dead-letter store is deliberately **separate from the outbox**: the outbox is about producing
+and this is about consuming, and the two sets of services are not the same. Communication and Queue
+subscribe without ever publishing, and making them carry an outbox — plus a relay polling a table
+that is always empty — to get a dead-letter table would be paying for the wrong thing.
+
+**There is no read API for dead letters yet, on purpose.** It is an operator's view of other
+tenants' message payloads, and this platform has no operator role — only organizer and buyer. Behind
+`RequireOrganizer` it would leak one tenant's messages to another, which is worse than the
+inconvenience of reading the table directly. It lands with the permissions work.
+
 ## Consequences
 
 - **PLAT-015 closes.** Correlation ids exist platform-wide, surface in ProblemDetails, and are
@@ -101,6 +137,12 @@ the worse trade.
 - **We now buffer the request body on subscriber endpoints** to read the envelope and rewind. Pub/sub
   messages here are small and bounded, so this costs nothing that matters — but it is a real
   constraint on ever publishing a large payload.
+- **A failing subscriber now gives up after five attempts** instead of retrying forever. That is the
+  point, and it is also a behaviour change: an outage longer than ~10 seconds in a downstream
+  dependency will dead-letter messages that would previously have eventually succeeded. The drain
+  keeps them, so nothing is lost — but replaying them is a manual step until a replay path exists.
+- **Every subscribing service gains a `dead_letters` table**, including Communication and Queue,
+  which had no messaging tables at all before.
 
 ## Alternatives considered
 
@@ -113,3 +155,12 @@ the row it explains. The two are complements: the trace is for now, the envelope
 **A separate `messages` table per service, joined on ids.** More faithful to a message-log design,
 but it duplicates the outbox for no gain — the outbox row is already the record of what was
 published, and it already has a lifetime.
+
+**One shared dead-letter topic for the whole platform.** Simpler to name, but every service
+subscribing to it would receive every other service's failures, and Dapr gives no way to filter
+that. Per-service is the only shape that delivers a failure back to the service that caused it.
+
+**Automatic replay from the drain.** Tempting and wrong for now: a dead letter is usually a bug, and
+replaying it before the bug is fixed just fails again — while replaying a *money* message that
+partially succeeded could double-charge. Replay needs a person deciding, and a person needs the read
+API that does not exist yet.

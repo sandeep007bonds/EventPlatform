@@ -1,3 +1,4 @@
+global using System.Text.Json.Nodes;
 global using Communication.Api;
 global using Communication.Api.Endpoints;
 global using Communication.Application;
@@ -9,5 +10,6 @@ global using Communication.Infrastructure;
 global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Contracts.Ticketing;
 global using EventPlatform.Hosting;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;

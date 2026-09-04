@@ -3,8 +3,11 @@ namespace Ticketing.Infrastructure;
 /// <summary>EF Core database context for the Ticketing service (schema <c>ticketing</c>).</summary>
 /// <param name="options">The context options.</param>
 public sealed class TicketingDbContext(DbContextOptions<TicketingDbContext> options)
-    : DbContext(options), IOutboxDbContext
+    : DbContext(options), IOutboxDbContext, IDeadLetterDbContext
 {
+    /// <inheritdoc />
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
+
     /// <summary>The tickets table.</summary>
     public DbSet<Ticket> Tickets => Set<Ticket>();
 
@@ -28,6 +31,8 @@ public sealed class TicketingDbContext(DbContextOptions<TicketingDbContext> opti
         modelBuilder.HasDefaultSchema("ticketing");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(TicketingDbContext).Assembly);
         modelBuilder.ApplyOutbox();
+
+        modelBuilder.ApplyDeadLetters();
 
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).

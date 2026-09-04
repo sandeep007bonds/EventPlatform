@@ -6,8 +6,11 @@ namespace Communication.Infrastructure;
 /// publishes an integration event, so it has nothing to relay.
 /// </summary>
 /// <param name="options">The context options.</param>
-public sealed class CommunicationDbContext(DbContextOptions<CommunicationDbContext> options) : DbContext(options)
+public sealed class CommunicationDbContext(DbContextOptions<CommunicationDbContext> options) : DbContext(options), IDeadLetterDbContext
 {
+    /// <inheritdoc />
+    public DbSet<DeadLetterMessage> DeadLetterMessages => Set<DeadLetterMessage>();
+
     /// <summary>The delivery-log table — one row per attempted send.</summary>
     public DbSet<DeliveryLogEntry> DeliveryLog => Set<DeliveryLogEntry>();
 
@@ -21,6 +24,8 @@ public sealed class CommunicationDbContext(DbContextOptions<CommunicationDbConte
 
         modelBuilder.HasDefaultSchema("communication");
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(CommunicationDbContext).Assembly);
+
+        modelBuilder.ApplyDeadLetters();
 
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).

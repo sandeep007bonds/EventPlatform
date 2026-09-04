@@ -27,6 +27,10 @@ public static class DependencyInjection
         services.AddDbContext<QueueDbContext>((sp, options) => options
             .UseNpgsql(connectionString)
             .UseAuditFields(sp));
+
+        // Subscribes without publishing, so it needs the dead-letter half of the messaging
+        // building block but not the outbox half.
+        services.AddDeadLetters<QueueDbContext>();
         services.AddScoped<IQueueSettingsRepository, QueueSettingsRepository>();
 
         services.AddSingleton<IConnectionMultiplexer>(_ => ConnectionMultiplexer.Connect(redisConnection));

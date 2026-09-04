@@ -29,10 +29,10 @@ hybrid multi-tenancy · payments saga + idempotency + PCI SAQ-A · Phase 1 = sea
 5. **Respect the layers.** Domain never depends on Infrastructure. Never read
    another service's database — talk via API or events only.
 6. **Idempotency + outbox** on anything touching money or inventory.
-   Every pub/sub subscriber also chains `.WithIntegrationEnvelope()` after `.WithTopic(...)`, so
-   the message's correlation id becomes this scope's and anything published while handling it
-   stays in the same chain (ADR-0040). Forget it and the chain silently starts over — nothing
-   fails, the trail just goes quiet.
+   Every pub/sub subscriber uses `.SubscribesTo(topic, deadLetterTopic)` rather than a bare
+   `.WithTopic(...)`: one call, both conventions — the message's correlation chain is adopted, and
+   a message that cannot be handled has somewhere to go (ADR-0040). Each fails *silently* on its
+   own, which is why they are one call and why the checker rejects the bare form.
 7. **No secrets in code.** Key Vault only.
 8. **Every service** ships: tests (unit + integration), health/readiness
    endpoints, OpenTelemetry, a README, and a `CLAUDE.md`.

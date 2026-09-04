@@ -1,0 +1,40 @@
+# Dapr resiliency policy for the deployed environments.
+#
+# This file is what makes a dead-letter topic mean anything. Dapr's default for pub/sub is to retry
+# a failed delivery indefinitely, so without a cap a poison message is redelivered forever and never
+# reaches the dead letter — the DLQ would be decorative and the topic would stay blocked.
+#
+# The local-dev counterpart is platform/dapr/resiliency.yaml — same policy names and, for now, the
+# same numbers; they are expected to diverge once real load says what they should be (ADR-0040).
+apiVersion: dapr.io/v1alpha1
+kind: Resiliency
+metadata:
+  name: eventplatform-resiliency
+scopes:
+  # Every subscriber. Publishers need no inbound policy — the outbox already retries on its own
+  # schedule, and a failed publish leaves the row unpublished rather than losing it.
+  - catalog
+  - communication
+  - inventory
+  - ordering
+  - payments
+  - queue
+  - ticketing
+  - venue
+spec:
+  policies:
+    retries:
+      # Five attempts over roughly ten seconds. Long enough to ride out the thing that actually
+      # causes most subscriber failures — a service still starting, a database connection not yet
+      # available — and short enough that a genuinely poisoned message is set aside quickly rather
+      # than blocking its topic for everyone behind it.
+      inboundMessages:
+        policy: exponential
+        maxInterval: 5s
+        maxRetries: 5
+
+  targets:
+    components:
+      pubsub:
+        inbound:
+          retry: inboundMessages

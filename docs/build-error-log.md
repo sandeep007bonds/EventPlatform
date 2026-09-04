@@ -70,11 +70,11 @@ runtime, which is why they need a check rather than a rule review.
 | Convention | What breaks without it | Detection |
 |---|---|---|
 | **Explicit auth decision** on every endpoint | The deny-by-default fallback 401s it — including health probes and Dapr subscribers, where failing closed is its own outage (ADR-0035) | `Map{Get,Post,…}` without `RequireOrganizer`/`RequireBuyer`/`RequireAuthenticatedCaller`/`AllowAnonymous`, on the call or its `MapGroup` |
-| **`.WithIntegrationEnvelope()`** on every `.WithTopic(...)` | Nothing. The message is handled correctly — it just starts a fresh correlation chain, so the trail from the buyer's click ends there and no test notices (ADR-0040) | A `.WithTopic(` statement whose chain does not mention `WithIntegrationEnvelope` |
+| **`.SubscribesTo(...)`** rather than a bare `.WithTopic(...)` | Nothing, twice over. Without the envelope the message is handled correctly and only the correlation chain restarts; without a dead-letter topic a poison message is redelivered forever. Neither throws, neither shows up in a test (ADR-0040) | A `.WithTopic(` statement mentioning neither `SubscribesTo` nor `DrainsDeadLetters` |
 
 The second rule was calibrated the same way as the rest: zero findings across the eleven
-subscriptions once they were all annotated, and verified to catch a real omission by removing the
-call from Queue's subscriber and watching it fail.
+subscriptions and the five drains, and verified to catch a real omission by rewriting Queue's
+subscriber to call `.WithTopic(...)` directly and watching it fail.
 
 ## Not detectable without semantic analysis
 

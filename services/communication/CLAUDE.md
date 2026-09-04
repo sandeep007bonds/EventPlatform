@@ -130,6 +130,17 @@ With no vendor config set, every send uses the dev/logging senders (logs the
 payload, returns a synthetic success) — no live ACS/Twilio credentials
 needed for local dev.
 
+## Dead letters
+
+Every subscription here goes through `.SubscribesTo(topic, DeadLetterTopic)`, which adopts the
+message's correlation chain and names `deadletter-communication` for anything this service cannot handle
+(ADR-0040). Dapr retries five times first — a resiliency policy caps it, without which a poison
+message would be redelivered forever and never reach the dead letter at all.
+
+`OnDeadLetterAsync` drains that topic into the `dead_letters` table and logs at Error. There is no
+read API for it yet: it is an operator's view of message payloads and this platform has no operator
+role.
+
 ## Do not
 
 - Read another service's database (resolve recipients via a port, once one

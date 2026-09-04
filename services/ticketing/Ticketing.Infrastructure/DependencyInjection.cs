@@ -27,6 +27,7 @@ public static class DependencyInjection
         services.AddScoped<IVenueGateMapClient, DaprVenueGateMapClient>();
         services.AddScoped<IInventoryGaClient, DaprInventoryGaClient>();
         services.AddOutbox<TicketingDbContext>();
+        services.AddDeadLetters<TicketingDbContext>();
 
         return services;
     }

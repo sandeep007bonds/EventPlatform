@@ -1,6 +1,8 @@
 global using System.Globalization;
+global using System.Text.Json.Nodes;
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Hosting;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.AspNetCore.HttpOverrides;
 global using Microsoft.EntityFrameworkCore;

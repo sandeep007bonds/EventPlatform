@@ -16,10 +16,13 @@ Three sweeps:
    which is exactly why the deny-by-default fallback policy would have 401'd Kubernetes probes and
    silently killed pub/sub had they not been annotated.
 
-3. Dapr pub/sub subscribers. Every `.WithTopic(...)` must also chain `.WithIntegrationEnvelope()`,
-   which adopts the incoming message's correlation id into the handler's scope (ADR-0040). Omit it
-   and the message is still handled perfectly — it just starts a brand-new chain, so the trail from
-   the buyer's click to this event quietly ends here and no test would ever notice.
+3. Dapr pub/sub subscribers. A subscription must go through `.SubscribesTo(topic, deadLetterTopic)`
+   rather than a bare `.WithTopic(...)`. That one call applies both conventions a subscriber needs
+   (ADR-0040): it adopts the incoming message's correlation id, and it names a dead-letter topic.
+   Skip either and nothing breaks loudly — the message is handled perfectly and only the trail goes
+   quiet, or a poison message is redelivered forever. The one legitimate bare `.WithTopic(...)` is
+   the dead-letter drain itself, which subscribes via `.DrainsDeadLetters(...)`; a drain with its
+   own dead-letter topic would only move the question.
 
 Sweeps 1 and 2 exist because the platform shipped with no authorization enforcement at all and three
 endpoints leaking payment and ticket credentials (ADR-0035). The fallback policy now denies
@@ -35,7 +38,7 @@ INFRA_MAP = re.compile(r'\.Map(?:HealthChecks|OpenApi|ScalarApiReference|Subscri
 AUTH = ('RequireOrganizer', 'RequireBuyer', 'RequireAuthenticatedCaller', 'AllowAnonymous')
 
 SUBSCRIBE = re.compile(r'\.WithTopic\s*\(')
-ENVELOPE = 'WithIntegrationEnvelope'
+SUBSCRIBE_OK = ('SubscribesTo', 'DrainsDeadLetters')
 
 HANDLER_GLOBS = [('services', '*/*.Api/Endpoints/*.cs')]
 INFRA_GLOBS = [
@@ -101,20 +104,26 @@ def scan(globs, pattern, use_groups):
     return found
 
 
-def scan_envelopes():
+def scan_subscriptions():
+    """Bare .WithTopic(...) outside the two sanctioned wrappers.
+
+    Matched on the *statement*, so a subscription is only reported when neither wrapper appears
+    anywhere in its chain — the wrappers call .WithTopic themselves, one level down in a building
+    block the handler globs never reach.
+    """
     found = []
     for root, glob in HANDLER_GLOBS:
         for path in sorted(Path(root).glob(glob)):
             text = path.read_text(encoding='utf-8')
             for line_no, stmt in registrations(text, SUBSCRIBE):
-                if ENVELOPE not in stmt:
+                if not any(ok in stmt for ok in SUBSCRIBE_OK):
                     found.append(f"{path}:{line_no}: {stmt.strip()[:100]}")
     return found
 
 
 auth_failures = scan(HANDLER_GLOBS, HANDLER_MAP, use_groups=True)
 auth_failures += scan(INFRA_GLOBS, INFRA_MAP, use_groups=False)
-envelope_failures = scan_envelopes()
+subscription_failures = scan_subscriptions()
 
 if auth_failures:
     print("Endpoints with no explicit authorization decision:\n")
@@ -123,15 +132,15 @@ if auth_failures:
     print(f"\n{len(auth_failures)} endpoint(s). Add RequireOrganizer/RequireBuyer/"
           "RequireAuthenticatedCaller/AllowAnonymous — see ADR-0035.\n")
 
-if envelope_failures:
-    print("Pub/sub subscribers that drop the correlation chain:\n")
-    for f in envelope_failures:
+if subscription_failures:
+    print("Subscriptions bypassing the shared conventions:\n")
+    for f in subscription_failures:
         print("  " + f)
-    print(f"\n{len(envelope_failures)} subscriber(s). Chain .WithIntegrationEnvelope() "
-          "after .WithTopic(...) — see ADR-0040.\n")
+    print(f"\n{len(subscription_failures)} subscription(s). Use .SubscribesTo(topic, deadLetterTopic) "
+          "— or .DrainsDeadLetters(...) for a drain — see ADR-0040.\n")
 
-if auth_failures or envelope_failures:
+if auth_failures or subscription_failures:
     sys.exit(1)
 
 print("All endpoints carry an explicit authorization decision.")
-print("All pub/sub subscribers adopt the incoming correlation chain.")
+print("All pub/sub subscriptions carry a correlation chain and a dead-letter topic.")

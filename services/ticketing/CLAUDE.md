@@ -127,6 +127,17 @@ Run Ordering (and the rest of the checkout chain) too so `OrderConfirmed` flows,
 and Catalog plus **Venue** so a performance can be published and its gate map
 warmed.
 
+## Dead letters
+
+Every subscription here goes through `.SubscribesTo(topic, DeadLetterTopic)`, which adopts the
+message's correlation chain and names `deadletter-ticketing` for anything this service cannot handle
+(ADR-0040). Dapr retries five times first — a resiliency policy caps it, without which a poison
+message would be redelivered forever and never reach the dead letter at all.
+
+`OnDeadLetterAsync` drains that topic into the `dead_letters` table and logs at Error. There is no
+read API for it yet: it is an operator's view of message payloads and this platform has no operator
+role.
+
 ## Do not
 
 - Store card data or PII beyond what a ticket needs.

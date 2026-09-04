@@ -1,7 +1,9 @@
 global using System.Security.Claims;
+global using System.Text.Json.Nodes;
 global using EventPlatform.Contracts.Catalog;
 global using EventPlatform.Contracts.Ordering;
 global using EventPlatform.Hosting;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using QRCoder;
