@@ -182,9 +182,10 @@ want something.
 1. Register/login   POST /api/identity/v1/organizers/register
                     → creates Tenant + OrganizerAccount, returns a token
                       carrying role=organizer and tenant_id
-2. Venue + map      /admin/venues — create the venue and its gates, draw a
-                    seat map, publish a version. Reusable across events;
-                    versions are immutable once published (ADR-0038).
+2. Venue + map      /admin/venues — create the venue and its gates, describe a
+                    seat map as blocks of rows × seats, publish a version.
+                    Reusable across events; versions are immutable once
+                    published (ADR-0038).
 3. Create           /admin/events/new — one page, one or many legs.
                     Adding a second leg turns it into a tour.
 4. Enrich           Upload a banner (media), add description, category,

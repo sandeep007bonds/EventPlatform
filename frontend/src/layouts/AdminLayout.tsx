@@ -2,6 +2,7 @@ import { ConfigProvider, Layout, Menu, Button, Typography } from 'antd';
 import {
   CalendarOutlined,
   CompassOutlined,
+  EnvironmentOutlined,
   FileTextOutlined,
   LogoutOutlined,
   QrcodeOutlined,
@@ -30,11 +31,13 @@ export function AdminLayout() {
     ? 'orders'
     : location.pathname.startsWith('/admin/tours')
       ? 'tours'
-      : location.pathname.startsWith('/admin/scan')
-        ? 'scan'
-        : location.pathname.startsWith('/admin/policies')
-          ? 'policies'
-          : 'events';
+      : location.pathname.startsWith('/admin/venues')
+        ? 'venues'
+        : location.pathname.startsWith('/admin/scan')
+          ? 'scan'
+          : location.pathname.startsWith('/admin/policies')
+            ? 'policies'
+            : 'events';
 
   return (
     <ConfigProvider theme={adminTheme}>
@@ -97,6 +100,11 @@ export function AdminLayout() {
                 key: 'tours',
                 icon: <CompassOutlined />,
                 label: <Link to="/admin/tours">{t('nav.tours')}</Link>,
+              },
+              {
+                key: 'venues',
+                icon: <EnvironmentOutlined />,
+                label: <Link to="/admin/venues">{t('nav.venues')}</Link>,
               },
               {
                 key: 'orders',

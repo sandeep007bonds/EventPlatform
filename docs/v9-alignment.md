@@ -40,7 +40,7 @@ SEARCH 10 · REPORT 13.
 | At first audit | 71 | 52 | 90 | 3 |
 | After the Venue service (ADR-0038) | 85 | 48 | 80 | 3 |
 | After Catalog moved to performances (ADR-0039) | 86 | 51 | 76 | 3 |
-| Now | 90 | 49 | 74 | 3 |
+| Now | 90 | 50 | 73 | 3 |
 
 Read the first row honestly: **71 of 216** when this ledger was written, and lower than the
 "~110 already satisfied" estimate given before going row by row — that estimate counted families
@@ -128,8 +128,8 @@ record. Building it first would record a weaker fact permanently.*
 | --- | --- | --- | --- |
 | VEN-001 | `Venue` aggregate, tenant-owned, reusable across events | ✅ | `services/venue` — `Venues.Domain/Venue.cs`; ADR-0038. Catalog's `EventLocation` and its whole seat-map aggregate are **deleted**: a performance names a Venue seat-map version instead (ADR-0039). |
 | VEN-002 | `VenueAddress` | ✅ | Owned value on `Venue`; columns on `venues`. |
-| VEN-003 | Venue CRUD API (`POST/GET/PATCH /v1/venues`) | ✅ | `VenueEndpoints.cs` — create, list, get, update, activate, archive. Organizer-only, including the reads. |
-| VEN-004 | `VenueGate` — physical gate configuration | ✅ | `VenueGate.cs` — per **venue**, code unique within it, rename and deactivate rather than delete. Event-time gate *authorization* stays with the scanning side. |
+| VEN-003 | Venue CRUD API (`POST/GET/PATCH /v1/venues`) | ✅ | `VenueEndpoints.cs` — create, list, get, update, activate, archive. Organizer-only, including the reads. `/admin/venues` in the SPA drives all of it. |
+| VEN-004 | `VenueGate` — physical gate configuration | ✅ | `VenueGate.cs` — per **venue**, code unique within it, rename and deactivate rather than delete. Managed on the venue's Gates tab, and assignable per block in the seat-map editor. Event-time gate *authorization* stays with the scanning side. |
 | VEN-005 | `VenueZone` | ✅ | Modelled as `AdmissionArea` — unreserved capacity with no seat identity. |
 | VEN-006 | `VenueFacility` | ✅ | `VenueFacility.cs`; free text on purpose — the set differs by venue kind. |
 | VEN-007 | Venue types | ✅ | `Venue.VenueType`, free text for the same reason. |
@@ -144,7 +144,7 @@ seat) still serves existing events until they move onto venue-owned maps.
 
 | # | Scope | | Where / gap |
 | --- | --- | --- | --- |
-| MAP-001 | Graphical editor: create/edit elements | ✗ | No editor at all in the SPA yet — the form-based one went with Catalog's seat map, and Venue's API (`PUT /draft/layout`) is only reachable by hand. `frontend/src/services/venue/venueApi.ts` is the client it will be built on. |
+| MAP-001 | Graphical editor: create/edit elements | ◐ | `SeatMapEditorModal` under `/admin/venues` describes blocks as rows × seats and publishes them. No canvas — and it sends no shapes at all, which Venue accepts (it only rejects a *partly* drawn map), so the designer can add geometry later without invalidating anything made now. |
 | MAP-002 | Logical identity separate from coordinates | ✅ | `SeatMapElement.cs` holds every coordinate; `Seat`/`SeatRow`/`VenueSection` hold none. Moving a block cannot change what a ticket names. ADR-0038. |
 | MAP-003 | Zoom / pan | ✗ | — |
 | MAP-004 | Drag / drop placement | ✗ | — |
@@ -159,8 +159,8 @@ seat) still serves existing events until they move onto venue-owned maps.
 | MAP-013 | Gates on the map | ✅ | `VenueSection.GateId` / `AdmissionArea.GateId`, validated against the venue at save **and** publish. Ticketing warms them per performance from the pinned version, so a scan enforces the gates that were in force when the tickets sold. |
 | MAP-014 | Pricing-zone visualization | ◐ | Price is resolved per seat from the joined `TicketType`; nothing renders it as a zone. |
 | MAP-015 | Import / export | ✗ | — |
-| MAP-016 | Draft / version | ✅ | `SeatMapVersion` — one open draft at a time, a new draft pre-filled from the published layout with fresh ids, published versions immutable, superseded ones kept because tickets still resolve against them. |
-| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ✅ | `Validate()` returns **every** problem: duplicate codes, duplicate row labels, duplicate seat numbers, empty sections/rows/areas, missing geometry, a half-drawn map. Compatibility with the linked performance is checked from the Catalog side by `SessionPublishCheck`, which refuses a publish where any block is unallocated. |
+| MAP-016 | Draft / version | ✅ | `SeatMapVersion` — one open draft at a time, a new draft pre-filled from the published layout with fresh ids, published versions immutable, superseded ones kept because tickets still resolve against them. The editor shows which version is open and refuses to edit a published one. |
+| MAP-017 | Publish + validation (duplicate ids, hierarchy, capacity) | ✅ | `Validate()` returns **every** problem: duplicate codes, duplicate row labels, duplicate seat numbers, empty sections/rows/areas, missing geometry, a half-drawn map — and the editor renders the whole list rather than the first. Compatibility with the linked performance is checked from the Catalog side by `SessionPublishCheck`, which refuses a publish where any block is unallocated. |
 
 *Progressive loading (venue overview → section geometry → selected-section seats) is v9's answer to
 large-stadium rendering, and is still not implemented: `GET /v1/seat-maps/{id}` returns the whole

@@ -292,7 +292,7 @@ export function AdminEventDetailPage() {
                       {event.sessions.length > 0 && <Tag>{event.sessions.length}</Tag>}
                     </Space>
                   ),
-                  children: <EventPerformancesPanel event={event} />,
+                  children: <EventPerformancesPanel event={event} onChanged={reload} />,
                 },
                 {
                   key: 'rules',

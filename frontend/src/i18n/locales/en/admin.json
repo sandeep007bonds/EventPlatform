@@ -1,8 +1,9 @@
 {
   "nav": {
     "events": "Events",
-    "orders": "Orders",
     "tours": "Tours",
+    "venues": "Venues",
+    "orders": "Orders",
     "scan": "Scan tickets",
     "policies": "Policies"
   }

@@ -20,6 +20,8 @@ import { PageShell } from '../components/common/layout/PageShell';
 import { OrganizerPoliciesPage } from '../features/admin/policies/OrganizerPoliciesPage';
 import { AdminOrdersPage } from '../features/admin/orders/AdminOrdersPage';
 import { EventGroupsPage } from '../features/admin/eventGroups/EventGroupsPage';
+import { VenuesPage } from '../features/admin/venues/VenuesPage';
+import { VenueDetailPage } from '../features/admin/venues/VenueDetailPage';
 import { CreateEventGroupPage } from '../features/admin/eventGroups/CreateEventGroupPage';
 import { TourDetailPage } from '../features/admin/eventGroups/TourDetailPage';
 import { ScanTicketPage } from '../features/admin/tickets/ScanTicketPage';
@@ -120,6 +122,22 @@ export function AppRouter() {
           }
         />
         <Route path="events/:eventId" element={<AdminEventDetailPage />} />
+        <Route
+          path="venues"
+          element={
+            <PageShell>
+              <VenuesPage />
+            </PageShell>
+          }
+        />
+        <Route
+          path="venues/:venueId"
+          element={
+            <PageShell>
+              <VenueDetailPage />
+            </PageShell>
+          }
+        />
         <Route
           path="tours"
           element={

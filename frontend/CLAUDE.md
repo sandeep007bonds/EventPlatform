@@ -57,6 +57,8 @@ src/
             eventGroups/ (create/manage tours, TourDetailPage with "Add
                           leg", EventGroupPicker + inline quick-create,
                           TourLegsList — a tour's upcoming/past legs)
+            venues/ (venue library, gates, facilities, and the form-based
+                     seat-map editor + publish)
             inventory/ (SeatBlockPanel) orders/ (tenant order list)
             tickets/ (ScanTicketPage — check in a ticket by its scan token,
                       manual/hardware-wedge input plus BarcodeDetector/jsQR
@@ -240,6 +242,19 @@ src/
   **`EventSeatMapPanel`, `EntryGatesPanel`, `SeatMapSectionsFields` and `EventScheduleForm` are
   gone** — Catalog no longer owns seat maps or gates, and the dates belong to the performances.
   Don't reintroduce them.
+- **Two places edit a seat map, and they are not the same thing.** `SeatMapEditorModal`
+  (`/admin/venues`) describes the _building_ — which blocks exist, how many rows and seats, which
+  gate each is behind. `SessionSeatMapModal` (an event's Performances tab) says what each block
+  _sells as tonight_, mapping its code to a ticket type. Neither can do the other's job, and that
+  separation is ADR-0038's whole point: a Venue seat carries no price, so a map is reusable across
+  a hundred events that price it differently.
+  The allocation editor refuses to save with any block unmapped, mirroring the publish check
+  server-side — an unmapped block is capacity Inventory never hears about, and the buyer sees a
+  hole in the map they cannot distinguish from a sold-out section.
+- **The seat-map editor is form-based and sends no shapes, deliberately.** Venue accepts a purely
+  logical map and only rejects one that is _partly_ drawn (a plan with a hole is worse than no
+  plan), so rows-×-seats input publishes cleanly today and the graphical designer can add geometry
+  later without invalidating anything made now.
 - **Buyer event URLs are slugs; the id still works.** `/events/:eventSlug` accepts either an event
   GUID or its slug — `EventDetailPage` picks `getEvent` or `getEventBySlug` by testing the param's
   shape (a slug can never contain two adjacent hyphens, so a GUID is unambiguous). Links the app
