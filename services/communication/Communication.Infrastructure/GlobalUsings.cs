@@ -9,6 +9,7 @@ global using Communication.Domain;
 global using Communication.Infrastructure.Recipients;
 global using Communication.Infrastructure.Senders;
 global using Communication.Infrastructure.Templates;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;

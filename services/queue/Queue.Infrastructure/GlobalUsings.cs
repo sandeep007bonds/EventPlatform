@@ -1,6 +1,7 @@
 global using System.Collections.Concurrent;
 global using System.Security.Cryptography;
 global using System.Text;
+global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
 global using Microsoft.EntityFrameworkCore;
 global using Microsoft.EntityFrameworkCore.Design;

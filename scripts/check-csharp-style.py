@@ -119,6 +119,32 @@ def blank_non_code(text):
     return ''.join(out)
 
 
+def blank_comments_only(text):
+    """Comments blanked, everything else kept — including the code inside interpolation holes.
+
+    `blank_non_code` blanks an interpolated string whole, holes and all, which is right for
+    counting arguments and wrong for asking "is this type named anywhere". `CultureInfo` first
+    went missing from inside `$"...{n.ToString(CultureInfo.InvariantCulture)}"`, invisible to
+    the stricter pass.
+    """
+    out, index, length = [], 0, len(text)
+    while index < length:
+        pair = text[index:index + 2]
+        if pair == '//':
+            end = text.find('\n', index)
+            end = length if end < 0 else end
+        elif pair == '/*':
+            end = text.find('*/', index + 2)
+            end = length if end < 0 else end + 2
+        else:
+            out.append(text[index])
+            index += 1
+            continue
+        out.append(''.join(c if c == '\n' else ' ' for c in text[index:end]))
+        index = end
+    return ''.join(out)
+
+
 def bracket_body(text, open_index):
     """Contents of the bracket group opening at open_index, or None if unbalanced.
 
@@ -476,30 +502,61 @@ def check_record_member_clash(path, code, findings):
                                  f'positional parameter of that name already generates'))
 
 
-DI_TRY_ADD = re.compile(r'\.TryAdd(?:Scoped|Singleton|Transient|Enumerable)\s*[(<]')
-DI_EXTENSIONS_NAMESPACE = 'Microsoft.Extensions.DependencyInjection.Extensions'
+# Names that have gone missing on a real build, and the namespace each needs. Global usings are
+# per project, so "it worked in the file I copied it from" is the trap every one of these fell
+# into. The pattern is matched as a whole word against blanked code.
+NEEDS_NAMESPACE = {
+    r'\.TryAdd(?:Scoped|Singleton|Transient|Enumerable)\s*[(<]':
+        'Microsoft.Extensions.DependencyInjection.Extensions',
+    r'\bCultureInfo\b': 'System.Globalization',
+    r'\b(?:DeadLetterMessage|IDeadLetterDbContext|DeadLetterDrain|OutboxMessage|IOutboxDbContext)\b':
+        'EventPlatform.Messaging',
+    r'\bJsonNode\b': 'System.Text.Json.Nodes',
+}
 
 
-def check_di_extensions_using(path, code, findings):
-    """CS1061 — `TryAddScoped` without the namespace it lives in.
-
-    `TryAdd*` sits on `ServiceCollectionDescriptorExtensions`, in a *different* namespace from
-    `AddScoped`. The error reads "IServiceCollection does not contain a definition for
-    TryAddScoped", which points at the type rather than at the missing using — and the project
-    next door already having the line makes it look like it must be there already.
-    """
-    match = DI_TRY_ADD.search(code)
-    if not match:
-        return
+def project_directory(path):
+    """The directory of the .csproj that owns a file."""
     directory = pathlib.Path(path).parent
     while directory != pathlib.Path('.') and not any(directory.glob('*.csproj')):
         directory = directory.parent
-    usings = directory / 'GlobalUsings.cs'
-    if not usings.is_file():
+    return directory
+
+
+def check_required_namespaces(path, code, findings):
+    """CS0246 / CS0103 / CS1061 — a type used without its namespace in that project.
+
+    Global usings are per project, so the mistake is always the same shape: the code is copied or
+    adapted from a project that has the line, and the one being edited does not. `CultureInfo` and
+    `IDeadLetterDbContext` both landed this way.
+
+    The map holds only names that have actually gone missing on a build, and each entry is checked
+    against where the type really lives — the first draft of this rule put `IEventPublisher` in
+    `EventPlatform.Messaging` when it is in `EventPlatform.Contracts`, and reported eighteen
+    compiling files. **Whether the project also has the `ProjectReference` is deliberately not
+    checked**: references are transitive, so every `.Api` gets `EventPlatform.Messaging` through
+    its `.Infrastructure` without naming it, and demanding the direct reference reported five more
+    files that build.
+    """
+    if pathlib.PurePath(path).name == 'GlobalUsings.cs':
         return
-    if DI_EXTENSIONS_NAMESPACE not in usings.read_text(encoding='utf-8', errors='replace'):
-        findings.append((path, code[:match.start()].count('\n') + 1, 'CS1061',
-                         f'TryAdd* needs `global using {DI_EXTENSIONS_NAMESPACE};` in {usings}'))
+    directory = project_directory(path)
+    usings_file = directory / 'GlobalUsings.cs'
+    if not usings_file.is_file():
+        return
+    usings = usings_file.read_text(encoding='utf-8', errors='replace')
+
+    for pattern, namespace in NEEDS_NAMESPACE.items():
+        # A project needs no using for the namespace it declares.
+        if directory.name == namespace:
+            continue
+        match = re.search(pattern, code)
+        if not match:
+            continue
+        if f'global using {namespace};' not in usings:
+            findings.append((path, code[:match.start()].count('\n') + 1, 'CS0246/CS0103',
+                             f'{match.group(0).strip()} needs `global using {namespace};` '
+                             f'in {usings_file}'))
 
 
 def check_unused_private_field(path, code, findings):
@@ -550,6 +607,32 @@ def using_sort_key(namespace):
     """
     system_first = 0 if namespace == 'System' or namespace.startswith('System.') else 1
     return (system_first, namespace.lower())
+
+
+def check_sa1512(path, raw, findings):
+    """SA1512 — a single-line comment must not be followed by a blank line.
+
+    The failure mode is not writing one on purpose; it is *inserting a member* between a comment
+    and the thing it describes. That is exactly what happened to `OrderingEndpoints`, where a new
+    dead-letter handler landed between the poll-budget comment and the poll-budget fields, leaving
+    the comment stranded above a blank line and describing nothing.
+    """
+    lines = raw.split('\n')
+    for number in range(len(lines) - 1):
+        stripped = lines[number].strip()
+        if not stripped.startswith('//') or stripped.startswith('///'):
+            continue
+        if lines[number + 1].strip():
+            continue
+        following = next((l.strip() for l in lines[number + 2:] if l.strip()), '')
+        # A comment ending a block is not orphaned — nothing is left for it to describe. Neither
+        # is one whose gap is followed by another comment or a doc block: five such sites compile
+        # here, so the blank line is only a violation when real code follows it.
+        if following in ('}', '};', '') or following.startswith('//'):
+            continue
+        findings.append((path, number + 1, 'SA1512',
+                         'blank line directly under a comment — it now describes nothing; '
+                         'did something get inserted between them?'))
 
 
 def check_using_order(path, raw, findings):
@@ -779,7 +862,8 @@ def main():
         check_doc_xml(normalized, raw, findings)
         check_local_usings(normalized, code, findings)
         check_record_member_clash(normalized, code, findings)
-        check_di_extensions_using(normalized, code, findings)
+        check_required_namespaces(normalized, blank_comments_only(raw), findings)
+        check_sa1512(normalized, raw, findings)
         check_unused_private_field(normalized, code, findings)
         check_overload_adjacency(normalized, code, findings)
 

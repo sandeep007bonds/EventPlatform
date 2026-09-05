@@ -67,6 +67,8 @@ same shadow. Fix the first error in each project, rebuild, and most of the list 
 | **CS7036** (static factory) | `Hold.Create` gained `catalogEventId`; its one caller, in another project, still passed six | `Type.Method(...)` against a `public static` declaration of that name in the same compilation scope |
 | **SA1115** | A comment explaining `causationId` was given air with a blank line above it, inside the argument list | A blank line between two arguments |
 | **SA1515 (again)** | Removing that blank line to satisfy SA1115 produced SA1515 on the very next run — a comment flush under `correlationId: …,`. **The two rules together forbid a comment inside an argument list in either form**; the only fix is to move it above the whole statement. The first version of the SA1515 rule treated a trailing comma as "mid-expression, flush is fine", which is exactly backwards | A `//` line whose predecessor ends in `,` is now a violation like any other statement |
+| **CS0246 / CS0103** | `Queue.Infrastructure` and `Communication.Infrastructure` gained `IDeadLetterDbContext` with no `ProjectReference` to `EventPlatform.Messaging` and no global using — Communication had deliberately never referenced it, since it publishes nothing. `CultureInfo` went the same way in `Ticketing.Infrastructure` | A curated map of names to the namespace each needs, against that project's `GlobalUsings.cs` |
+| **SA1512** | The dead-letter handler was inserted between the poll-budget comment and the fields it describes, leaving the comment above a blank line explaining nothing | A `//` line followed by a blank line and then real code |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
@@ -130,6 +132,21 @@ list. It inflated the count for one legitimate call to `SessionPublishReadiness.
 one-argument call read as two. Interpolated strings are now blanked whole, holes included, with
 brace depth telling a hole's quote from the terminator. Every structural rule depends on that
 function, so this was quietly wrong for all of them.
+
+**The namespace and SA1512 rules were both wrong on their first run — 42 findings on a tree that
+mostly compiled — and what they got wrong is worth keeping.** The map had `IEventPublisher` under
+`EventPlatform.Messaging` when it lives in `EventPlatform.Contracts`, which alone accounted for
+eighteen passing files: *check where a type actually lives before asserting it*. The rule also
+demanded a direct `ProjectReference`, which is unsound — references are transitive, so every `.Api`
+reaches `EventPlatform.Messaging` through its `.Infrastructure` without naming it. And SA1512 does
+not fire when the blank line is followed by **another comment or a doc block**; five such sites
+compile here, so only real code following the gap counts.
+
+That work also exposed the cost of the interpolated-string fix above: blanking a hole's contents
+hides real code, and `CultureInfo` was invisible because it sits inside
+`$"…{n.ToString(CultureInfo.InvariantCulture)}"`. Structural rules still want the strict pass;
+"is this name used anywhere" wants `blank_comments_only`, which strips comments and keeps
+everything else.
 
 The CS1570 rule checks **only tag balance**, and that limit is the calibration. Attribute syntax and
 entity escaping are the compiler's job: `<`/`&` appear in doc prose that compiles, and a rule that

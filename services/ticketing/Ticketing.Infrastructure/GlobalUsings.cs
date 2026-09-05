@@ -1,3 +1,4 @@
+global using System.Globalization;
 global using Dapr.Client;
 global using EventPlatform.Messaging;
 global using EventPlatform.Persistence;
