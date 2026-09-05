@@ -704,7 +704,11 @@ def check_sa1115(path, raw, code, findings):
                 break
 
 
-CONTINUES_STATEMENT = ('{', '(', '[', ',', ':', '&&', '||', '=>', '+')
+# A comment may sit flush under a line that opens a block or is mid-expression — but NOT under a
+# comma. CI proved that one: a comment placed against `correlationId: ...,` to satisfy SA1115 was
+# then reported as SA1515. The two rules together mean a comment cannot live inside an argument
+# list at all, in either form, so it has to move above the whole statement.
+CONTINUES_STATEMENT = ('{', '(', '[', ':', '&&', '||', '=>', '+')
 
 
 def check_sa1515(path, raw, findings):

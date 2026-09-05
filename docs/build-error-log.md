@@ -66,6 +66,7 @@ same shadow. Fix the first error in each project, rebuild, and most of the list 
 | **CS7036** (own constructor) | `Ticket.Create` threaded `eventSessionId` into the constructor's parameter list and the `new Ticket(...)` eight lines below it was not updated | `new <TypeName>(...)` against every constructor arity declared in that same file |
 | **CS7036** (static factory) | `Hold.Create` gained `catalogEventId`; its one caller, in another project, still passed six | `Type.Method(...)` against a `public static` declaration of that name in the same compilation scope |
 | **SA1115** | A comment explaining `causationId` was given air with a blank line above it, inside the argument list | A blank line between two arguments |
+| **SA1515 (again)** | Removing that blank line to satisfy SA1115 produced SA1515 on the very next run — a comment flush under `correlationId: …,`. **The two rules together forbid a comment inside an argument list in either form**; the only fix is to move it above the whole statement. The first version of the SA1515 rule treated a trailing comma as "mid-expression, flush is fine", which is exactly backwards | A `//` line whose predecessor ends in `,` is now a violation like any other statement |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
