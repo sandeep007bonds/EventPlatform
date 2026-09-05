@@ -12,8 +12,8 @@ internal sealed class OrderLineConfiguration : IEntityTypeConfiguration<OrderLin
 
         builder.Property(line => line.Quantity).IsRequired();
 
-        // Same 50-char cap the tier name has in Catalog and Inventory — this value is compared
-        // against a promo code's tier list verbatim, so a shorter cap here would silently truncate.
+        // The ticket type this line was sold as — an id, not the free-text tier name it replaced,
+        // so a code scoped to a type still matches after the type is renamed.
         builder.Property(line => line.TicketTypeId).IsRequired();
         builder.Property(line => line.UnitPriceMinor).IsRequired();
         builder.Property(line => line.PriceMinor).IsRequired();

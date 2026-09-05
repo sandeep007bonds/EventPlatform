@@ -31,19 +31,19 @@ public static class SessionPublishCheck
 
         if (session.SeatMapId is not { } seatMapId || session.SeatMapVersionId is null)
         {
-            return SessionPublishReadiness.Problem(
+            return SessionPublishReadiness.Blocked(
                 $"'{label}' has no seat map. Attach a published seat-map version before selling it.");
         }
 
         var version = await venue.GetSeatMapVersionAsync(seatMapId, session.SeatMapVersionNumber, cancellationToken);
         if (version is null)
         {
-            return SessionPublishReadiness.Problem($"'{label}' points at a seat map the venue no longer has.");
+            return SessionPublishReadiness.Blocked($"'{label}' points at a seat map the venue no longer has.");
         }
 
         if (!version.IsPublished || version.SeatMapVersionId != session.SeatMapVersionId)
         {
-            return SessionPublishReadiness.Problem(
+            return SessionPublishReadiness.Blocked(
                 $"'{label}' is pinned to a seat-map version that is no longer the published one. Re-attach the map.");
         }
 
@@ -55,7 +55,7 @@ public static class SessionPublishCheck
         var unallocated = version.BlockCodes.Where(code => !allocatedCodes.Contains(code)).Order(StringComparer.Ordinal).ToList();
         if (unallocated.Count > 0)
         {
-            return SessionPublishReadiness.Problem(
+            return SessionPublishReadiness.Blocked(
                 $"'{label}' has blocks with no ticket type: {string.Join(", ", unallocated)}.");
         }
 
@@ -67,7 +67,7 @@ public static class SessionPublishCheck
         {
             if (!pricesById.TryGetValue(allocation.TicketTypeId, out var priceMinor))
             {
-                return SessionPublishReadiness.Problem(
+                return SessionPublishReadiness.Blocked(
                     $"'{label}' allocates block '{allocation.Code}' to a ticket type that is inactive or no longer exists.");
             }
 

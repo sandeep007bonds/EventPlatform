@@ -134,5 +134,5 @@ public static class OrderPricingCalculator
     /// </summary>
     private static bool AppliesTo(OrderLineSpec line, PromoCodeTerms terms) =>
         terms.TicketTypeIds.Count == 0
-        || terms.TicketTypeIds.Contains(line.TicketTypeId, StringComparer.OrdinalIgnoreCase);
+        || terms.TicketTypeIds.Contains(line.TicketTypeId);
 }

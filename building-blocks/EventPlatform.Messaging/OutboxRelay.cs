@@ -16,8 +16,6 @@ internal sealed class OutboxRelay(
     ILogger<OutboxRelay> logger)
     : BackgroundService
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new(JsonSerializerDefaults.Web);
-
     /// <inheritdoc />
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

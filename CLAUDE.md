@@ -115,9 +115,14 @@ git config core.hooksPath .githooks       # once per clone: run both on commit
 
 `dotnet build` is still the authority, but it is the *slow* one: it stops at the
 first failing project, so one run surfaces one project's errors and the next run
-surfaces the next project's. `check-csharp-style.py` checks all 719 files in under
+surfaces the next project's. `check-csharp-style.py` checks all 867 files in under
 a second and front-loads the rules that keep breaking the build — SA1117, S125,
-SA1506, the `<param>` rules, and record arity.
+SA1506, SA1515, the `<param>` rules, record arity, and the four that a re-key
+keeps producing (CS0102, CS1061, S1144, S4136).
+
+**A green checker is not a green build.** It is a regex tool with no type
+information, so it cannot see a `StringComparer` handed to a `List<Guid>`. A clean
+run means the recurring mistakes are absent; only `dotnet build` says it compiles.
 
 **Its rules are calibrated, and new ones must be too.** The bar is zero findings on
 a tree that compiles: a rule that fires on passing code is a wrong rule, not a

@@ -8,11 +8,14 @@ namespace Ordering.Tests.Checkout;
 /// </summary>
 public sealed class OrderPricingCalculatorTests
 {
+    private static readonly Guid Vip = Guid.CreateVersion7();
+    private static readonly Guid GeneralAdmission = Guid.CreateVersion7();
+
     [Fact]
     public void Subtotal_IsTheSumOfTheLines_WithNoCodeOrTax()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("VIP", 5000), Line("GA", 2500)],
+            [Line(Vip, 5000), Line(GeneralAdmission, 2500)],
             terms: null,
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
@@ -27,7 +30,7 @@ public sealed class OrderPricingCalculatorTests
     public void PercentageDiscount_AppliesToTheWholeSubtotal_WhenNoTiersAreNamed()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("VIP", 5000), Line("GA", 2500)],
+            [Line(Vip, 5000), Line(GeneralAdmission, 2500)],
             Percentage(10m),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
@@ -40,8 +43,8 @@ public sealed class OrderPricingCalculatorTests
     public void PercentageDiscount_AppliesOnlyToTheNamedTiers()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("VIP", 5000), Line("GA", 2500)],
-            Percentage(10m, "VIP"),
+            [Line(Vip, 5000), Line(GeneralAdmission, 2500)],
+            Percentage(10m, Vip),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
 
@@ -51,24 +54,31 @@ public sealed class OrderPricingCalculatorTests
         pricing.TotalMinor.ShouldBe(7000);
     }
 
+    // Replaces a case-insensitive name-matching test. A ticket type is identified by id, so two
+    // types an organizer happened to name the same thing are different products, and a code scoped
+    // to one must leave the other at full price. The old free-text tier could not tell them apart.
     [Fact]
-    public void TierMatching_IsCaseInsensitive()
+    public void TwoTicketTypesNamedTheSame_AreStillDifferentProducts()
     {
+        var earlyBird = Guid.CreateVersion7();
+        var alsoCalledEarlyBird = Guid.CreateVersion7();
+
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("VIP", 5000)],
-            Percentage(10m, "vip"),
+            [Line(earlyBird, 5000), Line(alsoCalledEarlyBird, 5000)],
+            Percentage(10m, earlyBird),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
 
         pricing.DiscountMinor.ShouldBe(500);
+        pricing.TotalMinor.ShouldBe(9500);
     }
 
     [Fact]
     public void Discount_IsZero_WhenNoLineMatchesTheCodesTiers()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 2500)],
-            Percentage(10m, "VIP"),
+            [Line(GeneralAdmission, 2500)],
+            Percentage(10m, Vip),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
 
@@ -80,7 +90,7 @@ public sealed class OrderPricingCalculatorTests
     public void FixedDiscount_IsConvertedFromMajorUnitsToMinor()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 5000)],
+            [Line(GeneralAdmission, 5000)],
             Fixed(12.50m),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
@@ -93,8 +103,8 @@ public sealed class OrderPricingCalculatorTests
     public void FixedDiscount_IsClampedToTheEligibleSubtotal_NeverProducingANegativeTotal()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("VIP", 1000), Line("GA", 9000)],
-            Fixed(500m, "VIP"),
+            [Line(Vip, 1000), Line(GeneralAdmission, 9000)],
+            Fixed(500m, Vip),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
 
@@ -108,7 +118,7 @@ public sealed class OrderPricingCalculatorTests
     public void Tax_IsChargedOnThePostDiscountSubtotal()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 10000)],
+            [Line(GeneralAdmission, 10000)],
             Percentage(50m),
             taxRatePercent: 18m,
             bookingFeePerTicketMinor: 0);
@@ -126,7 +136,7 @@ public sealed class OrderPricingCalculatorTests
     {
         // 1000 × 2.55% = 25.5 minor units exactly.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 1000)],
+            [Line(GeneralAdmission, 1000)],
             terms: null,
             taxRatePercent: 2.55m,
             bookingFeePerTicketMinor: 0);
@@ -139,7 +149,7 @@ public sealed class OrderPricingCalculatorTests
     {
         // 333 × 50% = 166.5 minor units exactly.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 333)],
+            [Line(GeneralAdmission, 333)],
             Percentage(50m),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 0);
@@ -152,7 +162,7 @@ public sealed class OrderPricingCalculatorTests
     public void ZeroTaxRate_AddsNoTax()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 1000)],
+            [Line(GeneralAdmission, 1000)],
             terms: null,
             taxRatePercent: 0m,
             bookingFeePerTicketMinor: 0);
@@ -165,7 +175,7 @@ public sealed class OrderPricingCalculatorTests
     public void FullyDiscountedOrder_IsFree_AndAttractsNoTax()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 4000)],
+            [Line(GeneralAdmission, 4000)],
             Percentage(100m),
             taxRatePercent: 18m,
             bookingFeePerTicketMinor: 0);
@@ -181,7 +191,7 @@ public sealed class OrderPricingCalculatorTests
         // One general-admission line of four admissions. A fee charged per line would return 3000
         // here, and would under-charge exactly the orders that are largest.
         var pricing = OrderPricingCalculator.Calculate(
-            [GeneralAdmissionLine("GA", unitPriceMinor: 2000, quantity: 4)],
+            [GeneralAdmissionLine(GeneralAdmission, unitPriceMinor: 2000, quantity: 4)],
             terms: null,
             taxRatePercent: null,
             bookingFeePerTicketMinor: 3000);
@@ -197,7 +207,7 @@ public sealed class OrderPricingCalculatorTests
         // The code discounts the tickets; it does not discount what the platform charges to sell
         // them. 50% of 10000 comes off the subtotal, and the fee is untouched.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 10000)],
+            [Line(GeneralAdmission, 10000)],
             Percentage(50m),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 2500);
@@ -212,7 +222,7 @@ public sealed class OrderPricingCalculatorTests
     {
         // 10000 − 2000 discount = 8000 tickets, plus a 1000 fee. At 18%: 1440 + 180.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 10000)],
+            [Line(GeneralAdmission, 10000)],
             Percentage(20m),
             taxRatePercent: 18m,
             bookingFeePerTicketMinor: 1000);
@@ -226,7 +236,7 @@ public sealed class OrderPricingCalculatorTests
     public void RefundableAmount_ExcludesTheFeeAndTheTaxOnIt()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 10000)],
+            [Line(GeneralAdmission, 10000)],
             terms: null,
             taxRatePercent: 18m,
             bookingFeePerTicketMinor: 1000);
@@ -249,7 +259,7 @@ public sealed class OrderPricingCalculatorTests
         // 1181. A minor unit, every time, in the buyer's favour and out of the platform's pocket.
         // Taxing each component at source makes the refund an exact subtraction instead.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 1001)],
+            [Line(GeneralAdmission, 1001)],
             terms: null,
             taxRatePercent: 18m,
             bookingFeePerTicketMinor: 102);
@@ -264,7 +274,7 @@ public sealed class OrderPricingCalculatorTests
     public void NegativeBookingFee_IsTreatedAsZero_NotAsACredit()
     {
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 5000)],
+            [Line(GeneralAdmission, 5000)],
             terms: null,
             taxRatePercent: null,
             bookingFeePerTicketMinor: -1000);
@@ -279,7 +289,7 @@ public sealed class OrderPricingCalculatorTests
         // A 100%-off code makes the tickets free. The fee is not a ticket price, so it survives —
         // and the buyer is charged something rather than nothing.
         var pricing = OrderPricingCalculator.Calculate(
-            [Line("GA", 4000)],
+            [Line(GeneralAdmission, 4000)],
             Percentage(100m),
             taxRatePercent: null,
             bookingFeePerTicketMinor: 500);
@@ -290,15 +300,15 @@ public sealed class OrderPricingCalculatorTests
         pricing.RefundableMinor.ShouldBe(0);
     }
 
-    private static OrderLineSpec Line(string priceTier, long priceMinor) =>
-        new(Guid.NewGuid(), Guid.NewGuid(), null, 1, priceTier, priceMinor, priceMinor);
+    private static OrderLineSpec Line(Guid ticketTypeId, long priceMinor) =>
+        new(Guid.CreateVersion7(), Guid.CreateVersion7(), null, 1, ticketTypeId, priceMinor, priceMinor);
 
-    private static OrderLineSpec GeneralAdmissionLine(string priceTier, long unitPriceMinor, int quantity) =>
-        new(null, null, Guid.NewGuid(), quantity, priceTier, unitPriceMinor, unitPriceMinor * quantity);
+    private static OrderLineSpec GeneralAdmissionLine(Guid ticketTypeId, long unitPriceMinor, int quantity) =>
+        new(null, null, Guid.CreateVersion7(), quantity, ticketTypeId, unitPriceMinor, unitPriceMinor * quantity);
 
-    private static PromoCodeTerms Percentage(decimal value, params string[] tiers) =>
-        new(PromoDiscountType.Percentage, value, tiers);
+    private static PromoCodeTerms Percentage(decimal value, params Guid[] ticketTypeIds) =>
+        new(PromoDiscountType.Percentage, value, ticketTypeIds);
 
-    private static PromoCodeTerms Fixed(decimal value, params string[] tiers) =>
-        new(PromoDiscountType.FixedAmount, value, tiers);
+    private static PromoCodeTerms Fixed(decimal value, params Guid[] ticketTypeIds) =>
+        new(PromoDiscountType.FixedAmount, value, ticketTypeIds);
 }

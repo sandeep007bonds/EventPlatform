@@ -15,9 +15,14 @@ public sealed record SessionPublishReadiness(
     IReadOnlyList<SessionAllocationPayload> Allocations)
 {
     /// <summary>The performance cannot be sold.</summary>
+    /// <remarks>
+    /// Named for the answer, not the field: a factory called <c>Problem</c> would collide with the
+    /// <see cref="Problem"/> property the positional parameter generates, and <c>Blocked</c>/
+    /// <see cref="Ready"/> reads as the pair it is.
+    /// </remarks>
     /// <param name="problem">Why.</param>
     /// <returns>A blocked readiness.</returns>
-    public static SessionPublishReadiness Problem(string problem) => new(problem, 0, []);
+    public static SessionPublishReadiness Blocked(string problem) => new(problem, 0, []);
 
     /// <summary>The performance is ready to sell.</summary>
     /// <param name="capacity">Sellable capacity of the pinned seat-map version.</param>

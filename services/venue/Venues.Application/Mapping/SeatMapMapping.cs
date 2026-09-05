@@ -3,6 +3,25 @@ namespace Venues.Application.Mapping;
 /// <summary>Turns <see cref="SeatMap"/> aggregates into the shapes the API returns.</summary>
 public static class SeatMapMapping
 {
+    /// <summary>Projects a seat map as a list entry, without any layout.</summary>
+    /// <param name="seatMap">The seat map.</param>
+    /// <returns>The summary representation.</returns>
+    public static SeatMapSummaryResponse ToSummary(this SeatMap seatMap)
+    {
+        ArgumentNullException.ThrowIfNull(seatMap);
+
+        return new SeatMapSummaryResponse(
+            seatMap.Id,
+            seatMap.VenueId,
+            seatMap.Name,
+            seatMap.PublishedVersionNumber,
+            seatMap.Draft is not null,
+            seatMap.Versions.Count);
+    }
+
+    // The ToResponse overloads stay adjacent from here down (S4136) — anything else added to this
+    // class goes above this line, not between them.
+
     /// <summary>Projects a seat map with one version's full layout.</summary>
     /// <param name="seatMap">The seat map.</param>
     /// <param name="version">The version to include.</param>
@@ -19,22 +38,6 @@ public static class SeatMapMapping
             seatMap.Name,
             seatMap.PublishedVersionNumber,
             version.ToResponse());
-    }
-
-    /// <summary>Projects a seat map as a list entry, without any layout.</summary>
-    /// <param name="seatMap">The seat map.</param>
-    /// <returns>The summary representation.</returns>
-    public static SeatMapSummaryResponse ToSummary(this SeatMap seatMap)
-    {
-        ArgumentNullException.ThrowIfNull(seatMap);
-
-        return new SeatMapSummaryResponse(
-            seatMap.Id,
-            seatMap.VenueId,
-            seatMap.Name,
-            seatMap.PublishedVersionNumber,
-            seatMap.Draft is not null,
-            seatMap.Versions.Count);
     }
 
     /// <summary>Projects one version's full layout.</summary>

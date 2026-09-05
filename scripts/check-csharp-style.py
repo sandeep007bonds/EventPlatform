@@ -18,8 +18,13 @@ which is worse than no checker. Rules that cannot meet that bar are listed at th
 bottom of this docstring rather than implemented badly.
 
 Deliberately NOT checked, because it needs real parsing and a wrong guess would
-rewrite correct code: SA1204/SA1201 member ordering, nullability, and the
-semantic CA/S performance rules. Those stay the compiler's job.
+rewrite correct code: SA1204/SA1201 member ordering, nullability, argument type
+compatibility (CS1503 — whether a comparer suits a collection's element type is
+inference, not text), and the semantic CA/S performance rules. Those stay the
+compiler's job.
+
+And the thing this script cannot tell you at all: whether the tree compiles. A
+clean run means the recurring mistakes are absent, nothing more.
 
 Every rule here has a row in docs/build-error-log.md saying what it cost us and
 how it was calibrated, and so does every error we decided NOT to automate. Golden
@@ -414,6 +419,134 @@ def check_pinned_versions(path, raw, findings):
                              'Version= on a PackageReference — pin it in Directory.Packages.props'))
 
 
+def check_record_member_clash(path, code, findings):
+    """CS0102 — a positional record parameter and a member of the same name.
+
+    `SessionPublishReadiness(string? Problem, ...)` generates a `Problem` property, so a static
+    factory also called `Problem` is a second declaration the record cannot hold. Easy to write,
+    because the factory reads as a different kind of thing from the property it collides with,
+    and the compiler names only the type.
+    """
+    pattern = re.compile(r'\b(?:public|internal)\s+(?:sealed\s+|abstract\s+)*record\s+(\w+)\s*\(')
+    for match in pattern.finditer(code):
+        params = bracket_body(code, match.end() - 1)
+        if params is None:
+            continue
+        names = set()
+        for part in split_top_level(params):
+            tokens = re.findall(r'\w+', part.split('=')[0])
+            if tokens:
+                names.add(tokens[-1])
+        after = match.end() + len(params)
+        brace = code.find('{', after)
+        # A base list or another declaration between the ')' and the '{' means this brace is not
+        # this record's body — say nothing rather than parse the wrong block.
+        if brace == -1 or code[after:brace].strip(') \n\r\t'):
+            continue
+        body = bracket_body(code, brace)
+        if body is None:
+            continue
+        member = re.compile(
+            r'^[ \t]+(?:public|private|internal|protected)[\w\s<>,\[\]?.]*?\b(\w+)\s*(?:\(|=>|\{|;|=[^=>])',
+            re.M)
+        for declaration in member.finditer(body):
+            if declaration.group(1) in names:
+                line = code[:brace].count('\n') + body[:declaration.start()].count('\n') + 2
+                findings.append((path, line, 'CS0102',
+                                 f'{match.group(1)} declares {declaration.group(1)}, which its '
+                                 f'positional parameter of that name already generates'))
+
+
+DI_TRY_ADD = re.compile(r'\.TryAdd(?:Scoped|Singleton|Transient|Enumerable)\s*[(<]')
+DI_EXTENSIONS_NAMESPACE = 'Microsoft.Extensions.DependencyInjection.Extensions'
+
+
+def check_di_extensions_using(path, code, findings):
+    """CS1061 — `TryAddScoped` without the namespace it lives in.
+
+    `TryAdd*` sits on `ServiceCollectionDescriptorExtensions`, in a *different* namespace from
+    `AddScoped`. The error reads "IServiceCollection does not contain a definition for
+    TryAddScoped", which points at the type rather than at the missing using — and the project
+    next door already having the line makes it look like it must be there already.
+    """
+    match = DI_TRY_ADD.search(code)
+    if not match:
+        return
+    directory = pathlib.Path(path).parent
+    while directory != pathlib.Path('.') and not any(directory.glob('*.csproj')):
+        directory = directory.parent
+    usings = directory / 'GlobalUsings.cs'
+    if not usings.is_file():
+        return
+    if DI_EXTENSIONS_NAMESPACE not in usings.read_text(encoding='utf-8', errors='replace'):
+        findings.append((path, code[:match.start()].count('\n') + 1, 'CS1061',
+                         f'TryAdd* needs `global using {DI_EXTENSIONS_NAMESPACE};` in {usings}'))
+
+
+def check_unused_private_field(path, code, findings):
+    """S1144 — a private field nothing reads.
+
+    Left behind when the last reader is refactored away, which is exactly when nobody is looking
+    at the declaration. One textual occurrence in the file means the declaration is the only one;
+    `nameof(x)` and any other mention still counts as a use, so this cannot fire on a field that
+    is referred to at all.
+    """
+    declaration = re.compile(
+        r'^[ \t]+private\s+(?:static\s+)?(?:readonly\s+)?[\w<>,\[\]?.]+\s+(\w+)\s*(?:=|;)', re.M)
+    for match in declaration.finditer(code):
+        name = match.group(1)
+        if len(re.findall(rf'\b{re.escape(name)}\b', code)) == 1:
+            findings.append((path, code[:match.start()].count('\n') + 1, 'S1144',
+                             f"private field '{name}' is never read"))
+
+
+def check_overload_adjacency(path, code, findings):
+    """S4136 — overloads of one method separated by another member.
+
+    One type per file (SA1402) is what makes this safe to read positionally: the members at one
+    indent level all belong to one type, so "a different name in between" really is a different
+    member of the same type rather than a neighbour's.
+    """
+    # The name is the identifier immediately before the parameter list, not the first thing that
+    # looks like one: `async Task<HoldView> GetHoldAsync(` must yield GetHoldAsync, and a run that
+    # can cross '(' yields `Task` on every async method in the repo. Stopping at '=' and '{' too
+    # is what keeps `DefaultOptions { get; } = Create();` from reading as a method called Create.
+    method = re.compile(
+        r'^    (?:public|private|internal|protected)[^\n(={]*?\b(\w+)\s*(?:<[^()<>]*>)?\s*\(', re.M)
+    order = [(match.group(1), match.start()) for match in method.finditer(code)]
+    seen = {}
+    for index, (name, start) in enumerate(order):
+        if name in seen and any(other != name for other, _ in order[seen[name] + 1:index]):
+            findings.append((path, code[:start].count('\n') + 1, 'S4136',
+                             f"'{name}' overloads are not adjacent — another member sits between them"))
+            break
+        seen[name] = index
+
+
+CONTINUES_STATEMENT = ('{', '(', '[', ',', ':', '&&', '||', '=>', '+')
+
+
+def check_sa1515(path, raw, findings):
+    """SA1515 — a single-line comment needs a blank line above it.
+
+    Only when the line above is a finished *statement*. A comment opening a block, continuing an
+    argument list, or labelling a `case` is allowed to sit flush against it, and counting those
+    reported ~25 sites on a tree that compiles.
+    """
+    lines = raw.split('\n')
+    for number in range(1, len(lines)):
+        stripped = lines[number].strip()
+        if not stripped.startswith('//') or stripped.startswith('///'):
+            continue
+        previous = lines[number - 1].strip()
+        if not previous or previous.startswith('//') or previous.startswith('#'):
+            continue
+        if previous.endswith(CONTINUES_STATEMENT) or previous.startswith('case '):
+            continue
+        findings.append((path, number + 1, 'SA1515',
+                         'single-line comment directly beneath code — add a blank line above it'))
+
+
 # --------------------------------------------------------------------- driver
 
 def staged_files():
@@ -454,9 +587,14 @@ def main():
         check_s125(normalized, raw, findings)
         check_sa1506(normalized, raw, findings)
         check_sa1516(normalized, raw, findings)
+        check_sa1515(normalized, raw, findings)
         check_param_tags(normalized, raw, code, findings)
         check_doc_xml(normalized, raw, findings)
         check_local_usings(normalized, code, findings)
+        check_record_member_clash(normalized, code, findings)
+        check_di_extensions_using(normalized, code, findings)
+        check_unused_private_field(normalized, code, findings)
+        check_overload_adjacency(normalized, code, findings)
 
     # Arity needs every declaration in view, so it only runs on a full-tree pass.
     if not scoped:

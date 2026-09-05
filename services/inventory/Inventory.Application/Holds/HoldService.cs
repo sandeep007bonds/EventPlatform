@@ -72,6 +72,7 @@ public sealed class HoldService(
         if (settings.MaxTicketsPerBuyer is { } maxTicketsPerBuyer)
         {
             var requestedQuantity = distinctSeatIds.Count + gaSelections.Sum(selection => selection.Quantity);
+
             // Counted across the event, not this performance: a limit that reset every night would
             // let one buyer take the cap three times over on a three-night run.
             var alreadyCommitted = await inventory.GetBuyerCommittedQuantityAsync(

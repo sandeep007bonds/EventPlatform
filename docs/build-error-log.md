@@ -15,6 +15,24 @@ than no checker. Those rows exist so the mistake is at least *remembered*. And t
 **are** covered record the calibration, because more than one of these rules was wrong on its first
 attempt and the wrong version looked plausible.
 
+## A green checker is not a green build
+
+Worth saying plainly, because it has now cost a whole build. `check-csharp-style.py` and
+`check-endpoint-conventions.py` both passed on the tree that produced the seven errors in the
+*performance grain and envelope* block below. They are regex tools with no type information: they
+cannot see that a `StringComparer` is being handed to a `List<Guid>`, and they knew nothing about
+overload adjacency or unused fields until those errors arrived. **"Both checkers are green" means
+the recurring mistakes are absent, not that it compiles.** Only `dotnet build` says that, and where
+there is no SDK to hand the honest report is "the checkers pass, the build is unverified".
+
+The same block is also a reminder about *reading* a failing build. Seven real errors produced
+roughly fifty-six lines of output: a failed project makes every type it exports "could not be
+found" downstream, and MSBuild then type-checks callers against the stale
+`obj/Debug/net10.0/ref/*.dll` from before the change, so the errors describe **the old signatures**.
+`Metadata file '...dll' could not be found`, `X does not implement interface member Y` naming a
+method that no longer exists, and a constructor arity that was correct two commits ago are all that
+same shadow. Fix the first error in each project, rebuild, and most of the list evaporates.
+
 ## Covered by `check-csharp-style.py`
 
 | Rule | Cause when it bit us | Detection |
@@ -26,6 +44,11 @@ attempt and the wrong version looked plausible.
 | **CS1573 / SA1611 / SA1612** | `amountMinor` added to `RefundAsync` without a `<param>`; `QueueStatusResponse` documented its parameters out of order | `<param>` names and order compared against the signature |
 | **CS7036 / CS1729** | `EventPricing` gained `BookingFeePerTicketMinor`; three construction sites were not updated | `new X(...)` argument count against the positional record declaration, **scoped to one compilation** — see below |
 | **CS1570** | `SessionScanContext`'s summary was split into a `<summary>` and a `<remarks>` when it was re-keyed to the performance, and the old `</summary>` closer was left on the end of the new block | Doc-comment tags matched as a stack: a closer that names a different tag than the one still open, a closer with nothing open, or a block that ends with a tag unclosed |
+| **CS0102** | `SessionPublishReadiness` gained a positional `Problem` parameter while keeping a static factory called `Problem` | A positional record's parameter names against the member declarations in its own body |
+| **CS1061** | `MessagingExtensions` called `TryAddScoped`, which lives in `…DependencyInjection.**Extensions**` — a different namespace from `AddScoped`, and absent from that project's `GlobalUsings.cs` | `TryAdd{Scoped,Singleton,Transient,Enumerable}` used in a project whose `GlobalUsings.cs` lacks that namespace |
+| **S1144** | Rewriting `OutboxRelay.WithEnvelope` to work on `JsonNode` removed the last reader of its `SerializerOptions` field | A `private` field whose identifier occurs exactly once in its file |
+| **S4136** | `SeatMapMapping` grew a fourth `ToResponse` overload with `ToSummary` sitting between them | Two declarations of one method name with a differently-named member in between |
+| **SA1515** | A comment explaining the per-buyer cap was placed flush against the statement above it | A `//` line whose predecessor is a finished statement — see below |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
@@ -52,6 +75,22 @@ skipped blank lines when looking for the signature after a doc block but not att
 skips leading `[` lines too. Nothing in the tree had a documented member behind an attribute before,
 which is why it took this long to surface; verified zero findings across 856 files afterwards, and
 still catching a genuinely missing `<param>` on a method that carries an `[Obsolete]`.
+
+A fifth, sixth and seventh, all learned in the same block, all about *where a name ends*. The
+S4136 rule first read `async Task<HoldView> GetHoldAsync(` as a method called **`Task`**, because a
+non-greedy run that may cross `(` stops at the first identifier rather than the last — seven async
+methods reported across a passing tree. Excluding `(` from that run fixed it and immediately
+introduced the opposite error: `DefaultOptions { get; } = Create();` read as a method called
+`Create`, because a *field initializer* also has an identifier before a parenthesis. Excluding `=`
+and `{` as well leaves only real parameter lists. Verified zero across 867 files and still catching
+the genuine four-overload split in `SeatMapMapping`.
+
+SA1515 moves **out** of the not-detectable list below, where it had been sitting on the assumption
+that "comment beneath code" could not be told from legitimate flush comments. It can, and the
+distinction is narrow: the line above must be a *finished statement*. A comment opening a block,
+continuing an argument list, or labelling a `case` is allowed to sit flush — the naive reading
+reported ~25 sites on a compiling tree, and excluding predecessors ending in `{ ( [ , : && || => +`
+plus `case` labels takes that to zero while still catching the real one in `HoldService`.
 
 The CS1570 rule checks **only tag balance**, and that limit is the calibration. Attribute syntax and
 entity escaping are the compiler's job: `<`/`&` appear in doc prose that compiles, and a rule that
@@ -84,7 +123,7 @@ Left to `dotnet build` deliberately. A regex here would rewrite correct code.
 |---|---|
 | **SA1204** | A `static` helper placed after instance methods in `AuditFieldsInterceptor` |
 | **SA1201** | Field declared after a constructor in `OrderingEndpoints` |
-| **SA1515** | A comment inserted directly beneath code with no blank line above it |
+| **CS1503 / CS1929** | `OrderPricingCalculator.AppliesTo` still passed `StringComparer.OrdinalIgnoreCase` to `Contains` after `PromoCodeTerms.TicketTypeIds` was re-keyed from tier *names* to `Guid`. Deciding whether a comparer matches a collection's element type is exactly the type inference a regex does not have; a rule that flagged every `StringComparer` would fire on the twenty-odd legitimate ones in this repo. The general lesson is cheaper than a rule: **when a field changes type, grep for its name and read every call site**, because the ones that still compile are the dangerous half |
 | **S6667** | `logger.LogInformation` inside a `catch` without passing the caught exception |
 | **CA1859** | A private helper taking `IReadOnlyDictionary` where every caller passes a `Dictionary` |
 | **S1450 / CA1001** | A field only ever used in one method; a disposable field on a non-disposable type |
