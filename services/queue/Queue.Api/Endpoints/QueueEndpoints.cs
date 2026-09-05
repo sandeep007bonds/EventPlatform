@@ -46,7 +46,6 @@ public static class QueueEndpoints
             .AllowAnonymous()
             .ExcludeFromDescription();
 
-
         return app;
     }
 

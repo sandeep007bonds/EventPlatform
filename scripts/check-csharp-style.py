@@ -518,8 +518,13 @@ NEEDS_NAMESPACE = {
 def project_directory(path):
     """The directory of the .csproj that owns a file."""
     directory = pathlib.Path(path).parent
-    while directory != pathlib.Path('.') and not any(directory.glob('*.csproj')):
-        directory = directory.parent
+    # Stop when the parent stops changing, not at Path('.'): an absolute path never reaches '.',
+    # and Path('/').parent is Path('/'), so the naive loop spins forever on one.
+    while not any(directory.glob('*.csproj')):
+        parent = directory.parent
+        if parent == directory:
+            return directory
+        directory = parent
     return directory
 
 
@@ -607,6 +612,20 @@ def using_sort_key(namespace):
     """
     system_first = 0 if namespace == 'System' or namespace.startswith('System.') else 1
     return (system_first, namespace.lower())
+
+
+def check_sa1507(path, raw, findings):
+    """SA1507 — two blank lines in a row.
+
+    Left behind by deleting a member and its surrounding air, or by an insert that brought its own
+    trailing blank. Nothing about it is ambiguous, which is the whole appeal: the tree held exactly
+    one instance and there is no legitimate shape to confuse it with.
+    """
+    lines = raw.split('\n')
+    for number in range(1, len(lines)):
+        if not lines[number].strip() and not lines[number - 1].strip():
+            findings.append((path, number + 1, 'SA1507', 'two blank lines in a row'))
+            break
 
 
 def check_sa1512(path, raw, findings):
@@ -864,6 +883,7 @@ def main():
         check_record_member_clash(normalized, code, findings)
         check_required_namespaces(normalized, blank_comments_only(raw), findings)
         check_sa1512(normalized, raw, findings)
+        check_sa1507(normalized, raw, findings)
         check_unused_private_field(normalized, code, findings)
         check_overload_adjacency(normalized, code, findings)
 
