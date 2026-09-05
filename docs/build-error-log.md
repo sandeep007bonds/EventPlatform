@@ -15,6 +15,19 @@ than no checker. Those rows exist so the mistake is at least *remembered*. And t
 **are** covered record the calibration, because more than one of these rules was wrong on its first
 attempt and the wrong version looked plausible.
 
+## Read CI. It was telling us for seven commits
+
+The single most expensive mistake in this log is not any rule below. `.github/workflows/ci.yml`
+runs `dotnet build --warnings-as-errors` on every push and had been **red since the Venue commit**
+— seven consecutive runs, each naming its errors with file, line and rule id — and nobody opened
+one. Work continued on top for two days, and the errors were eventually reported second-hand from
+a local IDE with the file paths stripped, which is how three of them ended up "unlocatable" and
+guessed at.
+
+**When there is no SDK to hand, the CI log is the compiler.** Before starting work, and before
+claiming anything builds, read the last run for the branch. Everything below was in that log
+already.
+
 ## A green checker is not a green build
 
 Worth saying plainly, because it has now cost a whole build. `check-csharp-style.py` and
@@ -49,6 +62,10 @@ same shadow. Fix the first error in each project, rebuild, and most of the list 
 | **S1144** | Rewriting `OutboxRelay.WithEnvelope` to work on `JsonNode` removed the last reader of its `SerializerOptions` field | A `private` field whose identifier occurs exactly once in its file |
 | **S4136** | `SeatMapMapping` grew a fourth `ToResponse` overload with `ToSummary` sitting between them | Two declarations of one method name with a differently-named member in between |
 | **SA1515** | A comment explaining the per-buyer cap was placed flush against the statement above it | A `//` line whose predecessor is a finished statement — see below |
+| **SA1208 / SA1210** | `Catalog.Application/GlobalUsings.cs` grew `System.Globalization` and `System.Reflection` at the bottom, where the diff was smallest | `GlobalUsings.cs` compared against its sorted order — see below for what "sorted" means |
+| **CS7036** (own constructor) | `Ticket.Create` threaded `eventSessionId` into the constructor's parameter list and the `new Ticket(...)` eight lines below it was not updated | `new <TypeName>(...)` against every constructor arity declared in that same file |
+| **CS7036** (static factory) | `Hold.Create` gained `catalogEventId`; its one caller, in another project, still passed six | `Type.Method(...)` against a `public static` declaration of that name in the same compilation scope |
+| **SA1115** | A comment explaining `causationId` was given air with a blank line above it, inside the argument list | A blank line between two arguments |
 | **NU1008** | — | `Version=` on a `PackageReference` instead of `Directory.Packages.props` |
 | **Global usings** | — | A `using` directive outside `GlobalUsings.cs` |
 
@@ -92,6 +109,27 @@ continuing an argument list, or labelling a `case` is allowed to sit flush — t
 reported ~25 sites on a compiling tree, and excluding predecessors ending in `{ ( [ , : && || => +`
 plus `case` labels takes that to zero while still catching the real one in `HoldService`.
 
+**What "sorted" means for global usings**, since getting it wrong is what made the first attempt at
+this rule report nine files: `System.*` first (`dotnet_sort_system_directives_first = true` in
+`.editorconfig`), then **case-insensitive** ordinal. The case-insensitivity is not a guess — eight
+`GlobalUsings.cs` in this tree put `NetArchTest.Rules` before `NSubstitute` and compile, which a
+plain ordinal comparison forbids (`S` < `e`). Aliases and `using static` sort under separate
+StyleCop rules, so a file containing either is skipped rather than guessed at.
+
+**The two arity rules exist because one type name is not one arity.** The first attempt keyed each
+name to a single declaration and treated a second as "unknowable", which switched the rule off for
+every EF aggregate — they all carry a private parameterless constructor beside the real one. A call
+has to match *some* overload, so the rule now collects every arity and reports only a call matching
+none.
+
+Finding these also exposed a real bug in `blank_non_code` that had been there from the start:
+**an interpolated string was scanned as an ordinary one**, so `$"…{string.Join(", ", xs)}…"`
+terminated at the quote *inside* the hole and leaked that hole's comma into the enclosing argument
+list. It inflated the count for one legitimate call to `SessionPublishReadiness.Blocked` — a
+one-argument call read as two. Interpolated strings are now blanked whole, holes included, with
+brace depth telling a hole's quote from the terminator. Every structural rule depends on that
+function, so this was quietly wrong for all of them.
+
 The CS1570 rule checks **only tag balance**, and that limit is the calibration. Attribute syntax and
 entity escaping are the compiler's job: `<`/`&` appear in doc prose that compiles, and a rule that
 guessed at them would fire on correct code. Tags that never close (`<see>`, `<paramref>`,
@@ -121,7 +159,8 @@ Left to `dotnet build` deliberately. A regex here would rewrite correct code.
 
 | Rule | Cause when it bit us |
 |---|---|
-| **SA1204** | A `static` helper placed after instance methods in `AuditFieldsInterceptor` |
+| **SA1204** | A `static` helper after instance methods in `AuditFieldsInterceptor`; later `OutboxRelay.WithEnvelope`/`TenantOf` after `RelayPendingAsync`. The rule orders static before instance **within one access level**, which is why dozens of files put a `private static` helper below `public` methods and compile — a naive "static after any instance member" reading reports ~70 of them. Telling those apart needs the member's own modifiers *and* its neighbours', which is parsing, not matching |
+| **S3453** | Reported on `Ticket` — "make at least one constructor public" — while both its constructors were private and it had a perfectly good `public static Create`. It was a **symptom, not a cause**: the `new Ticket(...)` inside `Create` did not resolve (CS7036 above), so Sonar saw no constructor invocation anywhere and concluded the type was uninstantiable. Fixing the arity cleared it. Do not "fix" this one by widening a constructor — look for a broken `new` first |
 | **SA1201** | Field declared after a constructor in `OrderingEndpoints` |
 | **CS1503 / CS1929** | `OrderPricingCalculator.AppliesTo` still passed `StringComparer.OrdinalIgnoreCase` to `Contains` after `PromoCodeTerms.TicketTypeIds` was re-keyed from tier *names* to `Guid`. Deciding whether a comparer matches a collection's element type is exactly the type inference a regex does not have; a rule that flagged every `StringComparer` would fire on the twenty-odd legitimate ones in this repo. The general lesson is cheaper than a rule: **when a field changes type, grep for its name and read every call site**, because the ones that still compile are the dangerous half |
 | **S6667** | `logger.LogInformation` inside a `catch` without passing the caught exception |

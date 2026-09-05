@@ -176,6 +176,7 @@ public sealed class HoldService(
         var hold = Hold.Create(
             settings.TenantId,
             eventSessionId,
+            settings.CatalogEventId,
             userId,
             expiresAt,
             items.Select(item => item.Id),

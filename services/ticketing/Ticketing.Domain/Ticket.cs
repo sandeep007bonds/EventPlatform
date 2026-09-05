@@ -104,7 +104,16 @@ public sealed class Ticket
                 "A ticket must admit exactly one of a seat or a general-admission allocation.");
         }
 
-        return new Ticket(Guid.CreateVersion7(), tenantId, orderId, catalogEventId, seatId, generalAdmissionAllocationId, userId, token);
+        return new Ticket(
+            Guid.CreateVersion7(),
+            tenantId,
+            orderId,
+            catalogEventId,
+            eventSessionId,
+            seatId,
+            generalAdmissionAllocationId,
+            userId,
+            token);
     }
 
     /// <summary>Marks the ticket checked in at the gate.</summary>

@@ -77,6 +77,25 @@ def blank_non_code(text):
             end = text.find('*/', index + 2)
             end = length if end < 0 else end + 2
             out.append(fill(text[index:end], ' '))
+        elif char == '$' and text[index + 1:index + 2] in ('"', '@') :
+            # An interpolated string, blanked whole — holes included. Scanning for the closing
+            # quote naively stops at the first quote *inside* a hole, so
+            # $"...{string.Join(", ", xs)}..." ends early and leaks that hole's comma into the
+            # surrounding argument list, inflating every count taken from it. Brace depth is
+            # what tells a hole's quote from the terminator.
+            end = index + (2 if text[index + 1] == '"' else 3)
+            braces = 0
+            while end < length:
+                here = text[end]
+                if here == '{' and text[end:end + 2] != '{{':
+                    braces += 1
+                elif here == '}' and text[end:end + 2] != '}}':
+                    braces = max(0, braces - 1)
+                elif here == '"' and braces == 0 and text[end:end + 2] != '""':
+                    break
+                end += 2 if text[end:end + 2] in ('{{', '}}', '""') else 1
+            end = min(end + 1, length)
+            out.append(fill(text[index:end], '_'))
         elif char == '@' and following == '"':
             end = index + 2
             while end < length:
@@ -523,6 +542,168 @@ def check_overload_adjacency(path, code, findings):
         seen[name] = index
 
 
+def using_sort_key(namespace):
+    """StyleCop's order: System.* first (dotnet_sort_system_directives_first), then
+    case-INSENSITIVE ordinal. The case-insensitive half is not a guess — eight GlobalUsings.cs
+    in this repo put `NetArchTest.Rules` before `NSubstitute` and compile, which only an
+    ordinal-ignore-case comparison allows.
+    """
+    system_first = 0 if namespace == 'System' or namespace.startswith('System.') else 1
+    return (system_first, namespace.lower())
+
+
+def check_using_order(path, raw, findings):
+    """SA1208 / SA1210 — global usings out of order.
+
+    Cost a whole CI run, because the natural way to add one is to put it where it reads best or
+    where the diff is smallest. Aliases and `using static` sort under separate StyleCop rules,
+    so a file containing either is left alone rather than guessed at.
+    """
+    if pathlib.PurePath(path).name != 'GlobalUsings.cs':
+        return
+    directives = [(number, line[len('global using '):].rstrip().rstrip(';').strip())
+                  for number, line in enumerate(raw.split('\n'), start=1)
+                  if line.startswith('global using ')]
+    names = [name for _, name in directives]
+    if any(name.startswith('static ') or '=' in name for name in names):
+        return
+    ordered = sorted(names, key=using_sort_key)
+    if names == ordered:
+        return
+    first = next(i for i, (a, b) in enumerate(zip(names, ordered)) if a != b)
+    findings.append((path, directives[first][0], 'SA1208/SA1210',
+                     f'global usings are out of order — expected {ordered[first]} '
+                     f'before {names[first]}'))
+
+
+def check_factory_arity(sources, findings):
+    """CS7036 on a hand-written type — a static factory or constructor gained a parameter and a
+    caller did not.
+
+    The record-arity rule next door cannot see these: `Ticket` and `Hold` are classes with
+    private constructors and a public `Create`, so nothing about them is positional. Both broke
+    the same way in the same change — a field was threaded through the parameter list and the
+    call one line below it was missed.
+
+    Only same-file calls are checked. That is the whole point: a factory calling its own
+    constructor is where the mistake happens, and it needs no cross-assembly resolution to see.
+    """
+    signature = re.compile(
+        r'^    (?:public|private|internal|protected)[^\n(={]*?\b(\w+)\s*(?:<[^()<>]*>)?\s*\(', re.M)
+    for path, code in sources.items():
+        type_name = pathlib.PurePath(path).stem
+
+        # Every arity the name is declared with, not one. Overloads are the normal case here,
+        # not the exception: an EF aggregate always has a private parameterless constructor
+        # beside its real one, so treating "more than one" as unknowable would switch this rule
+        # off for precisely the types it exists to check.
+        arities = []
+        for match in signature.finditer(code):
+            if match.group(1) != type_name:
+                continue
+            body = bracket_body(code, code.index('(', match.end() - 1))
+            if body is None:
+                continue
+            params = [p for p in split_top_level(body) if p.strip()]
+            arities.append((sum(1 for p in params if '=' not in p), len(params)))
+
+        if not arities:
+            continue
+
+        for match in re.finditer(r'\bnew\s+(\w+)\s*\(', code):
+            if match.group(1) != type_name:
+                continue
+            body = bracket_body(code, match.end() - 1)
+            if body is None:
+                continue
+            args = [a for a in split_top_level(body) if a.strip()]
+            if any(re.match(r'^\s*\w+\s*:(?!:)', a) for a in args):
+                continue
+            # A call has to match *some* overload; matching none is the error.
+            if not any(low <= len(args) <= high for low, high in arities):
+                accepted = ', '.join(str(low) if low == high else f'{low}..{high}'
+                                     for low, high in sorted(set(arities)))
+                findings.append((path, code[:match.start()].count('\n') + 1, 'CS7036',
+                                 f'new {type_name}(...) passes {len(args)}, but the constructors '
+                                 f'in this file take {accepted}'))
+
+
+def check_static_factory_arity(sources, findings):
+    """CS7036 across files — `Hold.Create(...)` after `Hold.Create` gained a parameter.
+
+    The sibling rule above only sees a type calling its own constructor. This one covers the
+    other half of the same mistake, and it is the half that actually shipped: a field was
+    threaded into `Hold.Create`'s parameter list and the one caller, in another project, was
+    missed. Keyed on `Type.Method` inside one compilation scope, so two services' unrelated
+    `Create`s never collide.
+    """
+    declaration = re.compile(
+        r'^    public static\s+[\w<>,\[\]?.]+\s+(\w+)\s*(?:<[^()<>]*>)?\s*\(', re.M)
+    declared = {}
+    for path, code in sources.items():
+        type_name = pathlib.PurePath(path).stem
+        for match in declaration.finditer(code):
+            body = bracket_body(code, code.index('(', match.end() - 1))
+            if body is None:
+                continue
+            params = [p for p in split_top_level(body) if p.strip()]
+            # An extension method's receiver is not passed at the call site.
+            offset = 1 if params and params[0].strip().startswith('this ') else 0
+            key = (compilation_scope(path), type_name, match.group(1))
+            declared.setdefault(key, []).append(
+                (sum(1 for p in params if '=' not in p) - offset, len(params) - offset))
+
+    for path, code in sources.items():
+        scope = compilation_scope(path)
+        for match in re.finditer(r'\b([A-Z]\w*)\.(\w+)\s*\(', code):
+            arities = (declared.get((scope, match.group(1), match.group(2)))
+                       or declared.get((SHARED_SCOPE, match.group(1), match.group(2))))
+            if not arities:
+                continue
+            body = bracket_body(code, match.end() - 1)
+            if body is None:
+                continue
+            args = [a for a in split_top_level(body) if a.strip()]
+            if any(re.match(r'^\s*\w+\s*:(?!:)', a) for a in args):
+                continue
+            if not any(low <= len(args) <= high for low, high in arities):
+                accepted = ', '.join(str(low) if low == high else f'{low}..{high}'
+                                     for low, high in sorted(set(arities)))
+                findings.append((path, code[:match.start()].count('\n') + 1, 'CS7036',
+                                 f'{match.group(1)}.{match.group(2)}(...) passes {len(args)}, '
+                                 f'the declaration takes {accepted}'))
+
+
+def check_sa1115(path, raw, code, findings):
+    """SA1115 — a blank line between two arguments.
+
+    A comment explaining one argument wants air around it, and a blank line above the comment is
+    the natural way to give it. StyleCop reads that as the parameter not beginning on the line
+    after the previous one.
+
+    Structure comes from the blanked code — a blank line inside a verbatim string must not count
+    — but *blankness* is judged on the raw line, because `blank_non_code` turns every comment
+    into spaces and a documented argument would otherwise look like a gap. Line positions are
+    preserved between the two, which is what makes reading them together safe.
+    """
+    raw_lines = raw.split('\n')
+    for match in re.finditer(r'\(\s*\n', code):
+        body = bracket_body(code, match.start())
+        if body is None or ',' not in body:
+            continue
+        base = code[:match.start()].count('\n')
+        lines = body.split('\n')
+        for offset in range(1, len(lines) - 1):
+            number = base + offset
+            if number >= len(raw_lines) or raw_lines[number].strip():
+                continue
+            if any(l.strip() for l in lines[offset + 1:]):
+                findings.append((path, number + 1, 'SA1115',
+                                 'blank line between arguments — the next parameter must begin '
+                                 'on the line after the previous one'))
+                break
+
+
 CONTINUES_STATEMENT = ('{', '(', '[', ',', ':', '&&', '||', '=>', '+')
 
 
@@ -588,6 +769,8 @@ def main():
         check_sa1506(normalized, raw, findings)
         check_sa1516(normalized, raw, findings)
         check_sa1515(normalized, raw, findings)
+        check_sa1115(normalized, raw, code, findings)
+        check_using_order(normalized, raw, findings)
         check_param_tags(normalized, raw, code, findings)
         check_doc_xml(normalized, raw, findings)
         check_local_usings(normalized, code, findings)
@@ -599,6 +782,11 @@ def main():
     # Arity needs every declaration in view, so it only runs on a full-tree pass.
     if not scoped:
         check_record_arity(sources, findings)
+
+    # Same-file only, so it is correct on a partial pass too.
+    check_factory_arity(sources, findings)
+    if not scoped:
+        check_static_factory_arity(sources, findings)
 
     if not findings:
         print(f'No style violations found ({len(sources)} C# files checked).')

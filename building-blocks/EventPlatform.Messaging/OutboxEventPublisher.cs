@@ -32,7 +32,6 @@ internal sealed class OutboxEventPublisher(IOutboxDbContext dbContext, ICorrelat
             payload: payload,
             occurredAt: integrationEvent.OccurredAt,
             correlationId: correlation.CorrelationId,
-
             // The message that caused this scope, not the one being written. An event published
             // while handling another names that other as its cause; one published from a person's
             // request names nothing, because the person is the cause and they have no message id.

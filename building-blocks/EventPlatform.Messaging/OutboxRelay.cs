@@ -38,6 +38,39 @@ internal sealed class OutboxRelay(
         }
     }
 
+    /// <summary>Builds the message to publish: the stored event, with its delivery envelope.</summary>
+    /// <remarks>
+    /// Attached here rather than stored in the payload at enqueue time, because the envelope is
+    /// about <i>delivery</i> and the payload is the domain event — keeping the stored row the plain
+    /// event means it can still be replayed into a handler unchanged.
+    /// </remarks>
+    private static JsonNode WithEnvelope(OutboxMessage message)
+    {
+        // Parsed once and reused: the tenant is read off this same node rather than re-parsing,
+        // because the relay does this for every message on every poll.
+        var payload = JsonNode.Parse(message.Payload);
+
+        var envelope = new EventEnvelope(
+            message.Id,
+            message.CorrelationId,
+            message.CausationId,
+            message.Topic,
+            message.EventVersion,
+            message.OccurredAt,
+            TenantOf(payload));
+
+        return envelope.AttachTo(payload);
+    }
+
+    // Read off the payload rather than duplicated onto the outbox row: the event already carries
+    // it, and two copies of one fact is one chance for them to disagree.
+    private static Guid TenantOf(JsonNode? payload) =>
+        payload is JsonObject payloadObject
+        && payloadObject.TryGetPropertyValue("tenantId", out var tenant)
+        && Guid.TryParse(tenant?.GetValue<string>(), out var id)
+            ? id
+            : Guid.Empty;
+
     private async Task RelayPendingAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
@@ -81,37 +114,4 @@ internal sealed class OutboxRelay(
             pending.Count,
             options.PubSubName);
     }
-
-    /// <summary>Builds the message to publish: the stored event, with its delivery envelope.</summary>
-    /// <remarks>
-    /// Attached here rather than stored in the payload at enqueue time, because the envelope is
-    /// about <i>delivery</i> and the payload is the domain event — keeping the stored row the plain
-    /// event means it can still be replayed into a handler unchanged.
-    /// </remarks>
-    private static JsonNode WithEnvelope(OutboxMessage message)
-    {
-        // Parsed once and reused: the tenant is read off this same node rather than re-parsing,
-        // because the relay does this for every message on every poll.
-        var payload = JsonNode.Parse(message.Payload);
-
-        var envelope = new EventEnvelope(
-            message.Id,
-            message.CorrelationId,
-            message.CausationId,
-            message.Topic,
-            message.EventVersion,
-            message.OccurredAt,
-            TenantOf(payload));
-
-        return envelope.AttachTo(payload);
-    }
-
-    // Read off the payload rather than duplicated onto the outbox row: the event already carries
-    // it, and two copies of one fact is one chance for them to disagree.
-    private static Guid TenantOf(JsonNode? payload) =>
-        payload is JsonObject payloadObject
-        && payloadObject.TryGetPropertyValue("tenantId", out var tenant)
-        && Guid.TryParse(tenant?.GetValue<string>(), out var id)
-            ? id
-            : Guid.Empty;
 }
