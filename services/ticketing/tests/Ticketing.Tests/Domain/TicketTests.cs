@@ -21,6 +21,7 @@ public sealed class TicketTests
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
             seatId: Guid.CreateVersion7(),
             generalAdmissionAllocationId: Guid.CreateVersion7(),
             Guid.CreateVersion7(),
@@ -29,6 +30,7 @@ public sealed class TicketTests
     [Fact]
     public void ATicketAdmittingNeither_IsRejected() =>
         Should.Throw<ArgumentException>(() => Ticket.Create(
+            Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
@@ -119,6 +121,7 @@ public sealed class TicketTests
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
             Guid.CreateVersion7(),
+            Guid.CreateVersion7(),
             seatId: Guid.CreateVersion7(),
             generalAdmissionAllocationId: null,
             Guid.CreateVersion7(),
@@ -128,12 +131,14 @@ public sealed class TicketTests
         Guid.CreateVersion7(),
         Guid.CreateVersion7(),
         Guid.CreateVersion7(),
+        Guid.CreateVersion7(),
         seatId: Guid.CreateVersion7(),
         generalAdmissionAllocationId: null,
         Guid.CreateVersion7(),
         "TOKEN");
 
     private static Ticket CreateGeneralAdmissionTicket(Guid allocationId) => Ticket.Create(
+        Guid.CreateVersion7(),
         Guid.CreateVersion7(),
         Guid.CreateVersion7(),
         Guid.CreateVersion7(),
