@@ -51,12 +51,29 @@ internal sealed class SeatMapRepository(VenuesDbContext dbContext) : ISeatMapRep
             return null;
         }
 
+        var versions = dbContext.Set<SeatMapVersion>().Where(v => v.SeatMapId == id);
+
+        if (versionNumber is not null)
+        {
+            await LoadVersionsAsync(versions.Where(v => v.VersionNumber == versionNumber), cancellationToken);
+            return seatMap;
+        }
+
+        // The published version if there is one, otherwise the open draft. Published-only looks
+        // right until you remember that a map has no published version until someone publishes it,
+        // so every newly created map answered "not found" to its own owner and the editor could
+        // never open one.
+        //
+        // Loading the draft here does not leak it: GetSeatMapHandler refuses a draft to anyone but
+        // the owning tenant, and that check was unreachable for exactly this case.
+        var hasPublished = await versions.AnyAsync(
+            v => v.Status == SeatMapVersionStatus.Published,
+            cancellationToken);
+
         await LoadVersionsAsync(
-            dbContext.Set<SeatMapVersion>()
-                .Where(v => v.SeatMapId == id)
-                .Where(v => versionNumber != null
-                    ? v.VersionNumber == versionNumber
-                    : v.Status == SeatMapVersionStatus.Published),
+            versions.Where(v => hasPublished
+                ? v.Status == SeatMapVersionStatus.Published
+                : v.Status == SeatMapVersionStatus.Draft),
             cancellationToken);
 
         return seatMap;

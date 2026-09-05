@@ -109,6 +109,12 @@ between.
   forces every `ThenInclude` branch to repeat the identical filter, and EF throws if two of them
   drift. Both loaders are therefore **tracked** — fixup only happens for tracked entities, so
   `AsNoTracking` would silently return a seat map with no versions on it.
+- **`GetWithVersionAsync` with no version number returns the published version if there is one,
+  otherwise the open draft.** Published-only reads as the safe default and is not: a map has no
+  published version until someone publishes it, so every newly created map answered "not found" to
+  its own owner and the editor could never open one. The draft is not leaked by loading it —
+  `GetSeatMapHandler` refuses a draft to anyone but the owning tenant, and that check was
+  unreachable until this was fixed.
 - `GetTrackedByIdAsync` deliberately **skips superseded versions**. They are immutable and nothing
   can touch them, and skipping them is safe for numbering too: a superseded version is by definition
   older than the published one, so the highest number is always still in view.

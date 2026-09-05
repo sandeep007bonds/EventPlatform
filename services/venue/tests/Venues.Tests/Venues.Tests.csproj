@@ -21,6 +21,7 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="NetArchTest.Rules" />
+    <PackageReference Include="Testcontainers.PostgreSql" />
   </ItemGroup>
 
 </Project>
