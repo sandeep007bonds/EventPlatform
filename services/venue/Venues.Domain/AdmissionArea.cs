@@ -11,7 +11,15 @@ namespace Venues.Domain;
 /// </remarks>
 public sealed class AdmissionArea
 {
-    internal AdmissionArea(Guid id, Guid seatMapVersionId, string code, string name, int capacity, int displayOrder, Guid? gateId)
+    internal AdmissionArea(
+        Guid id,
+        Guid seatMapVersionId,
+        string code,
+        string name,
+        int capacity,
+        int displayOrder,
+        Guid? gateId,
+        string? tierLabel)
     {
         Id = id;
         SeatMapVersionId = seatMapVersionId;
@@ -20,6 +28,7 @@ public sealed class AdmissionArea
         Capacity = capacity;
         DisplayOrder = displayOrder;
         GateId = gateId;
+        TierLabel = tierLabel;
     }
 
     // Parameterless ctor for EF Core materialization.
@@ -53,4 +62,21 @@ public sealed class AdmissionArea
     /// <see langword="null"/> means any gate.
     /// </summary>
     public Guid? GateId { get; private set; }
+
+    /// <summary>
+    /// What this block is normally sold as — <c>Lower Tier</c>, <c>VIP</c>, <c>GA</c> — or
+    /// <see langword="null"/> when the venue has no usual answer.
+    /// </summary>
+    /// <remarks>
+    /// <b>A label, never a price (ADR-0041).</b> It says how the building is habitually carved up
+    /// commercially, which is a fact about the building in the same way <see cref="Name"/> is. What
+    /// that tier <i>costs</i> is a per-event decision and stays in Catalog's <c>TicketType</c>, and
+    /// which block sells as which type on a given night stays in its <c>SessionAllocation</c> — an
+    /// event is free to ignore this entirely.
+    /// <para>
+    /// Its only job is to spare an organizer re-typing the same mapping for every event at the same
+    /// venue. Nothing reads it to decide anything.
+    /// </para>
+    /// </remarks>
+    public string? TierLabel { get; private set; }
 }

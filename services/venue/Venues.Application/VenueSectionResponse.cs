@@ -8,6 +8,7 @@ namespace Venues.Application;
 /// <param name="GateId">The gate this section is entered through, if any.</param>
 /// <param name="SellableSeatCount">Seats that can be sold.</param>
 /// <param name="Rows">The section's rows.</param>
+/// <param name="TierLabel">What this block is normally sold as, or <see langword="null"/>. A label, never a price — ADR-0041.</param>
 public sealed record VenueSectionResponse(
     Guid Id,
     string Code,
@@ -15,4 +16,5 @@ public sealed record VenueSectionResponse(
     int DisplayOrder,
     Guid? GateId,
     int SellableSeatCount,
-    IReadOnlyList<SeatRowResponse> Rows);
+    IReadOnlyList<SeatRowResponse> Rows,
+    string? TierLabel);

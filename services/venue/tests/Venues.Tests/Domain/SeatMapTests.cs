@@ -115,6 +115,40 @@ public sealed class SeatMapTests
         Should.Throw<InvalidOperationException>(() => map.SaveDraftLayout(LayoutBuilder.Simple()));
     }
 
+    // The tier label only earns its keep if it survives a re-version — a venue that has to be
+    // re-labelled every time a block moves is no better than typing the mapping per event, which
+    // is the repetition it exists to remove. ToLayout and ReplaceLayout are the round trip, and a
+    // field dropped in either direction vanishes silently.
+    [Fact]
+    public void ANewDraft_CarriesTheTierLabelsForward()
+    {
+        var map = CreateMap();
+
+        // No shapes at all: a purely logical map is valid, and drawing only the section would fail
+        // as a half-drawn plan (area_not_drawn).
+        map.SaveDraftLayout(new SeatMapLayout(
+            [LayoutBuilder.Section("LT", rows: 1, seatsPerRow: 2) with { TierLabel = "Lower Tier" }],
+            [LayoutBuilder.Area("PIT", capacity: 50) with { TierLabel = "GA" }],
+            []));
+        map.PublishDraft(DateTimeOffset.UtcNow);
+
+        var draft = map.StartNewDraft();
+
+        draft.Sections.Single().TierLabel.ShouldBe("Lower Tier");
+        draft.AdmissionAreas.Single().TierLabel.ShouldBe("GA");
+    }
+
+    // A block the venue has no usual answer for is the common case, and must stay distinguishable
+    // from one labelled with nothing.
+    [Fact]
+    public void ABlockWithNoTierLabel_KeepsNullRatherThanAnEmptyString()
+    {
+        var map = CreateMap();
+        map.SaveDraftLayout(LayoutBuilder.Simple());
+
+        map.Draft!.Sections.Single().TierLabel.ShouldBeNull();
+    }
+
     private static SeatMap CreateMap() =>
         SeatMap.Create(Guid.CreateVersion7(), Guid.CreateVersion7(), "End stage");
 }

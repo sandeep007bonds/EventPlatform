@@ -59,7 +59,14 @@ public static class SeatMapMapping
                 .ToList(),
             version.AdmissionAreas
                 .OrderBy(a => a.DisplayOrder)
-                .Select(a => new AdmissionAreaResponse(a.Id, a.Code, a.Name, a.Capacity, a.DisplayOrder, a.GateId))
+                .Select(a => new AdmissionAreaResponse(
+                    a.Id,
+                    a.Code,
+                    a.Name,
+                    a.Capacity,
+                    a.DisplayOrder,
+                    a.GateId,
+                    a.TierLabel))
                 .ToList(),
             version.Elements
                 .Select(element => ToResponse(element))
@@ -87,7 +94,8 @@ public static class SeatMapMapping
                             seat.Attributes.ToString(),
                             seat.IsSellable))
                         .ToList()))
-                .ToList());
+                .ToList(),
+            section.TierLabel);
 
     private static SeatMapElementResponse ToResponse(SeatMapElement element) =>
         new(

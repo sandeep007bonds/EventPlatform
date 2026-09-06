@@ -121,10 +121,8 @@ between.
 
 ## Migrations
 
-No migration is checked in yet — generate the initial one before first run:
-
 ```bash
-./scripts/db-add-migration.sh InitialCreate venue
+./scripts/db-add-migration.sh <Name> venue
 ```
 
 On an empty database there is nothing else to do — `./scripts/db-migrate.sh venue` (or `dev-up.sh`)
@@ -141,7 +139,10 @@ dotnet run --project services/venue/Venues.Api
 
 ## Do not
 
-- Put a price, a discount, or anything about what is on sale into this service.
+- Put a price, a discount, or anything about what is on sale into this service. A block's
+  optional `TierLabel` is the one adjacent thing allowed, and it is a **name only** — it says
+  which blocks are commercially alike, never what they cost, and nothing on the server reads it
+  to decide anything (ADR-0041). `TierPrice` is not a follow-up; it is ADR-0038's rejected design.
 - Put availability here — Inventory owns whether a seat is free, per session.
 - Edit a published version. Start a new one.
 - Read another service's database.

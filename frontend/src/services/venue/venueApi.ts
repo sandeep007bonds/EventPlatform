@@ -162,6 +162,12 @@ export interface VenueSectionResponse {
   gateId: string | null;
   sellableSeatCount: number;
   rows: SeatRowResponse[];
+  /**
+   * What this block is normally sold as — "Lower Tier", "VIP", "GA" — or null when the venue has
+   * no usual answer. A label, never a price (ADR-0041): it only saves re-typing the same mapping
+   * for every event at the same venue, and nothing on the server reads it.
+   */
+  tierLabel: string | null;
 }
 
 /** One block sold by capacity rather than by seat. Also keyed by a stable `code`. */
@@ -172,6 +178,12 @@ export interface AdmissionAreaResponse {
   capacity: number;
   displayOrder: number;
   gateId: string | null;
+  /**
+   * What this block is normally sold as — "Lower Tier", "VIP", "GA" — or null when the venue has
+   * no usual answer. A label, never a price (ADR-0041): it only saves re-typing the same mapping
+   * for every event at the same venue, and nothing on the server reads it.
+   */
+  tierLabel: string | null;
 }
 
 /** A drawn shape on the map — purely graphical, and never what a ticket names. */
@@ -291,6 +303,8 @@ export interface SeatMapSectionInput {
   displayOrder: number;
   gateId?: string | null;
   rows?: SeatMapRowInput[];
+  /** What this block is normally sold as, or null/omitted. A label, never a price (ADR-0041). */
+  tierLabel?: string | null;
 }
 
 /** One capacity-only block in a layout being saved. */
@@ -300,6 +314,8 @@ export interface SeatMapAdmissionAreaInput {
   capacity: number;
   displayOrder: number;
   gateId?: string | null;
+  /** What this block is normally sold as, or null/omitted. A label, never a price (ADR-0041). */
+  tierLabel?: string | null;
 }
 
 /** One drawn shape in a layout being saved, bound to a block by its code rather than its id. */

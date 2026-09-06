@@ -40,7 +40,13 @@ public static class SeatMapLayoutParser
                 rows.Add(new SeatRowDraft(row.Label, row.DisplayOrder, seats));
             }
 
-            sections.Add(new SectionDraft(section.Code, section.Name, section.DisplayOrder, section.GateId, rows));
+            sections.Add(new SectionDraft(
+                section.Code,
+                section.Name,
+                section.DisplayOrder,
+                section.GateId,
+                rows,
+                Blank(section.TierLabel)));
         }
 
         var areas = (request.AdmissionAreas ?? [])
@@ -49,7 +55,8 @@ public static class SeatMapLayoutParser
                 area.Name,
                 area.Capacity,
                 area.DisplayOrder,
-                area.GateId))
+                area.GateId,
+                Blank(area.TierLabel)))
             .ToList();
 
         var elements = new List<SeatMapElementDraft>();
@@ -106,4 +113,8 @@ public static class SeatMapLayoutParser
 
         return true;
     }
+
+    // A cleared field arrives as "" rather than absent, and an empty label is not a label — storing
+    // one would make "no usual tier" and "a tier named nothing" indistinguishable downstream.
+    private static string? Blank(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }

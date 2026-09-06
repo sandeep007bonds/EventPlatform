@@ -17,6 +17,7 @@ internal sealed class VenueSectionConfiguration : IEntityTypeConfiguration<Venue
         builder.Property(s => s.Name).HasMaxLength(100).IsRequired();
         builder.Property(s => s.DisplayOrder).IsRequired();
         builder.Property(s => s.GateId);
+        builder.Property(s => s.TierLabel).HasMaxLength(100);
 
         builder.HasIndex(s => new { s.SeatMapVersionId, s.Code }).IsUnique();
 

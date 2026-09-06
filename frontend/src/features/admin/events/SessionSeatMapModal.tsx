@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Alert, Button, Empty, Modal, Select, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { AxiosError } from 'axios';
@@ -25,6 +25,8 @@ interface Block {
   name: string;
   kind: 'Reserved' | 'GeneralAdmission';
   capacity: number;
+  /** What the venue says this block is usually sold as. A name, never a price — ADR-0041. */
+  tierLabel: string | null;
 }
 
 /**
@@ -44,6 +46,7 @@ export function SessionSeatMapModal({
   eventId,
   currency,
   session,
+  siblings,
   onClose,
   onChanged,
 }: {
@@ -51,6 +54,12 @@ export function SessionSeatMapModal({
   /** The event's currency — ticket-type prices are shown so a block can be priced by eye. */
   currency: string;
   session: EventSessionResponse;
+  /**
+   * Every performance of this event, this one included. Used only to copy an existing mapping: a
+   * three-night run is normally priced the same way each night, and re-entering it per night is
+   * the repetition that made block codes feel like busywork.
+   */
+  siblings: EventSessionResponse[];
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -127,11 +136,70 @@ export function SessionSeatMapModal({
   // different venue or map — and no effect has to clear them synchronously.
   const availableMaps = seatMaps != null && seatMaps.venueId === venueId ? seatMaps.maps : [];
   const loadedBlocks = blocks != null && blocks.seatMapId === seatMapId ? blocks.blocks : null;
-  const currentBlocks = loadedBlocks ?? [];
+  const currentBlocks = useMemo(() => loadedBlocks ?? [], [loadedBlocks]);
   // Derived rather than a flag: "a map is picked but its blocks are not here yet" is exactly what
   // loading means, and computing it removes a state that could disagree with reality.
   const loadingBlocks = seatMapId != null && loadedBlocks == null;
   const unallocated = currentBlocks.filter((block) => !allocations.get(block.code));
+
+  // Two sources, and neither decides anything — a suggestion is filled in, shown, and editable
+  // before it is saved. The server still validates every block against a real active ticket type.
+  //
+  // A sibling already mapped against this exact map wins: it is this organizer's own answer for
+  // this run, so it beats the venue's general habit. Only then the map's own tier labels, matched
+  // to a ticket type by name (ADR-0041 — the label is a name, never a price).
+  const suggestedAllocations = useMemo(() => {
+    const suggestion = new Map<string, string>();
+    if (currentBlocks.length === 0) {
+      return suggestion;
+    }
+
+    const twin = siblings.find(
+      (other) =>
+        other.id !== session.id && other.seatMapId === seatMapId && other.allocations.length > 0,
+    );
+    if (twin) {
+      for (const allocation of twin.allocations) {
+        suggestion.set(allocation.code, allocation.ticketTypeId);
+      }
+    }
+
+    const typeIdsByName = new Map(
+      ticketTypes.map((type) => [type.name.trim().toLowerCase(), type.id]),
+    );
+    for (const block of currentBlocks) {
+      if (suggestion.has(block.code) || !block.tierLabel) {
+        continue;
+      }
+      const match = typeIdsByName.get(block.tierLabel.trim().toLowerCase());
+      if (match) {
+        suggestion.set(block.code, match);
+      }
+    }
+
+    // Only blocks this map actually has — a twin mapped against an older shape may name others.
+    const codes = new Set(currentBlocks.map((block) => block.code));
+    return new Map([...suggestion].filter(([code]) => codes.has(code)));
+  }, [currentBlocks, siblings, session.id, seatMapId, ticketTypes]);
+
+  const suggestedCount = [...suggestedAllocations.keys()].filter(
+    (code) => !allocations.get(code),
+  ).length;
+
+  const venueTiers = [
+    ...new Set(currentBlocks.map((block) => block.tierLabel).filter((label) => !!label)),
+  ];
+
+  const applySuggestions = () =>
+    setAllocations((current) => {
+      const next = new Map(current);
+      for (const [code, ticketTypeId] of suggestedAllocations) {
+        if (!next.get(code)) {
+          next.set(code, ticketTypeId);
+        }
+      }
+      return next;
+    });
 
   const handleSave = async () => {
     if (!seatMapId) {
@@ -286,6 +354,15 @@ export function SessionSeatMapModal({
               A block is sold <em>as</em> something, so define the ticket types first on the{' '}
               <Link to={`/admin/events/${eventId}?tab=tickets`}>Tickets &amp; pricing</Link> tab — a
               venue&rsquo;s seat map carries no prices of its own.
+              {venueTiers.length > 0 && (
+                <>
+                  {' '}
+                  This venue usually sells these blocks as <strong>
+                    {venueTiers.join(', ')}
+                  </strong>{' '}
+                  — name them that and every block maps itself.
+                </>
+              )}
             </span>
           }
         />
@@ -302,6 +379,23 @@ export function SessionSeatMapModal({
               description="Every block must sell as something. One left unmapped is capacity Inventory never hears about."
             />
           )}
+          {suggestedCount > 0 && !locked && (
+            // Offered, never applied silently. The organizer sees what changed before saving, and
+            // the suggestion is only ever a starting point — this night is free to price
+            // differently from the last one, which is why the mapping is per performance at all.
+            <Alert
+              type="info"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message={`${suggestedCount} block${suggestedCount === 1 ? '' : 's'} can be filled in for you`}
+              description="From another performance of this event mapped against the same seat map, or from the tiers the venue named on its blocks."
+              action={
+                <Button size="small" onClick={applySuggestions}>
+                  Fill them in
+                </Button>
+              }
+            />
+          )}
           <Table<Block>
             rowKey="code"
             dataSource={currentBlocks}
@@ -316,6 +410,7 @@ export function SessionSeatMapModal({
                     <Typography.Text strong>{block.name}</Typography.Text>
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                       {block.code}
+                      {block.tierLabel ? ` · usually ${block.tierLabel}` : ''}
                     </Typography.Text>
                   </Space>
                 ),

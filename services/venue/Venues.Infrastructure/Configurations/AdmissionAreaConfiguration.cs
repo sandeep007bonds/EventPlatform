@@ -18,6 +18,7 @@ internal sealed class AdmissionAreaConfiguration : IEntityTypeConfiguration<Admi
         builder.Property(a => a.Capacity).IsRequired();
         builder.Property(a => a.DisplayOrder).IsRequired();
         builder.Property(a => a.GateId);
+        builder.Property(a => a.TierLabel).HasMaxLength(100);
 
         builder.HasIndex(a => new { a.SeatMapVersionId, a.Code }).IsUnique();
     }

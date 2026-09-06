@@ -89,7 +89,8 @@ public sealed class SeatMapVersion
                 sectionDraft.Code,
                 sectionDraft.Name,
                 sectionDraft.DisplayOrder,
-                sectionDraft.GateId);
+                sectionDraft.GateId,
+                sectionDraft.TierLabel);
 
             foreach (var rowDraft in sectionDraft.Rows)
             {
@@ -113,7 +114,8 @@ public sealed class SeatMapVersion
                 areaDraft.Name,
                 areaDraft.Capacity,
                 areaDraft.DisplayOrder,
-                areaDraft.GateId);
+                areaDraft.GateId,
+                areaDraft.TierLabel);
 
             _admissionAreas.Add(area);
             areaIdsByCode.TryAdd(areaDraft.Code, area.Id);
@@ -214,12 +216,19 @@ public sealed class SeatMapVersion
                         row.Label,
                         row.DisplayOrder,
                         row.Seats.Select(s => new SeatDraft(s.Number, s.Attributes, s.IsSellable)).ToList()))
-                    .ToList()))
+                    .ToList(),
+                section.TierLabel))
             .ToList();
 
         var areas = _admissionAreas
             .OrderBy(a => a.DisplayOrder)
-            .Select(area => new AdmissionAreaDraft(area.Code, area.Name, area.Capacity, area.DisplayOrder, area.GateId))
+            .Select(area => new AdmissionAreaDraft(
+                area.Code,
+                area.Name,
+                area.Capacity,
+                area.DisplayOrder,
+                area.GateId,
+                area.TierLabel))
             .ToList();
 
         var elements = _elements

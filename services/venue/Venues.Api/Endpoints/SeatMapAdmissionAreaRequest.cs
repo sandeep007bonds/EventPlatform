@@ -6,9 +6,11 @@ namespace Venues.Api.Endpoints;
 /// <param name="Capacity">How many people the area physically holds.</param>
 /// <param name="DisplayOrder">Ordering when areas are listed.</param>
 /// <param name="GateId">The gate this area is entered through, or <see langword="null"/> for any.</param>
+/// <param name="TierLabel">What this block is normally sold as, or <see langword="null"/>. A label, never a price — ADR-0041.</param>
 public sealed record SeatMapAdmissionAreaRequest(
     string Code,
     string Name,
     int Capacity,
     int DisplayOrder,
-    Guid? GateId);
+    Guid? GateId,
+    string? TierLabel);

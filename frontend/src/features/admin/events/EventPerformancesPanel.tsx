@@ -431,6 +431,7 @@ export function EventPerformancesPanel({
           eventId={event.id}
           currency={event.currency}
           session={seatMapFor}
+          siblings={event.sessions}
           onClose={() => setSeatMapFor(null)}
           onChanged={() => {
             setSeatMapFor(null);

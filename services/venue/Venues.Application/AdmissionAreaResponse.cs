@@ -7,10 +7,12 @@ namespace Venues.Application;
 /// <param name="Capacity">How many people the area physically holds.</param>
 /// <param name="DisplayOrder">Ordering when areas are listed.</param>
 /// <param name="GateId">The gate this area is entered through, if any.</param>
+/// <param name="TierLabel">What this block is normally sold as, or <see langword="null"/>. A label, never a price — ADR-0041.</param>
 public sealed record AdmissionAreaResponse(
     Guid Id,
     string Code,
     string Name,
     int Capacity,
     int DisplayOrder,
-    Guid? GateId);
+    Guid? GateId,
+    string? TierLabel);

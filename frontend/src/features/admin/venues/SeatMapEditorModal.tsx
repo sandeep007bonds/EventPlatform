@@ -37,6 +37,8 @@ interface SectionFields {
   firstRowLabel: string;
   /** The number of the first seat in each row. */
   firstSeatNumber: number;
+  /** What this block is usually sold as. A label, never a price — ADR-0041. */
+  tierLabel?: string | null;
 }
 
 /** One capacity-only block, as the form collects it. */
@@ -45,6 +47,8 @@ interface AreaFields {
   name: string;
   capacity: number;
   gateId?: string | null;
+  /** What this block is usually sold as. A label, never a price — ADR-0041. */
+  tierLabel?: string | null;
 }
 
 interface LayoutFormValues {
@@ -60,9 +64,10 @@ const DEFAULT_SECTION: SectionFields = {
   seatsPerRow: 20,
   firstRowLabel: 'A',
   firstSeatNumber: 1,
+  tierLabel: '',
 };
 
-const DEFAULT_AREA: AreaFields = { code: '', name: '', capacity: 100, gateId: null };
+const DEFAULT_AREA: AreaFields = { code: '', name: '', capacity: 100, gateId: null, tierLabel: '' };
 
 /**
  * The form-based seat-map editor: reserved blocks described as rows × seats, and admission areas
@@ -114,12 +119,14 @@ export function SeatMapEditorModal({
             seatsPerRow: section.rows[0]?.seats.length ?? 0,
             firstRowLabel: section.rows[0]?.label ?? 'A',
             firstSeatNumber: Number(section.rows[0]?.seats[0]?.number ?? 1),
+            tierLabel: section.tierLabel ?? '',
           })),
           admissionAreas: map.version.admissionAreas.map((area) => ({
             code: area.code,
             name: area.name,
             capacity: area.capacity,
             gateId: area.gateId,
+            tierLabel: area.tierLabel ?? '',
           })),
         });
       })
@@ -148,6 +155,7 @@ export function SeatMapEditorModal({
         capacity: area.capacity,
         displayOrder: 0,
         gateId: area.gateId || null,
+        tierLabel: area.tierLabel?.trim() || null,
       })),
     });
 
@@ -366,6 +374,14 @@ export function SeatMapEditorModal({
                           />
                         </Form.Item>
                         <Form.Item
+                          name={[field.name, 'tierLabel']}
+                          label="Usually sold as"
+                          tooltip="A name, not a price — it pre-fills each event's pricing so you don't map the same blocks every time. Leave blank if this venue has no usual answer."
+                          rules={[{ max: 100 }]}
+                        >
+                          <Input placeholder="Lower Tier" style={{ width: 160 }} />
+                        </Form.Item>
+                        <Form.Item
                           name={[field.name, 'rows']}
                           label="Rows"
                           rules={[{ required: true, type: 'number', min: 1, max: 200 }]}
@@ -468,6 +484,14 @@ export function SeatMapEditorModal({
                             }))}
                           />
                         </Form.Item>
+                        <Form.Item
+                          name={[field.name, 'tierLabel']}
+                          label="Usually sold as"
+                          tooltip="A name, not a price — it pre-fills each event's pricing so you don't map the same blocks every time. Leave blank if this venue has no usual answer."
+                          rules={[{ max: 100 }]}
+                        >
+                          <Input placeholder="Lower Tier" style={{ width: 160 }} />
+                        </Form.Item>
                       </Space>
                     </Card>
                   ))}
@@ -510,6 +534,8 @@ function toSectionInput(section: SectionFields, index: number): SeatMapSectionIn
     displayOrder: index,
     gateId: section.gateId || null,
     rows,
+    // '' means "no usual tier", which is not the same as a tier named nothing.
+    tierLabel: section.tierLabel?.trim() || null,
   };
 }
 

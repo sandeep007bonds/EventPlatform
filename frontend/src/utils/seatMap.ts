@@ -64,14 +64,19 @@ export function admissionAreasOf(version: SeatMapVersionResponse): AdmissionArea
  * pairs a performance has to allocate. Publishing refuses a performance with any of them unmapped,
  * so this is also the checklist an allocation editor works from.
  */
-export function blocksOf(
-  version: SeatMapVersionResponse,
-): { code: string; name: string; kind: 'Reserved' | 'GeneralAdmission'; capacity: number }[] {
+export function blocksOf(version: SeatMapVersionResponse): {
+  code: string;
+  name: string;
+  kind: 'Reserved' | 'GeneralAdmission';
+  capacity: number;
+  tierLabel: string | null;
+}[] {
   const sections = version.sections.map((section) => ({
     code: section.code,
     name: section.name,
     kind: 'Reserved' as const,
     capacity: section.sellableSeatCount,
+    tierLabel: section.tierLabel,
     displayOrder: section.displayOrder,
   }));
 
@@ -80,12 +85,19 @@ export function blocksOf(
     name: area.name,
     kind: 'GeneralAdmission' as const,
     capacity: area.capacity,
+    tierLabel: area.tierLabel,
     displayOrder: area.displayOrder,
   }));
 
   return [...sections, ...areas]
     .sort((a, b) => a.displayOrder - b.displayOrder)
-    .map(({ code, name, kind, capacity }) => ({ code, name, kind, capacity }));
+    .map(({ code, name, kind, capacity, tierLabel }) => ({
+      code,
+      name,
+      kind,
+      capacity,
+      tierLabel,
+    }));
 }
 
 /**

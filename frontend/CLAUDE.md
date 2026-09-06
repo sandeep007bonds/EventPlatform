@@ -251,6 +251,13 @@ src/
   The allocation editor refuses to save with any block unmapped, mirroring the publish check
   server-side — an unmapped block is capacity Inventory never hears about, and the buyer sees a
   hole in the map they cannot distinguish from a sold-out section.
+  **`SessionSeatMapModal` can pre-fill the mapping, but only ever as an offer.** Two sources, in
+  order: another performance of this event already mapped against the _same_ seat map (the
+  organizer's own answer for this run), then the map's own `tierLabel` per block matched to a
+  ticket type by name (ADR-0041 — a label, never a price). Both are shown behind a "Fill them in"
+  button and stay editable; nothing is applied silently, because this night is genuinely allowed
+  to price differently from the last one. That is the whole reason the allocation is per
+  performance.
 - **The seat-map editor is form-based and sends no shapes, deliberately.** Venue accepts a purely
   logical map and only rejects one that is _partly_ drawn (a plan with a hole is worse than no
   plan), so rows-×-seats input publishes cleanly today and the graphical designer can add geometry
