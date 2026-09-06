@@ -174,8 +174,9 @@ export function TicketTypesPanel({ eventId, currency, isDraft }: TicketTypesPane
     <Card title="Ticket types" style={{ marginBottom: 24 }} styles={{ body: { padding: 28 } }}>
       <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
         The kinds of ticket this event sells — a name, a price, and optionally its own sales window
-        and per-buyer limit. Defining a seat map creates these automatically from its price tiers,
-        so you only need this panel to add one, correct a name, or retire one.
+        and per-buyer limit. Define them here first: a performance cannot go on sale until every
+        block of its seat map is allocated to one of these, and a venue&rsquo;s seat map carries no
+        prices of its own.
       </Typography.Text>
 
       {!isDraft && (

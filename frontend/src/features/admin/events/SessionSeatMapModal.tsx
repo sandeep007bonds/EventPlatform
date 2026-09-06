@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Alert, Button, Empty, Modal, Select, Space, Spin, Table, Tag, Typography } from 'antd';
 import type { AxiosError } from 'axios';
 import {
@@ -225,7 +226,12 @@ export function SessionSeatMapModal({
               value: venue.id,
               label: `${venue.name} — ${venue.city}, ${venue.country}`,
             }))}
-            notFoundContent="No active venues — create one under Venues first."
+            notFoundContent={
+              <span>
+                No active venues yet — <Link to="/admin/venues">create one under Venues</Link>, then
+                come back.
+              </span>
+            }
           />
         </div>
 
@@ -252,13 +258,37 @@ export function SessionSeatMapModal({
                   ? `${map.name} — no published version yet`
                   : `${map.name} — v${map.publishedVersionNumber}`,
             }))}
-            notFoundContent="This venue has no seat maps yet."
+            notFoundContent={
+              venueId ? (
+                <span>
+                  No seat maps here yet —{' '}
+                  <Link to={`/admin/venues/${venueId}`}>add one on the venue</Link> and publish it.
+                </span>
+              ) : (
+                'Pick a venue first.'
+              )
+            }
           />
         </div>
       </Space>
 
       {loadingBlocks ? (
         <Spin />
+      ) : ticketTypes.length === 0 ? (
+        // Allocation binds a block to a ticket type, so with none defined every row's dropdown
+        // would be empty and the reason invisible. Ticket types genuinely come first.
+        <Alert
+          type="info"
+          showIcon
+          message="This event has no ticket types yet"
+          description={
+            <span>
+              A block is sold <em>as</em> something, so define the ticket types first on the{' '}
+              <Link to={`/admin/events/${eventId}?tab=tickets`}>Tickets &amp; pricing</Link> tab — a
+              venue&rsquo;s seat map carries no prices of its own.
+            </span>
+          }
+        />
       ) : currentBlocks.length === 0 ? (
         <Empty description="Pick a venue and a published seat map to allocate its blocks." />
       ) : (
