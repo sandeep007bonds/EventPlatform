@@ -28,6 +28,20 @@ guessed at.
 claiming anything builds, read the last run for the branch. Everything below was in that log
 already.
 
+## A guard that does not cover everything says nothing about what it misses
+
+`scripts/db-check-drift.sh` reported **"No model drift"** on a commit that added two columns to
+Venue with no migration. It was not wrong about what it checked — its `projects` map and its
+default service list simply had no `venue` entry, so it had never checked that service since the
+day it was added. `db-add-migration.sh` *did* know about Venue, so a migration could be generated
+for a service whose drift was never detected. `./scripts/db-check-drift.sh venue` answered
+"unknown service".
+
+Adding a service means adding it to **both** scripts, and the two lists should be compared when
+either changes. A green check on a service nobody listed is indistinguishable from a green check
+on a service that is fine — which is the general shape of the mistake: **a guard reports on its
+own scope, never on the gap between its scope and reality.**
+
 ## A green checker is not a green build
 
 Worth saying plainly, because it has now cost a whole build. `check-csharp-style.py` and
