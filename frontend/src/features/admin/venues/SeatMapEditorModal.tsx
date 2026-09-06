@@ -137,20 +137,25 @@ export function SeatMapEditorModal({
   const version = seatMap?.version;
   const editable = version?.status === 'Draft';
 
+  // The only place this form is written to the server. Both buttons go through it so the two can
+  // never drift — Publish sends the layout on screen, not whatever the draft last happened to hold.
+  const persistLayout = (values: LayoutFormValues) =>
+    saveSeatMapLayout(seatMapId, {
+      sections: (values.sections ?? []).map(toSectionInput),
+      admissionAreas: (values.admissionAreas ?? []).map((area) => ({
+        code: area.code.trim(),
+        name: area.name.trim(),
+        capacity: area.capacity,
+        displayOrder: 0,
+        gateId: area.gateId || null,
+      })),
+    });
+
   const handleSave = async (values: LayoutFormValues) => {
     setSaving(true);
     setValidationErrors([]);
     try {
-      await saveSeatMapLayout(seatMapId, {
-        sections: (values.sections ?? []).map(toSectionInput),
-        admissionAreas: (values.admissionAreas ?? []).map((area) => ({
-          code: area.code.trim(),
-          name: area.name.trim(),
-          capacity: area.capacity,
-          displayOrder: 0,
-          gateId: area.gateId || null,
-        })),
-      });
+      await persistLayout(values);
       toast.success('Draft saved.');
       setReloadToken((token) => token + 1);
       onChanged();
@@ -180,26 +185,49 @@ export function SeatMapEditorModal({
   };
 
   const handlePublish = async () => {
+    // Publishing commits what is on screen, so the draft is saved first. Posting straight to
+    // /publish makes the server publish whatever it last stored — on a map created a moment ago
+    // that is the empty version 1 it was born with, so a fully filled-in form came back
+    // "the map sells nothing" and the typed layout was never sent at all.
+    let values: LayoutFormValues;
+    try {
+      values = await form.validateFields();
+    } catch {
+      return; // Ant marks the offending fields; nothing typed is lost and nothing is sent.
+    }
+
     setPublishing(true);
     setValidationErrors([]);
     try {
+      await persistLayout(values);
+
       const result = await publishSeatMap(seatMapId);
       toast.success(`Published v${result.versionNumber} — ${result.capacity} seats.`);
       setReloadToken((token) => token + 1);
       onChanged();
     } catch (error) {
-      // Venue answers an invalid publish with *every* problem, not the first — the person fixing a
-      // stadium plan needs the whole list at once, so show the whole list.
-      const body = (error as AxiosError<{ errors?: { code: string; message: string }[] }>).response
-        ?.data;
+      // Two failures land here now. Venue answers an invalid publish with *every* problem rather
+      // than the first — the person fixing a stadium plan needs the whole list at once — while a
+      // rejected save is a single message, and reporting that as a publish problem would point at
+      // the wrong step.
+      const body = (
+        error as AxiosError<{
+          errors?: { code: string; message: string }[];
+          message?: string;
+        }>
+      ).response?.data;
+
       if (body?.errors?.length) {
         setValidationErrors(body.errors.map((entry) => entry.message));
       } else {
-        toast.error('Could not publish this seat map.');
+        toast.error(body?.message ?? 'Could not publish this seat map.');
       }
     } finally {
       setPublishing(false);
     }
+
+    // The draft keeps whatever was just saved even when the publish is refused, so the fix is to
+    // correct the listed problems and press Publish again, not to type the layout in a second time.
   };
 
   return (
