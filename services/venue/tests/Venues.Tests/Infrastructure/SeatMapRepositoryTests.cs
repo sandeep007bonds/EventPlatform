@@ -11,7 +11,8 @@ namespace Venues.Tests.Infrastructure;
 /// state every map is in the moment it is created — answered "not found" to its own owner, and
 /// the seat-map editor could never open one.
 /// </remarks>
-public sealed class SeatMapRepositoryTests : IAsyncLifetime
+/// <param name="output">xUnit's per-test output sink, which prints only for a failing test.</param>
+public sealed class SeatMapRepositoryTests(ITestOutputHelper output) : IAsyncLifetime
 {
     private static readonly Guid TenantId = Guid.CreateVersion7();
     private static readonly Guid VenueId = Guid.CreateVersion7();
@@ -132,8 +133,14 @@ public sealed class SeatMapRepositoryTests : IAsyncLifetime
             [LayoutBuilder.Area("PIT", capacity)],
             []);
 
+    // Every statement goes to xUnit's output, which it prints only when the test fails. Two
+    // theories about this failure have already been wrong; the SQL EF actually sends is the thing
+    // that settles it, and a failing run is exactly when it is worth having.
     private VenuesDbContext NewDbContext() =>
-        new(new DbContextOptionsBuilder<VenuesDbContext>().UseNpgsql(connectionString).Options);
+        new(new DbContextOptionsBuilder<VenuesDbContext>()
+            .UseNpgsql(connectionString)
+            .LogTo(output.WriteLine, LogLevel.Information)
+            .Options);
 
     private async Task SaveAsync(SeatMap seatMap)
     {

@@ -1,5 +1,6 @@
 global using System.Globalization;
 global using Microsoft.EntityFrameworkCore;
+global using Microsoft.Extensions.Logging;
 global using NetArchTest.Rules;
 global using Shouldly;
 global using Testcontainers.PostgreSql;
@@ -7,3 +8,4 @@ global using Venues.Domain;
 global using Venues.Infrastructure;
 global using Venues.Tests.Domain;
 global using Xunit;
+global using Xunit.Abstractions;
