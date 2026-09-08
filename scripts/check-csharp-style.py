@@ -581,6 +581,38 @@ def check_unused_private_field(path, code, findings):
                              f"private field '{name}' is never read"))
 
 
+def check_sa1118(path, code, findings):
+    """SA1118 — an argument that spans lines, in the one shape this repo keeps producing.
+
+    A message too long for one line gets split with `+` and handed straight to a constructor, which
+    is a multi-line argument and an error here. The fix is always the same: give it a local and pass
+    the local.
+
+    **Only the `+` continuation is detected, not SA1118 in general.** The rule exempts lambdas,
+    anonymous methods and initializers, so this tree is full of multi-line arguments that compile —
+    every `.Select(x => …).ToList()` passed to a constructor is one. Telling those from a real
+    violation needs to know what the argument *is*, which is semantic analysis; a rule that
+    approximated it would fire on dozens of passing files. See the build-error log for the rest.
+    """
+    lines = code.split('\n')
+    for index, line in enumerate(lines):
+        if not line.lstrip().startswith('+'):
+            continue
+
+        # Walk back to the start of the statement, then ask whether a '(' is still open here. Open
+        # means the concatenation sits inside an argument list rather than on the right of an '='.
+        depth, start = 0, index - 1
+        while start >= 0 and not lines[start].rstrip().endswith((';', '{', '}', ':')):
+            start -= 1
+
+        for earlier in lines[start + 1:index]:
+            depth += earlier.count('(') - earlier.count(')')
+
+        if depth > 0:
+            findings.append((path, index + 1, 'SA1118',
+                             'this argument spans lines — assign it to a local and pass the local'))
+
+
 def check_private_collection_return(path, code, findings):
     """CA1859 — a private member returning a collection *interface* it always materializes.
 
@@ -914,6 +946,7 @@ def main():
         check_unused_private_field(normalized, code, findings)
         check_overload_adjacency(normalized, code, findings)
         check_private_collection_return(normalized, code, findings)
+        check_sa1118(normalized, code, findings)
 
     # Arity needs every declaration in view, so it only runs on a full-tree pass.
     if not scoped:

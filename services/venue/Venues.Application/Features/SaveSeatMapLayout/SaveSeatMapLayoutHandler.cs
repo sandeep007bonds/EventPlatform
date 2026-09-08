@@ -59,11 +59,12 @@ internal sealed class SaveSeatMapLayoutHandler(ISeatMapRepository seatMaps, IVen
         // the server for what is an ordinary lost race.
         if (!await seatMaps.TrySaveChangesAsync(cancellationToken))
         {
-            return new SaveSeatMapLayoutResult(
-                SaveSeatMapLayoutOutcome.ConcurrentEdit,
-                "This draft was saved by another request a moment ago. Reopen the map and re-apply "
-                + "your changes so you are editing what is actually stored.",
-                null);
+            // Held in a local because SA1118 forbids an argument that spans lines, and the message
+            // does not fit on one.
+            var message = "This draft was saved by another request a moment ago. Reopen the map "
+                + "and re-apply your changes so you are editing what is actually stored.";
+
+            return new SaveSeatMapLayoutResult(SaveSeatMapLayoutOutcome.ConcurrentEdit, message, null);
         }
 
         return new SaveSeatMapLayoutResult(SaveSeatMapLayoutOutcome.Saved, null, seatMap.ToResponse(draft));
