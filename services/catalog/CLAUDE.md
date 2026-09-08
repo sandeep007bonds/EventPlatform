@@ -25,7 +25,7 @@ Event                         what is being sold, and how it is marketed
       ├─ Name?, StartsAt, EndsAt, DoorsOpenAt?, BookingEndsAt?, Status, SalesPaused
       ├─ VenueId + SeatMapId + SeatMapVersionId   → the Venue service, pinned by version
       ├─ VenueSnapshot (name, city, country, tz)  → a display cache, never decided from
-      └─ SessionAllocation[] { Code, TicketTypeId }
+      └─ SessionAllocation[] { Code, TicketTypeId?, IsExcluded, DisplayName?, CapacityOverride? }
 ```
 
 **`EventSession` is the grain everything downstream keys on** (ADR-0039). Inventory provisions per
@@ -37,6 +37,22 @@ to say "Lower Tier is Gold", and it has to say it per performance: Friday's Lowe
 while Saturday's matinee sells the same seats as Premium. It binds a Venue **section or
 admission-area code** to a `TicketTypeId` — one row per block, about twenty for a stadium, not one
 per seat.
+
+**It is also the overlay a performance arranges its hired venue with (ADR-0042).** A venue is
+reusable and an event is not, so the same hall is sold three different ways in a month. Three fields
+carry that, and none of them reaches Venue:
+
+- **`IsExcluded`** — not on sale this performance. `TicketTypeId` is nullable *only* for this case,
+  and the aggregate enforces priced-**xor**-excluded: a closed block has no price to name.
+- **`DisplayName`** — what buyers see it called. The `Code` never changes with it, because the code
+  is what allocations, inventory, tickets and scanning bind to; a rename must stay a display
+  decision, not a data migration.
+- **`CapacityOverride`** — how many to sell from an **admission area**. Refused on a reserved
+  section: seats have identity, so "sell 200 of 400" never says *which* 200. Holding reserved seats
+  back is Inventory's per-performance seat blocking.
+
+The overlay freezes at publish, exactly as the pinned seat-map version does, so a ticket sold into
+"Golden Circle" still reads that when next year's show renames the block.
 
 **Naming:** the type is `EventSession`; every route, parameter and DTO field says `eventSessionId`,
 never bare `sessionId` — Queue already owns that word for waiting-room sessions. UI copy says
@@ -86,10 +102,17 @@ advertised — that is `EventGroup`. Sessions are several nights of the *same* e
 
 1. It names a seat map, and that map still exists in Venue.
 2. The pinned version is **published**, and is still the map's published one.
-3. **Every block in the version has an allocation.** An unallocated section is not spare capacity —
-   it is capacity Inventory never hears about, so the map renders with a hole nobody can distinguish
-   from a sold-out block.
+3. **Every block in the version is either allocated or excluded, and at least one is allocated.** A
+   block nobody decided about is not spare capacity — it is capacity Inventory never hears about, so
+   the map renders with a hole nobody can distinguish from a sold-out block. Excluding it says the
+   same thing on purpose, which is the difference. Excluding *every* block is refused: it is a thing
+   an organizer can type and never a thing they can sell.
 4. Every allocated ticket type is this event's and still active.
+
+`EventSessionPublished.Capacity` is **what this performance sells** — the sum over the blocks still
+on sale of `capacityOverride ?? physical` — not the pinned version's own capacity, which is the
+building's number and counts blocks this night closed. The sum walks the *version's* blocks rather
+than the allocation rows, so an allocation left behind by an older layout adds nothing.
 
 A failure lists **every** problem, not the first: an organizer fixing a three-night run needs all
 three at once. Publishing partially would take an event live with one advertised night silently

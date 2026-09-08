@@ -48,7 +48,7 @@ public sealed class EventSessionTests
         AttachMap(session);
         session.IsSellable.ShouldBeFalse();
 
-        session.SetAllocations([("LT", Guid.CreateVersion7())]);
+        session.SetAllocations([Sold("LT")]);
         session.IsSellable.ShouldBeTrue();
     }
 
@@ -105,7 +105,7 @@ public sealed class EventSessionTests
         var versionId = Guid.CreateVersion7();
 
         AttachMap(session, versionId);
-        session.SetAllocations([("LT", Guid.CreateVersion7())]);
+        session.SetAllocations([Sold("LT")]);
 
         AttachMap(session, versionId);
 
@@ -118,8 +118,68 @@ public sealed class EventSessionTests
         var session = Draft();
         AttachMap(session);
 
+        Should.Throw<InvalidOperationException>(() => session.SetAllocations([Sold("LT"), Sold("lt")]));
+    }
+
+    // A promoter hiring half a stadium excludes the rest. That is a decision, so it is recorded
+    // rather than left out — but it sells nothing, and a performance made entirely of them is an
+    // empty house nobody could buy into.
+    [Fact]
+    public void APerformanceWithEveryBlockExcluded_SellsNothing()
+    {
+        var session = Draft();
+        AttachMap(session);
+
+        session.SetAllocations([Excluded("UT"), Excluded("LT")]);
+
+        session.IsSellable.ShouldBeFalse();
+        Should.Throw<InvalidOperationException>(session.Publish);
+    }
+
+    [Fact]
+    public void ExcludingSomeBlocks_StillLeavesThePerformanceSellable()
+    {
+        var session = Draft();
+        AttachMap(session);
+
+        session.SetAllocations([Sold("LT"), Excluded("UT")]);
+
+        session.IsSellable.ShouldBeTrue();
+        session.Publish();
+        session.Status.ShouldBe(EventSessionStatus.Published);
+    }
+
+    // Priced and excluded are the two answers to one question, so a row carrying both — or neither —
+    // is a caller that has not decided, and letting it through would sell a closed block or hide a
+    // priced one without saying so.
+    [Fact]
+    public void ABlockThatIsBothPricedAndExcluded_IsRejected()
+    {
+        var session = Draft();
+        AttachMap(session);
+
         Should.Throw<InvalidOperationException>(() => session.SetAllocations(
-            [("LT", Guid.CreateVersion7()), ("lt", Guid.CreateVersion7())]));
+            [new SessionAllocationSpec("LT", Guid.CreateVersion7(), IsExcluded: true, null, null)]));
+
+        Should.Throw<InvalidOperationException>(() => session.SetAllocations(
+            [new SessionAllocationSpec("LT", null, IsExcluded: false, null, null)]));
+    }
+
+    // The code is what inventory, tickets and scanning bind to, so renaming a block for buyers has
+    // to leave it alone — otherwise a rename is a data migration.
+    [Fact]
+    public void RenamingABlockForBuyers_LeavesItsCodeAlone()
+    {
+        var session = Draft();
+        AttachMap(session);
+
+        session.SetAllocations(
+            [new SessionAllocationSpec("NS", Guid.CreateVersion7(), IsExcluded: false, "  Golden Circle  ", 250)]);
+
+        var allocation = session.Allocations.Single();
+        allocation.Code.ShouldBe("NS");
+        allocation.DisplayName.ShouldBe("Golden Circle");
+        allocation.CapacityOverride.ShouldBe(250);
     }
 
     [Fact]
@@ -175,10 +235,16 @@ public sealed class EventSessionTests
     {
         var session = Draft();
         AttachMap(session);
-        session.SetAllocations([("LT", Guid.CreateVersion7())]);
+        session.SetAllocations([Sold("LT")]);
 
         return session;
     }
+
+    private static SessionAllocationSpec Sold(string code) =>
+        new(code, Guid.CreateVersion7(), IsExcluded: false, null, null);
+
+    private static SessionAllocationSpec Excluded(string code) =>
+        new(code, null, IsExcluded: true, null, null);
 
     private static void AttachMap(EventSession session, Guid? versionId = null) =>
         session.AttachSeatMap(

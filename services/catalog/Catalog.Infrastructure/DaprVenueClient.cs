@@ -54,9 +54,11 @@ internal sealed class DaprVenueClient(DaprClient daprClient) : IVenueClient
 
         var venue = await GetVenueAsync(map.VenueId, cancellationToken);
 
-        var codes = map.Version.Sections.Select(s => s.Code)
-            .Concat(map.Version.AdmissionAreas.Select(a => a.Code))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var blocks = map.Version.Sections
+            .Select(s => new SeatMapBlockSnapshot(s.Code, s.SellableSeatCount, IsAdmissionArea: false))
+            .Concat(map.Version.AdmissionAreas
+                .Select(a => new SeatMapBlockSnapshot(a.Code, a.Capacity, IsAdmissionArea: true)))
+            .ToDictionary(b => b.Code, StringComparer.OrdinalIgnoreCase);
 
         return new SeatMapVersionSnapshot(
             map.Id,
@@ -66,7 +68,7 @@ internal sealed class DaprVenueClient(DaprClient daprClient) : IVenueClient
             map.Version.VersionNumber,
             string.Equals(map.Version.Status, PublishedStatus, StringComparison.Ordinal),
             map.Version.Capacity,
-            codes,
+            blocks,
             venue?.Name ?? "Unknown venue",
             venue?.Address.City ?? string.Empty,
             venue?.Address.Country ?? string.Empty,

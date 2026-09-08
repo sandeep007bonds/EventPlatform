@@ -47,33 +47,64 @@ public static class SessionPublishCheck
                 $"'{label}' is pinned to a seat-map version that is no longer the published one. Re-attach the map.");
         }
 
-        var allocatedCodes = session.Allocations.Select(a => a.Code).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var allocationsByCode = session.Allocations.ToDictionary(a => a.Code, StringComparer.OrdinalIgnoreCase);
 
-        // Every block must be sold as something. An unallocated section is not "free capacity" —
-        // it is capacity Inventory will never hear about, so the map renders with a hole in it and
-        // nobody can tell the hole from a sold-out block.
-        var unallocated = version.BlockCodes.Where(code => !allocatedCodes.Contains(code)).Order(StringComparer.Ordinal).ToList();
-        if (unallocated.Count > 0)
+        // Every block must be accounted for — sold as something, or deliberately excluded. A block
+        // nobody decided about is not "free capacity": it is capacity Inventory will never hear
+        // about, so the map renders with a hole in it and nobody can tell the hole from a sold-out
+        // block. Excluding it says the same thing on purpose, which is the difference.
+        var undecided = version.Blocks.Keys
+            .Where(code => !allocationsByCode.ContainsKey(code))
+            .Order(StringComparer.Ordinal)
+            .ToList();
+
+        if (undecided.Count > 0)
         {
             return SessionPublishReadiness.Blocked(
-                $"'{label}' has blocks with no ticket type: {string.Join(", ", unallocated)}.");
+                $"'{label}' has blocks that are neither priced nor excluded: {string.Join(", ", undecided)}.");
         }
 
         var types = await ticketTypes.ListForEventAsync(session.EventId, cancellationToken);
         var pricesById = types.Where(t => t.IsActive).ToDictionary(t => t.Id, t => t.PriceMinor);
 
+        var capacity = 0;
         var priced = new List<SessionAllocationPayload>();
-        foreach (var allocation in session.Allocations)
+
+        // Driven by the version's blocks rather than the allocation rows, so the capacity added is
+        // always a physical block's, and an allocation left behind by an older layout is ignored
+        // instead of contributing a number nothing in the building backs.
+        foreach (var block in version.Blocks.Values.OrderBy(b => b.Code, StringComparer.Ordinal))
         {
-            if (!pricesById.TryGetValue(allocation.TicketTypeId, out var priceMinor))
+            var allocation = allocationsByCode[block.Code];
+            if (allocation.IsExcluded)
+            {
+                continue;
+            }
+
+            if (!pricesById.TryGetValue(allocation.TicketTypeId!.Value, out var priceMinor))
             {
                 return SessionPublishReadiness.Blocked(
                     $"'{label}' allocates block '{allocation.Code}' to a ticket type that is inactive or no longer exists.");
             }
 
-            priced.Add(new SessionAllocationPayload(allocation.Code, allocation.TicketTypeId, priceMinor));
+            priced.Add(new SessionAllocationPayload(
+                allocation.Code,
+                allocation.TicketTypeId.Value,
+                priceMinor,
+                allocation.CapacityOverride));
+
+            capacity += allocation.CapacityOverride ?? block.Capacity;
         }
 
-        return SessionPublishReadiness.Ready(version.Capacity, priced);
+        if (priced.Count == 0)
+        {
+            return SessionPublishReadiness.Blocked(
+                $"'{label}' sells nothing: every block in its seat map is excluded.");
+        }
+
+        // The version's own capacity is the building's number. What this performance sells is the
+        // sum of the blocks it kept, capped where the organizer capped them — and that is the
+        // number that travels on the message and gets reported as the house.
+        return SessionPublishReadiness.Ready(capacity, priced);
     }
 }

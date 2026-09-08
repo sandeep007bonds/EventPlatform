@@ -6,7 +6,7 @@ namespace Catalog.Application.Abstractions;
 /// </summary>
 /// <remarks>
 /// Deliberately shallow. Catalog never sees rows or seats — allocations bind to section and
-/// admission-area <b>codes</b>, so the codes and the capacity are the whole of what it has to
+/// admission-area <b>codes</b>, so the codes and their capacities are the whole of what it has to
 /// reason about. Inventory is the service that reads the seats, and it reads them from Venue
 /// directly.
 /// </remarks>
@@ -16,8 +16,8 @@ namespace Catalog.Application.Abstractions;
 /// <param name="SeatMapVersionId">This version's id.</param>
 /// <param name="VersionNumber">This version's number.</param>
 /// <param name="IsPublished">Whether the version is published, and therefore immutable.</param>
-/// <param name="Capacity">Sellable seats plus admission-area capacity.</param>
-/// <param name="BlockCodes">Every section and admission-area code in the version.</param>
+/// <param name="Capacity">Sellable seats plus admission-area capacity, for the whole version.</param>
+/// <param name="Blocks">Every section and admission area, keyed by its code, case-insensitively.</param>
 /// <param name="VenueName">Venue name, for the display snapshot.</param>
 /// <param name="City">City, for the display snapshot.</param>
 /// <param name="Country">ISO 3166-1 alpha-2 country code, for the display snapshot.</param>
@@ -30,7 +30,7 @@ public sealed record SeatMapVersionSnapshot(
     int VersionNumber,
     bool IsPublished,
     int Capacity,
-    IReadOnlySet<string> BlockCodes,
+    IReadOnlyDictionary<string, SeatMapBlockSnapshot> Blocks,
     string VenueName,
     string City,
     string Country,

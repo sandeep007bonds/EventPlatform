@@ -171,9 +171,18 @@ catch it; `HoldingASeatForOnePerformance_LeavesTheSameSeatFreeForAnother` in
   which ticket type each block sells as and at what price. Neither knows both,
   and the block **code** is the only thing they agree on — which is why Venue
   keeps it stable across renames. A seat in a block with no allocation is
-  skipped, never priced by guess: Catalog refuses to publish a performance with
-  an unallocated block, so reaching that case means the two services disagree,
-  and inventing a price would turn a disagreement into a wrong sale.
+  skipped, never priced by guess. Usually that is the performance **excluding**
+  the block (ADR-0042) — the upper tier closed for a half-house show, which
+  Catalog simply leaves out of the payload, so exclusion needed no change here
+  at all. If instead the two services have drifted, skipping is still right:
+  inventing a price would turn a disagreement into a wrong sale.
+- **A performance may sell fewer than an admission area holds.** Venue still
+  says the pit fits 400 — that is the building — so the smaller number rides on
+  the allocation as `CapacityOverride`, and
+  `GeneralAdmissionAllocation.Create(… allocation.CapacityOverride ?? area.Capacity)`
+  is what makes it the pool's `TotalCapacity` and the Redis counter's seed.
+  Reserved sections carry no such cap: seats have identity, so holding some back
+  is this service's own per-performance seat blocking.
 - **Drift reconciliation:** Redis holds only a sparse cache; a restart/flush loses
   it. `InventoryReconciler` (a background service) detects this via a sentinel key
   and rebuilds the fast gate from Postgres — writing back held (with remaining TTL),

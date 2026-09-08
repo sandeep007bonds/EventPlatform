@@ -35,7 +35,12 @@ public static class EventSessionMapper
             session.Venue?.TimeZoneId,
             session.Allocations
                 .OrderBy(a => a.Code, StringComparer.OrdinalIgnoreCase)
-                .Select(a => new SessionAllocationResponse(a.Code, a.TicketTypeId))
+                .Select(a => new SessionAllocationResponse(
+                    a.Code,
+                    a.TicketTypeId,
+                    a.IsExcluded,
+                    a.DisplayName,
+                    a.CapacityOverride))
                 .ToList());
     }
 

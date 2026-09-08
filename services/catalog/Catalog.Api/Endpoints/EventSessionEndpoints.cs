@@ -154,7 +154,14 @@ public static class EventSessionEndpoints
             eventId,
             eventSessionId,
             tenant.TenantId.Value,
-            (request.Allocations ?? []).Select(a => new SessionAllocationInput(a.Code, a.TicketTypeId)).ToList());
+            (request.Allocations ?? [])
+                .Select(a => new SessionAllocationInput(
+                    a.Code,
+                    a.TicketTypeId,
+                    a.IsExcluded,
+                    a.DisplayName,
+                    a.CapacityOverride))
+                .ToList());
 
         return ToResult(await sender.Send(command, cancellationToken));
     }

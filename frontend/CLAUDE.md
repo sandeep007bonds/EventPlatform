@@ -248,9 +248,18 @@ src/
   _sells as tonight_, mapping its code to a ticket type. Neither can do the other's job, and that
   separation is ADR-0038's whole point: a Venue seat carries no price, so a map is reusable across
   a hundred events that price it differently.
-  The allocation editor refuses to save with any block unmapped, mirroring the publish check
-  server-side — an unmapped block is capacity Inventory never hears about, and the buyer sees a
-  hole in the map they cannot distinguish from a sold-out section.
+  `SessionSeatMapModal` is also where a performance **arranges** the hall it hired (ADR-0042): the
+  "Sells as" dropdown carries a `Not on sale this performance` option alongside the ticket types,
+  a "Shown to buyers" input renames a block without touching its code, and admission areas get a
+  "Selling" number capped at what the area holds. Reserved sections get no such number — holding
+  seats back there is seat blocking, on the Seats tab.
+  The editor refuses to save with any block left **undecided**, mirroring the publish check
+  server-side — an undecided block is capacity Inventory never hears about, and the buyer sees a
+  hole in the map they cannot distinguish from a sold-out section. Closing a block is a decision, so
+  it saves; closing _every_ block does not, because that performance would sell nothing.
+  **Readiness counts blocks on sale, not allocation rows** — `sellingBlockCount` in
+  `utils/eventSessions.ts`, used by `EventPerformancesPanel` and `AdminEventDetailPage`. Counting
+  rows would call a fully-excluded performance ready and offer a Publish button the server rejects.
   **`SessionSeatMapModal` can pre-fill the mapping, but only ever as an offer.** Two sources, in
   order: another performance of this event already mapped against the _same_ seat map (the
   organizer's own answer for this run), then the map's own `tierLabel` per block matched to a

@@ -1,12 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Alert, Button, Empty, Modal, Select, Space, Spin, Table, Tag, Typography } from 'antd';
+import {
+  Alert,
+  Button,
+  Empty,
+  Input,
+  InputNumber,
+  Modal,
+  Select,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
 import type { AxiosError } from 'axios';
 import {
   attachSessionSeatMap,
   listTicketTypes,
   setSessionAllocations,
   type EventSessionResponse,
+  type SessionAllocationResponse,
   type TicketTypeResponse,
 } from '../../../services/catalog/catalogApi';
 import {
@@ -29,8 +43,18 @@ interface Block {
   tierLabel: string | null;
 }
 
+/** How one block is arranged for this performance — everything but the code that identifies it. */
+type Arrangement = Omit<SessionAllocationResponse, 'code'>;
+
 /**
- * Attaches a Venue seat map to one performance, and maps every block of it to a ticket type.
+ * The "sells as" value standing for "not on sale". A sentinel in the same dropdown rather than a
+ * separate checkbox because it is genuinely the same question: a block is sold as something, or it
+ * is closed, and those are the only two answers the server accepts.
+ */
+const NOT_ON_SALE = '__excluded__';
+
+/**
+ * Attaches a Venue seat map to one performance, and says how this performance arranges it.
  *
  * **This is where price meets place.** A Venue seat carries no price — that was the whole point of
  * separating the two services (ADR-0038) — so something has to say "Lower Tier is Gold", and it has
@@ -38,9 +62,15 @@ interface Block {
  * same seats as Premium. The mapping is by the block's **code**, which Venue keeps stable across
  * renames precisely so this survives one.
  *
- * Every block must be mapped. A block left out is not spare capacity — it is capacity Inventory
- * never hears about, so the map would render with a hole nobody can tell from a sold-out section.
- * Catalog refuses the publish; this refuses the save, so the organizer finds out here.
+ * It is also where a promoter arranges the hall they hired. A venue is reusable and an event is
+ * not, so the same building gets sold three different ways in a month: the upper tier closed for a
+ * small show, the north stand advertised as "Golden Circle", a 400-capacity pit sold to 200. None
+ * of those are facts about the building, so none of them belong in the venue library — they belong
+ * here, and they freeze when the performance publishes.
+ *
+ * Every block must be answered for. A block left undecided is not spare capacity — it is capacity
+ * Inventory never hears about, so the map would render with a hole nobody can tell from a sold-out
+ * section. Closing it says the same thing deliberately, and that difference is the point.
  */
 export function SessionSeatMapModal({
   eventId,
@@ -72,9 +102,7 @@ export function SessionSeatMapModal({
   const [seatMapId, setSeatMapId] = useState<string | undefined>(session.seatMapId ?? undefined);
   const [blocks, setBlocks] = useState<{ seatMapId: string; blocks: Block[] } | null>(null);
   const [ticketTypes, setTicketTypes] = useState<TicketTypeResponse[]>([]);
-  const [allocations, setAllocations] = useState<Map<string, string>>(
-    new Map(session.allocations.map((allocation) => [allocation.code, allocation.ticketTypeId])),
-  );
+  const [allocations, setAllocations] = useState<Map<string, Arrangement>>(arrangementsOf(session));
   const [saving, setSaving] = useState(false);
 
   const locked = session.status !== 'Draft';
@@ -140,16 +168,24 @@ export function SessionSeatMapModal({
   // Derived rather than a flag: "a map is picked but its blocks are not here yet" is exactly what
   // loading means, and computing it removes a state that could disagree with reality.
   const loadingBlocks = seatMapId != null && loadedBlocks == null;
-  const unallocated = currentBlocks.filter((block) => !allocations.get(block.code));
+
+  const undecided = currentBlocks.filter((block) => !isDecided(allocations.get(block.code)));
+  const selling = currentBlocks.filter((block) => allocations.get(block.code)?.ticketTypeId);
+  const sellingCapacity = selling.reduce(
+    (total, block) => total + (allocations.get(block.code)?.capacityOverride ?? block.capacity),
+    0,
+  );
+  const houseCapacity = currentBlocks.reduce((total, block) => total + block.capacity, 0);
 
   // Two sources, and neither decides anything — a suggestion is filled in, shown, and editable
   // before it is saved. The server still validates every block against a real active ticket type.
   //
   // A sibling already mapped against this exact map wins: it is this organizer's own answer for
-  // this run, so it beats the venue's general habit. Only then the map's own tier labels, matched
-  // to a ticket type by name (ADR-0041 — the label is a name, never a price).
+  // this run, so it beats the venue's general habit — and it carries the whole arrangement, closed
+  // blocks and renames included, because those are usually the same every night too. Only then the
+  // map's own tier labels, matched to a ticket type by name (ADR-0041 — a name, never a price).
   const suggestedAllocations = useMemo(() => {
-    const suggestion = new Map<string, string>();
+    const suggestion = new Map<string, Arrangement>();
     if (currentBlocks.length === 0) {
       return suggestion;
     }
@@ -160,7 +196,12 @@ export function SessionSeatMapModal({
     );
     if (twin) {
       for (const allocation of twin.allocations) {
-        suggestion.set(allocation.code, allocation.ticketTypeId);
+        suggestion.set(allocation.code, {
+          ticketTypeId: allocation.ticketTypeId,
+          isExcluded: allocation.isExcluded,
+          displayName: allocation.displayName,
+          capacityOverride: allocation.capacityOverride,
+        });
       }
     }
 
@@ -173,7 +214,12 @@ export function SessionSeatMapModal({
       }
       const match = typeIdsByName.get(block.tierLabel.trim().toLowerCase());
       if (match) {
-        suggestion.set(block.code, match);
+        suggestion.set(block.code, {
+          ticketTypeId: match,
+          isExcluded: false,
+          displayName: null,
+          capacityOverride: null,
+        });
       }
     }
 
@@ -183,7 +229,7 @@ export function SessionSeatMapModal({
   }, [currentBlocks, siblings, session.id, seatMapId, ticketTypes]);
 
   const suggestedCount = [...suggestedAllocations.keys()].filter(
-    (code) => !allocations.get(code),
+    (code) => !isDecided(allocations.get(code)),
   ).length;
 
   const venueTiers = [
@@ -193,11 +239,18 @@ export function SessionSeatMapModal({
   const applySuggestions = () =>
     setAllocations((current) => {
       const next = new Map(current);
-      for (const [code, ticketTypeId] of suggestedAllocations) {
-        if (!next.get(code)) {
-          next.set(code, ticketTypeId);
+      for (const [code, arrangement] of suggestedAllocations) {
+        if (!isDecided(next.get(code))) {
+          next.set(code, arrangement);
         }
       }
+      return next;
+    });
+
+  const updateBlock = (code: string, change: Partial<Arrangement>) =>
+    setAllocations((previous) => {
+      const next = new Map(previous);
+      next.set(code, { ...(previous.get(code) ?? undecidedArrangement()), ...change });
       return next;
     });
 
@@ -218,10 +271,21 @@ export function SessionSeatMapModal({
       await setSessionAllocations(
         eventId,
         session.id,
-        currentBlocks.map((block) => ({
-          code: block.code,
-          ticketTypeId: allocations.get(block.code) as string,
-        })),
+        currentBlocks.map((block) => {
+          const arrangement = allocations.get(block.code) ?? undecidedArrangement();
+          return {
+            code: block.code,
+            // An excluded block sends no ticket type: the server refuses a row that is both, and
+            // the input keeps the old choice around so unticking restores it.
+            ticketTypeId: arrangement.isExcluded ? null : arrangement.ticketTypeId,
+            isExcluded: arrangement.isExcluded,
+            displayName: arrangement.isExcluded ? null : arrangement.displayName,
+            capacityOverride:
+              arrangement.isExcluded || block.kind !== 'GeneralAdmission'
+                ? null
+                : arrangement.capacityOverride,
+          };
+        }),
       );
 
       toast.success('Seat map and allocations saved.');
@@ -237,7 +301,7 @@ export function SessionSeatMapModal({
   return (
     <Modal
       open
-      width={760}
+      width={920}
       title="Seat map and pricing for this performance"
       onCancel={onClose}
       footer={
@@ -255,7 +319,12 @@ export function SessionSeatMapModal({
                 key="save"
                 type="primary"
                 loading={saving}
-                disabled={!seatMapId || currentBlocks.length === 0 || unallocated.length > 0}
+                disabled={
+                  !seatMapId ||
+                  currentBlocks.length === 0 ||
+                  undecided.length > 0 ||
+                  selling.length === 0
+                }
                 onClick={() => void handleSave()}
               >
                 Save
@@ -311,7 +380,7 @@ export function SessionSeatMapModal({
             onChange={(value) => {
               setSeatMapId(value);
               // A different map has different block codes, so nothing carries over.
-              setAllocations(value === session.seatMapId ? allocationsOf(session) : new Map());
+              setAllocations(value === session.seatMapId ? arrangementsOf(session) : new Map());
             }}
             placeholder="Select a published seat map"
             style={{ width: '100%', marginTop: 4 }}
@@ -370,13 +439,22 @@ export function SessionSeatMapModal({
         <Empty description="Pick a venue and a published seat map to allocate its blocks." />
       ) : (
         <>
-          {unallocated.length > 0 && !locked && (
+          {undecided.length > 0 && !locked && (
             <Alert
               type="warning"
               showIcon
               style={{ marginBottom: 12 }}
-              message={`${unallocated.length} block${unallocated.length === 1 ? '' : 's'} still needs a ticket type`}
-              description="Every block must sell as something. One left unmapped is capacity Inventory never hears about."
+              message={`${undecided.length} block${undecided.length === 1 ? '' : 's'} still needs an answer`}
+              description="Every block is either sold as something or closed for this performance. One left undecided is capacity Inventory never hears about."
+            />
+          )}
+          {undecided.length === 0 && selling.length === 0 && !locked && (
+            <Alert
+              type="error"
+              showIcon
+              style={{ marginBottom: 12 }}
+              message="This performance would sell nothing"
+              description="Every block is closed. Put at least one back on sale."
             />
           )}
           {suggestedCount > 0 && !locked && (
@@ -422,43 +500,128 @@ export function SessionSeatMapModal({
                   <Tag>{block.kind === 'Reserved' ? 'Reserved seats' : 'General admission'}</Tag>
                 ),
               },
-              { title: 'Capacity', dataIndex: 'capacity', key: 'capacity' },
               {
                 title: 'Sells as',
                 key: 'ticketType',
-                render: (_, block) => (
-                  <Select
-                    value={allocations.get(block.code)}
-                    disabled={locked}
-                    placeholder="Pick a ticket type"
-                    style={{ minWidth: 220 }}
-                    status={allocations.get(block.code) ? undefined : 'warning'}
-                    onChange={(ticketTypeId: string) =>
-                      setAllocations((previous) => {
-                        const next = new Map(previous);
-                        next.set(block.code, ticketTypeId);
-                        return next;
-                      })
-                    }
-                    options={ticketTypes.map((type) => ({
-                      value: type.id,
-                      label: `${type.name} — ${formatMoney(type.priceMinor, currency)}`,
-                    }))}
-                    notFoundContent="No active ticket types — add one on the Tickets & pricing tab."
-                  />
-                ),
+                render: (_, block) => {
+                  const arrangement = allocations.get(block.code);
+                  return (
+                    <Select
+                      value={
+                        arrangement?.isExcluded
+                          ? NOT_ON_SALE
+                          : (arrangement?.ticketTypeId ?? undefined)
+                      }
+                      disabled={locked}
+                      placeholder="Pick a ticket type"
+                      style={{ minWidth: 220 }}
+                      status={isDecided(arrangement) ? undefined : 'warning'}
+                      onChange={(value: string) =>
+                        updateBlock(
+                          block.code,
+                          value === NOT_ON_SALE
+                            ? { isExcluded: true }
+                            : { isExcluded: false, ticketTypeId: value },
+                        )
+                      }
+                      options={[
+                        { value: NOT_ON_SALE, label: 'Not on sale this performance' },
+                        ...ticketTypes.map((type) => ({
+                          value: type.id,
+                          label: `${type.name} — ${formatMoney(type.priceMinor, currency)}`,
+                        })),
+                      ]}
+                      notFoundContent="No active ticket types — add one on the Tickets & pricing tab."
+                    />
+                  );
+                },
+              },
+              {
+                title: 'Shown to buyers',
+                key: 'displayName',
+                render: (_, block) => {
+                  const arrangement = allocations.get(block.code);
+                  return (
+                    <Input
+                      // The venue's own name is the placeholder, so leaving it blank is visibly
+                      // "use what the building calls it" rather than "no name".
+                      placeholder={block.name}
+                      maxLength={100}
+                      style={{ minWidth: 160 }}
+                      disabled={locked || arrangement?.isExcluded === true}
+                      value={arrangement?.displayName ?? ''}
+                      onChange={(event) =>
+                        updateBlock(block.code, { displayName: event.target.value || null })
+                      }
+                    />
+                  );
+                },
+              },
+              {
+                title: 'Selling',
+                key: 'capacity',
+                render: (_, block) => {
+                  const arrangement = allocations.get(block.code);
+                  if (arrangement?.isExcluded) {
+                    return <Typography.Text type="secondary">—</Typography.Text>;
+                  }
+
+                  // Only an admission area can be capped to a number. A reserved section's capacity
+                  // is seats with identity, so "sell 200 of 400" would not say which 200 — holding
+                  // seats back there is seat blocking, on the event's Seats tab.
+                  if (block.kind !== 'GeneralAdmission') {
+                    return <Typography.Text>{block.capacity} seats</Typography.Text>;
+                  }
+
+                  return (
+                    <InputNumber
+                      min={1}
+                      max={block.capacity}
+                      precision={0}
+                      style={{ width: 110 }}
+                      disabled={locked}
+                      placeholder={String(block.capacity)}
+                      value={arrangement?.capacityOverride ?? null}
+                      onChange={(value) =>
+                        updateBlock(block.code, { capacityOverride: value ?? null })
+                      }
+                    />
+                  );
+                },
               },
             ]}
           />
+          <Typography.Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+            Selling {sellingCapacity.toLocaleString()} of {houseCapacity.toLocaleString()} this
+            performance.
+          </Typography.Paragraph>
         </>
       )}
     </Modal>
   );
 }
 
-/** The performance's saved allocations, as the code → ticket-type map this modal edits. */
-function allocationsOf(session: EventSessionResponse): Map<string, string> {
+/** A block nobody has answered for yet — neither priced nor closed. */
+function undecidedArrangement(): Arrangement {
+  return { ticketTypeId: null, isExcluded: false, displayName: null, capacityOverride: null };
+}
+
+/** Whether a block has been answered for: sold as something, or deliberately closed. */
+function isDecided(arrangement: Arrangement | undefined): boolean {
+  return arrangement != null && (arrangement.isExcluded || arrangement.ticketTypeId != null);
+}
+
+/** The performance's saved arrangement, as the code → block map this modal edits. */
+function arrangementsOf(session: EventSessionResponse): Map<string, Arrangement> {
   return new Map(
-    session.allocations.map((allocation) => [allocation.code, allocation.ticketTypeId]),
+    session.allocations.map((allocation) => [
+      allocation.code,
+      {
+        ticketTypeId: allocation.ticketTypeId,
+        isExcluded: allocation.isExcluded,
+        displayName: allocation.displayName,
+        capacityOverride: allocation.capacityOverride,
+      },
+    ]),
   );
 }

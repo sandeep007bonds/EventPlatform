@@ -42,9 +42,11 @@ public sealed class InventoryProvisioningService(
         var items = new List<InventoryItem>();
         foreach (var seat in seatMap.Seats)
         {
-            // A seat in a block nobody allocated is skipped rather than guessed at. Catalog refuses
-            // to publish a performance with an unallocated block, so reaching this means the two
-            // services disagree — and inventing a price would turn that into a wrong sale.
+            // A seat in a block with no allocation is skipped rather than guessed at. Usually that
+            // is the performance excluding the block — the upper tier closed for a half-house show,
+            // which Catalog simply leaves out of the payload. If instead the two services have
+            // drifted, skipping is still the right answer: inventing a price would turn a
+            // disagreement into a wrong sale.
             if (!allocationsByCode.TryGetValue(seat.SectionCode, out var allocation))
             {
                 continue;
@@ -70,6 +72,9 @@ public sealed class InventoryProvisioningService(
                 continue;
             }
 
+            // The performance may sell fewer than the area holds — 200 of a 400-capacity pit. Venue
+            // still says 400, because that is the building; the smaller number is this night's
+            // decision and Catalog carries it on the allocation.
             pools.Add(GeneralAdmissionAllocation.Create(
                 request.TenantId,
                 request.EventSessionId,
@@ -77,7 +82,7 @@ public sealed class InventoryProvisioningService(
                 area.AdmissionAreaId,
                 allocation.TicketTypeId,
                 allocation.PriceMinor,
-                area.Capacity));
+                allocation.CapacityOverride ?? area.Capacity));
         }
 
         inventory.AddGeneralAdmissionAllocations(pools);

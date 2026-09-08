@@ -273,8 +273,11 @@ public sealed class EventTests
             1,
             new VenueSnapshot("DY Patil Stadium", "Navi Mumbai", "IN", "Asia/Kolkata"));
 
-        session.SetAllocations([("LT", Guid.CreateVersion7())]);
+        session.SetAllocations([Sold("LT")]);
     }
+
+    private static SessionAllocationSpec Sold(string code) =>
+        new(code, Guid.CreateVersion7(), IsExcluded: false, null, null);
 
     private static void UpdatePresentation(Event @event, string title) =>
         @event.UpdatePresentation(

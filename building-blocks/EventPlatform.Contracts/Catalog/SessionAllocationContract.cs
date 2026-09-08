@@ -12,4 +12,14 @@ namespace EventPlatform.Contracts.Catalog;
 /// <param name="Code">The Venue seat-map section or admission-area code this covers.</param>
 /// <param name="TicketTypeId">The ticket type the block is sold under.</param>
 /// <param name="PriceMinor">That type's price in minor currency units, at publish time.</param>
-public sealed record SessionAllocationContract(string Code, Guid TicketTypeId, long PriceMinor);
+/// <param name="CapacityOverride">
+/// How many to sell from an admission area when the performance sells fewer than it holds;
+/// <see langword="null"/> to sell all of it. <b>Admission areas only</b> — a reserved section's
+/// capacity is seats with identity, so capping it to a number would not say which seats, and
+/// Inventory already blocks individual seats per performance for that.
+/// </param>
+public sealed record SessionAllocationContract(
+    string Code,
+    Guid TicketTypeId,
+    long PriceMinor,
+    int? CapacityOverride);

@@ -11,7 +11,12 @@ import {
   type EventResponse,
   type TicketTypeResponse,
 } from '../../../services/catalog/catalogApi';
-import { primarySession, runLabel, venueLabel } from '../../../utils/eventSessions';
+import {
+  primarySession,
+  runLabel,
+  sellingBlockCount,
+  venueLabel,
+} from '../../../utils/eventSessions';
 import { formatEventDateTime } from '../../../utils/eventTime';
 import { DetailSkeleton } from '../../../components/common/skeletons/DetailSkeleton';
 import { NotFoundPage } from '../../../components/common/errors/NotFoundPage';
@@ -157,10 +162,12 @@ export function AdminEventDetailPage() {
   const reload = () => load(id);
   const featured = primarySession(event);
   // What the Publish button is waiting on. Catalog refuses a publish unless every performance names
-  // a published seat-map version and allocates every one of its blocks, so saying so here is more
-  // useful than a button that only explains itself after being clicked.
+  // a published seat-map version and answers for every one of its blocks, so saying so here is more
+  // useful than a button that only explains itself after being clicked. Counting blocks *on sale*
+  // rather than allocation rows: excluding a block is a valid answer, but a performance where every
+  // block is excluded sells nothing and the server refuses it.
   const unreadySessions = event.sessions.filter(
-    (session) => session.seatMapVersionId == null || session.allocations.length === 0,
+    (session) => session.seatMapVersionId == null || sellingBlockCount(session) === 0,
   );
 
   return (

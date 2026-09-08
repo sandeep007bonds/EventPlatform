@@ -29,7 +29,7 @@ import {
   type EventSessionResponse,
 } from '../../../services/catalog/catalogApi';
 import { formatEventDateTime } from '../../../utils/eventTime';
-import { inStartOrder, venueLabel } from '../../../utils/eventSessions';
+import { inStartOrder, sellingBlockCount, venueLabel } from '../../../utils/eventSessions';
 import { toast } from '../../../components/common/feedback/toast';
 import { SessionSeatMapModal } from './SessionSeatMapModal';
 
@@ -217,17 +217,19 @@ export function EventPerformancesPanel({
                   ),
               },
               {
-                // The number a publish is refused over: a block with no ticket type is capacity
-                // Inventory never hears about, so the map would render with a hole nobody can tell
-                // from a sold-out block.
-                title: 'Allocated blocks',
+                // The number a publish is refused over — and it counts the blocks actually on sale,
+                // not the rows. A block excluded for this performance is answered for but sells
+                // nothing, so a map made entirely of them would read "ready" and publish anyway.
+                title: 'Blocks on sale',
                 key: 'allocations',
-                render: (_, session) =>
-                  session.allocations.length === 0 ? (
+                render: (_, session) => {
+                  const onSale = sellingBlockCount(session);
+                  return onSale === 0 ? (
                     <Typography.Text type="warning">None</Typography.Text>
                   ) : (
-                    session.allocations.length
-                  ),
+                    `${onSale} of ${session.allocations.length}`
+                  );
+                },
               },
               {
                 title: 'Status',
@@ -260,7 +262,7 @@ export function EventPerformancesPanel({
                               a pinned version and a fully allocated map, and a button that only
                               ever explains itself after being clicked is not a button. */}
                           {session.seatMapVersionId != null &&
-                            session.allocations.length > 0 &&
+                            sellingBlockCount(session) > 0 &&
                             event.status !== 'Draft' && (
                               <Button
                                 size="small"

@@ -1,6 +1,8 @@
 global using EventPlatform.Contracts;
+global using EventPlatform.Contracts.Catalog;
 global using Inventory.Application.Abstractions;
 global using Inventory.Application.Holds;
+global using Inventory.Application.Provisioning;
 global using Inventory.Domain;
 global using Inventory.Infrastructure;
 global using Microsoft.Extensions.Configuration;

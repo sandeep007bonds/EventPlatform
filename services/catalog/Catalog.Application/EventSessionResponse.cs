@@ -18,7 +18,10 @@ namespace Catalog.Application;
 /// <param name="City">City, from the cached display snapshot.</param>
 /// <param name="Country">ISO 3166-1 alpha-2 country code, from the cached display snapshot.</param>
 /// <param name="TimeZoneId">The venue's IANA time zone — render this performance's times in it.</param>
-/// <param name="Allocations">Which block is sold as which ticket type, for this performance.</param>
+/// <param name="Allocations">
+/// How this performance arranges the venue: which block sells as which ticket type, which are not
+/// on sale, and what buyers see them called.
+/// </param>
 public sealed record EventSessionResponse(
     Guid Id,
     Guid EventId,

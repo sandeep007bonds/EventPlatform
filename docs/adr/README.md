@@ -53,6 +53,7 @@ supersedes the old one (mark the old one `Superseded by ADR-XXXX`).
 | [0039](0039-event-sessions-as-the-selling-grain.md) | The performance, not the event, is what gets sold; Catalog's seat map is deleted in favour of Venue's | Accepted |
 | [0040](0040-the-event-envelope.md) | Every published event carries a correlation id, a causation id and a contract version — beside the event, not inside it; every subscription has a dead-letter topic and a retry cap | Accepted |
 | [0041](0041-tier-labels-on-a-seat-map.md) | A seat map may say how a block is usually sold, but never what it costs — an optional tier label, read only by the editor | Accepted |
+| [0042](0042-the-performance-overlay.md) | A performance arranges the venue it hires — closing a block, renaming it for buyers, capping an admission area — and none of it reaches the venue's library | Accepted |
 
 ## Format
 

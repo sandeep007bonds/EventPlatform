@@ -7,7 +7,11 @@ namespace Catalog.Application.Publishing;
 /// <param name="Problem">
 /// Why it cannot be sold, in words an organizer can act on; <see langword="null"/> when it can.
 /// </param>
-/// <param name="Capacity">Sellable capacity of the pinned seat-map version.</param>
+/// <param name="Capacity">
+/// What this performance actually sells: the blocks it kept, capped where it capped them. Not the
+/// pinned version's own capacity, which is the building's number and counts blocks this night
+/// excluded.
+/// </param>
 /// <param name="Allocations">Each block, its ticket type, and that type's price at this moment.</param>
 public sealed record SessionPublishReadiness(
     string? Problem,
@@ -25,7 +29,7 @@ public sealed record SessionPublishReadiness(
     public static SessionPublishReadiness Blocked(string problem) => new(problem, 0, []);
 
     /// <summary>The performance is ready to sell.</summary>
-    /// <param name="capacity">Sellable capacity of the pinned seat-map version.</param>
+    /// <param name="capacity">What this performance sells — see <see cref="Capacity"/>.</param>
     /// <param name="allocations">Each block, its ticket type, and that type's price.</param>
     /// <returns>A ready readiness.</returns>
     public static SessionPublishReadiness Ready(int capacity, IReadOnlyList<SessionAllocationPayload> allocations) =>
@@ -66,6 +70,8 @@ public sealed record SessionPublishReadiness(
             @event.MaxTicketsPerBuyer,
             @event.RequiresQueue,
             @event.Currency,
-            Allocations.Select(a => new SessionAllocationContract(a.Code, a.TicketTypeId, a.PriceMinor)).ToList());
+            Allocations
+                .Select(a => new SessionAllocationContract(a.Code, a.TicketTypeId, a.PriceMinor, a.CapacityOverride))
+                .ToList());
     }
 }

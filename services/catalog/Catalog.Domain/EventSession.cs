@@ -113,11 +113,14 @@ public sealed class EventSession
     /// </summary>
     public VenueSnapshot? Venue { get; private set; }
 
-    /// <summary>Which block is sold as which ticket type, for this performance.</summary>
+    /// <summary>
+    /// How this performance arranges the venue it hires: which block is sold as which ticket type,
+    /// which are not on sale at all, and what buyers see them called.
+    /// </summary>
     public IReadOnlyCollection<SessionAllocation> Allocations => _allocations;
 
     /// <summary>Whether this performance has everything it needs to go on sale.</summary>
-    public bool IsSellable => SeatMapVersionId is not null && _allocations.Count > 0;
+    public bool IsSellable => SeatMapVersionId is not null && _allocations.Any(a => !a.IsExcluded);
 
     /// <summary>Moves this performance in time. Only while it is a draft.</summary>
     /// <param name="startsAt">Scheduled start (UTC).</param>
@@ -187,18 +190,19 @@ public sealed class EventSession
     }
 
     /// <summary>
-    /// Replaces the whole allocation map — which block is sold as which ticket type.
+    /// Replaces the whole allocation map — which block is sold as which ticket type, which are not
+    /// on sale, and what buyers see them called.
     /// </summary>
     /// <remarks>
     /// Wholesale, like the seat-map layout it mirrors: the caller knows every block in the version
     /// it is looking at, and a partial update would leave "which blocks are still unassigned"
     /// unanswerable without re-reading everything anyway.
     /// </remarks>
-    /// <param name="allocations">Section/area code paired with the ticket type it sells as.</param>
+    /// <param name="allocations">Each block's arrangement for this performance.</param>
     /// <exception cref="InvalidOperationException">
-    /// The performance is not a draft, or a code appears twice.
+    /// The performance is not a draft, a code appears twice, or a block is both excluded and priced.
     /// </exception>
-    public void SetAllocations(IEnumerable<(string Code, Guid TicketTypeId)> allocations)
+    public void SetAllocations(IEnumerable<SessionAllocationSpec> allocations)
     {
         ArgumentNullException.ThrowIfNull(allocations);
         EnsureDraft();
@@ -215,9 +219,27 @@ public sealed class EventSession
                 $"Block '{duplicate.Key}' is allocated more than once for this performance.");
         }
 
+        // Excluded and priced are the two answers to one question, so a row carrying both is a
+        // caller that has not decided. Left to reach the database it would sell a block the
+        // organizer marked closed, or hide one they priced — either way in silence.
+        foreach (var allocation in materialized)
+        {
+            if (allocation.IsExcluded == (allocation.TicketTypeId is not null))
+            {
+                throw new InvalidOperationException(
+                    $"Block '{allocation.Code}' must either be sold as a ticket type or be excluded, not both or neither.");
+            }
+        }
+
         _allocations.Clear();
-        _allocations.AddRange(materialized.Select(a =>
-            new SessionAllocation(Guid.CreateVersion7(), Id, a.Code, a.TicketTypeId)));
+        _allocations.AddRange(materialized.Select(a => new SessionAllocation(
+            Guid.CreateVersion7(),
+            Id,
+            a.Code,
+            a.TicketTypeId,
+            a.IsExcluded,
+            string.IsNullOrWhiteSpace(a.DisplayName) ? null : a.DisplayName.Trim(),
+            a.CapacityOverride)));
     }
 
     /// <summary>
@@ -237,7 +259,9 @@ public sealed class EventSession
                 "This performance has no seat map. Attach a published seat-map version before publishing it.");
         }
 
-        if (_allocations.Count == 0)
+        // Excluding every block is a valid thing to type and never a valid thing to sell, so it is
+        // refused here rather than published as an event with a capacity of zero.
+        if (!_allocations.Any(a => !a.IsExcluded))
         {
             throw new InvalidOperationException(
                 "This performance sells nothing: no block has been allocated to a ticket type.");

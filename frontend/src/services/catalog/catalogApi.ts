@@ -59,13 +59,24 @@ export interface EventResponse {
 export type EventSessionStatus = 'Draft' | 'Published' | 'Cancelled' | 'Completed';
 
 /**
- * Which Venue block is sold as which ticket type, for this performance. Keyed by the block's
- * stable `code`, because a Venue seat carries no price and a rename must not break the mapping.
- * Per performance on purpose: Friday's Lower Tier can be Gold while Saturday's is Premium.
+ * How one Venue block is arranged for this performance. Keyed by the block's stable `code`,
+ * because a Venue seat carries no price and a rename must not break the mapping. Per performance
+ * on purpose: Friday's Lower Tier can be Gold while Saturday's is Premium.
+ *
+ * It is also the overlay a promoter arranges a hired venue with — the upper tier closed, the north
+ * stand advertised as "Golden Circle", a 400-capacity pit sold to 200. None of those are facts
+ * about the building, so none of them live in Venue.
  */
 export interface SessionAllocationResponse {
   code: string;
-  ticketTypeId: string;
+  /** `null` only when the block is excluded — a block nobody sells has no price to name. */
+  ticketTypeId: string | null;
+  /** Deliberately not on sale this performance, as opposed to simply undecided. */
+  isExcluded: boolean;
+  /** What buyers see it called; `null` uses the venue's own name. The code never changes. */
+  displayName: string | null;
+  /** How many to sell from an admission area; `null` sells all of it. Areas only. */
+  capacityOverride: number | null;
 }
 
 /**
@@ -364,11 +375,13 @@ export async function attachSessionSeatMap(
 }
 
 /**
- * Sets which ticket type each block of the pinned seat map sells as. Replaces the whole map — one
- * row per Venue section or admission area code, about twenty for a stadium, not one per seat.
+ * Sets how each block of the pinned seat map is arranged for this performance. Replaces the whole
+ * map — one row per Venue section or admission area code, about twenty for a stadium, not one per
+ * seat.
  *
  * A block left out is not spare capacity: publish refuses it, because Inventory would never hear
  * about those seats and the map would render with a hole nobody can tell from a sold-out block.
+ * Closing a block is `isExcluded`, which says the same thing on purpose.
  */
 export async function setSessionAllocations(
   eventId: string,

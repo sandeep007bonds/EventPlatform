@@ -91,3 +91,15 @@ export function findSession(
 
   return event.sessions.find((session) => session.id === eventSessionId) ?? null;
 }
+
+/**
+ * How many of a performance's blocks are actually on sale.
+ *
+ * Not `allocations.length`. Every block has to be answered for before a performance can publish,
+ * but "closed for this show" is one of the two valid answers — so a run where the promoter excluded
+ * everything has a full allocation list and sells nothing. Catalog refuses that publish; anything
+ * showing readiness has to count the same way, or it offers a button the server will reject.
+ */
+export function sellingBlockCount(session: EventSessionResponse): number {
+  return session.allocations.filter((allocation) => !allocation.isExcluded).length;
+}
