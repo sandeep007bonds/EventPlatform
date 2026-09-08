@@ -36,7 +36,12 @@ wait_for() {
   echo " ready."
 }
 
-wait_for postgres "docker compose exec -T postgres pg_isready -U eventplatform"
+# -h localhost, not the container's default unix socket, and that is the whole point. On a fresh
+# volume the entrypoint runs initdb, starts a *temporary* server on the socket only to run
+# docker/postgres-init, then shuts it down and starts the real one. A socket pg_isready is happy
+# with that temporary server, so this returned "ready" mid-initialisation and the next command hit
+# the shutdown with "Connection refused". The temporary server never listens on TCP.
+wait_for postgres "docker compose exec -T postgres pg_isready -h localhost -U eventplatform"
 wait_for redis "docker compose exec -T redis redis-cli ping | grep -q PONG"
 
 # One database per service (ADR-0008). docker/postgres-init seeds these on a fresh volume, but
@@ -45,12 +50,15 @@ wait_for redis "docker compose exec -T redis redis-cli ping | grep -q PONG"
 # them the services connect to databases that do not exist, EF logs a connection error apiece and
 # then creates each database itself as a side effect of migrating — provisioning a database is the
 # environment's job, not the application's.
+# `|| true` on the createdb, because "already exists" is the expected answer, not a failure: this
+# loop and docker/postgres-init do the same job and either may get there first. Without it `set -e`
+# turned a benign duplicate into an aborted startup that launched nothing at all.
 echo "==> Ensuring per-service databases exist..."
 for db in catalog communication identity inventory ordering payments queue ticketing venue; do
-  if ! docker compose exec -T postgres psql -U eventplatform -d postgres -tAc \
+  if ! docker compose exec -T postgres psql -h localhost -U eventplatform -d postgres -tAc \
        "SELECT 1 FROM pg_database WHERE datname='$db'" | grep -q 1; then
     echo "    creating $db"
-    docker compose exec -T postgres createdb -U eventplatform "$db"
+    docker compose exec -T postgres createdb -h localhost -U eventplatform "$db" || true
   fi
 done
 
