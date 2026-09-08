@@ -17,4 +17,7 @@ public enum SaveSeatMapLayoutOutcome
 
     /// <summary>A section or area names a gate that is not this venue's, or is not in use.</summary>
     UnknownGate = 4,
+
+    /// <summary>Another save of this same draft landed first, so this one wrote nothing.</summary>
+    ConcurrentEdit = 5,
 }

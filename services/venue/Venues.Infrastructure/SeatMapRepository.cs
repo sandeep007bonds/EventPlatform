@@ -100,6 +100,20 @@ internal sealed class SeatMapRepository(VenuesDbContext dbContext) : ISeatMapRep
     public Task SaveChangesAsync(CancellationToken cancellationToken) =>
         dbContext.SaveChangesAsync(cancellationToken);
 
+    /// <inheritdoc />
+    public async Task<bool> TrySaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return false;
+        }
+    }
+
     private static Task LoadVersionsAsync(IQueryable<SeatMapVersion> versions, CancellationToken cancellationToken) =>
         versions
             .Include(v => v.Sections)

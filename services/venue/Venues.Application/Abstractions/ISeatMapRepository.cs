@@ -42,4 +42,19 @@ public interface ISeatMapRepository
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A task that completes when changes are saved.</returns>
     Task SaveChangesAsync(CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Persists all pending changes, returning <see langword="false"/> instead of throwing when the
+    /// rows this save expected to change are not the rows the database still holds.
+    /// </summary>
+    /// <remarks>
+    /// Replacing a draft's layout deletes every section, row and seat it had and writes the new
+    /// ones. Two saves of the same draft in flight together therefore both try to delete the same
+    /// rows, and the second finds them gone — which EF reports as a concurrency conflict. It is a
+    /// lost race, not a server fault, so the caller turns it into an answer the organizer can act
+    /// on rather than a 500.
+    /// </remarks>
+    /// <param name="cancellationToken">A cancellation token.</param>
+    /// <returns><see langword="true"/> if saved; <see langword="false"/> on a concurrency conflict.</returns>
+    Task<bool> TrySaveChangesAsync(CancellationToken cancellationToken);
 }

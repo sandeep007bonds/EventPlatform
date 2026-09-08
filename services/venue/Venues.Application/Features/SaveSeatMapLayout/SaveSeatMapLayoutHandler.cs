@@ -52,7 +52,19 @@ internal sealed class SaveSeatMapLayoutHandler(ISeatMapRepository seatMaps, IVen
             return new SaveSeatMapLayoutResult(SaveSeatMapLayoutOutcome.InvalidLayout, exception.Message, null);
         }
 
-        await seatMaps.SaveChangesAsync(cancellationToken);
+        // A layout is replaced wholesale, so this save deletes every row the draft had and writes
+        // the new ones. Two saves of the same draft overlapping — Save clicked and then Publish
+        // before the first returned — both delete the same rows, and the loser finds them already
+        // gone. EF reports that as a concurrency conflict, and reporting it onward as a 500 blamed
+        // the server for what is an ordinary lost race.
+        if (!await seatMaps.TrySaveChangesAsync(cancellationToken))
+        {
+            return new SaveSeatMapLayoutResult(
+                SaveSeatMapLayoutOutcome.ConcurrentEdit,
+                "This draft was saved by another request a moment ago. Reopen the map and re-apply "
+                + "your changes so you are editing what is actually stored.",
+                null);
+        }
 
         return new SaveSeatMapLayoutResult(SaveSeatMapLayoutOutcome.Saved, null, seatMap.ToResponse(draft));
     }

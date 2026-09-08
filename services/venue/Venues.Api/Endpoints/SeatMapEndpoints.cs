@@ -134,6 +134,7 @@ public static class SeatMapEndpoints
             SaveSeatMapLayoutOutcome.NoOpenDraft => Results.Conflict(result.Message),
             SaveSeatMapLayoutOutcome.InvalidLayout => Results.BadRequest(result.Message),
             SaveSeatMapLayoutOutcome.UnknownGate => Results.BadRequest(result.Message),
+            SaveSeatMapLayoutOutcome.ConcurrentEdit => Results.Conflict(result.Message),
             _ => Results.Problem("Unexpected save-layout outcome."),
         };
     }

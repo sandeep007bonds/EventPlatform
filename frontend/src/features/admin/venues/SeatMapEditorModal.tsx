@@ -144,6 +144,9 @@ export function SeatMapEditorModal({
   const version = seatMap?.version;
   const editable = version?.status === 'Draft';
 
+  // One flag for "a write is in flight", so no button can start a second one.
+  const busy = saving || publishing;
+
   // The only place this form is written to the server. Both buttons go through it so the two can
   // never drift — Publish sends the layout on screen, not whatever the draft last happened to hold.
   const persistLayout = (values: LayoutFormValues) =>
@@ -259,11 +262,20 @@ export function SeatMapEditorModal({
           Close
         </Button>,
         editable ? (
-          <Button key="save" loading={saving} onClick={() => void form.submit()}>
+          // Disabled while *either* is running, not just this one. A layout is replaced wholesale,
+          // so two overlapping saves of one draft both delete the rows the other is deleting and
+          // the loser fails on rows that are already gone. Ant's `loading` disables its own button
+          // and says nothing about the other, which left Save clickable mid-publish.
+          <Button key="save" loading={saving} disabled={busy} onClick={() => void form.submit()}>
             Save draft
           </Button>
         ) : (
-          <Button key="draft" loading={saving} onClick={() => void handleStartDraft()}>
+          <Button
+            key="draft"
+            loading={saving}
+            disabled={busy}
+            onClick={() => void handleStartDraft()}
+          >
             Start a new draft
           </Button>
         ),
@@ -272,6 +284,7 @@ export function SeatMapEditorModal({
             key="publish"
             type="primary"
             loading={publishing}
+            disabled={busy}
             onClick={() => void handlePublish()}
           >
             Publish
