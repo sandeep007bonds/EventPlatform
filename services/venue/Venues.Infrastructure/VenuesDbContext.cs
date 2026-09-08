@@ -23,6 +23,11 @@ public sealed class VenuesDbContext(DbContextOptions<VenuesDbContext> options)
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(VenuesDbContext).Assembly);
         modelBuilder.ApplyOutbox();
 
+        // Every id here is minted by the domain, so EF must not read "the key is already set" as
+        // "this row exists" — that is what made an edit to a stored seat map issue an UPDATE
+        // against a brand-new id and fail with a concurrency error.
+        modelBuilder.ApplyClientGeneratedKeys();
+
         // Audit shadow properties, last so every configuration and the outbox mapping are
         // already in the model (ADR-0036).
         modelBuilder.ApplyAuditFields();

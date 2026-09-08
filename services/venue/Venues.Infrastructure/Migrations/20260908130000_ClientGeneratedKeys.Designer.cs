@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using Venues.Infrastructure;
@@ -11,9 +12,11 @@ using Venues.Infrastructure;
 namespace Venues.Infrastructure.Migrations
 {
     [DbContext(typeof(VenuesDbContext))]
-    partial class VenuesDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260908130000_ClientGeneratedKeys")]
+    partial class ClientGeneratedKeys
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
