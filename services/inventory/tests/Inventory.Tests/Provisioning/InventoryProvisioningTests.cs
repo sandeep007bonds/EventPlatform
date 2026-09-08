@@ -75,7 +75,9 @@ public sealed class InventoryProvisioningTests
     private static SessionAllocationContract Allocation(string code, int? capacityOverride = null) =>
         new(code, TicketTypeId, 500_000, capacityOverride);
 
-    private IReadOnlyList<GeneralAdmissionAllocation> CapturedPools() =>
+    // List, not IReadOnlyList: CA1859 wants the concrete type on a private member, and it is right —
+    // the interface buys nothing when the only caller is three lines below.
+    private List<GeneralAdmissionAllocation> CapturedPools() =>
         inventory.ReceivedCalls()
             .Where(call => call.GetMethodInfo().Name == nameof(IInventoryRepository.AddGeneralAdmissionAllocations))
             .SelectMany(call => (IEnumerable<GeneralAdmissionAllocation>)call.GetArguments()[0]!)

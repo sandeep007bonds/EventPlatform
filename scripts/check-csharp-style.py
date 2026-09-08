@@ -581,6 +581,33 @@ def check_unused_private_field(path, code, findings):
                              f"private field '{name}' is never read"))
 
 
+def check_private_collection_return(path, code, findings):
+    """CA1859 — a private member returning a collection *interface* it always materializes.
+
+    The rule only applies where the compiler can see every caller, so it is private and internal
+    members only; a public signature is an API decision and stays whatever it says. It fires when
+    the declared type is an interface but the body hands back a `List<T>`/array outright, because
+    then the interface costs an indirection and buys nothing — the one caller is usually three
+    lines below.
+
+    `Task<IReadOnlyList<T>>` is deliberately not matched: CA1859 does not look through the task, so
+    the two async helpers in this repo that return one compile today and a rule that flagged them
+    would be wrong about the build rather than strict about it.
+    """
+    interfaces = r'IReadOnlyList|IReadOnlyCollection|IEnumerable|ICollection|IList'
+    declaration = re.compile(
+        rf'^[ \t]+(?:private|internal)\s+(?:static\s+)?({interfaces})<[^\n]*?>\s+\w+\s*\([^\n]*\)\s*=>',
+        re.M)
+    for match in declaration.finditer(code):
+        tail = code[match.end():]
+        # The expression body, up to the semicolon that ends the member.
+        body = tail.split(';', 1)[0]
+        if re.search(r'\.To(?:List|Array)\(\)\s*$', body.strip()):
+            findings.append((path, code[:match.start()].count('\n') + 1, 'CA1859',
+                             'a private member that returns .ToList()/.ToArray() should be declared '
+                             'as the concrete type, not a collection interface'))
+
+
 def check_overload_adjacency(path, code, findings):
     """S4136 — overloads of one method separated by another member.
 
@@ -886,6 +913,7 @@ def main():
         check_sa1507(normalized, raw, findings)
         check_unused_private_field(normalized, code, findings)
         check_overload_adjacency(normalized, code, findings)
+        check_private_collection_return(normalized, code, findings)
 
     # Arity needs every declaration in view, so it only runs on a full-tree pass.
     if not scoped:
